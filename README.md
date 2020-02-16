@@ -19,7 +19,7 @@ The library consists of two layers:
 
 The SHARP and hardware multicast teams requires Mellanox's SHARP software library, the hardware multicast team requires Mellanox's VMC software library.
 
-..1. Build and install TCCL:
+..#. Build and install TCCL:
 
 ``` bash
 %git clone https://github.com/openucx/mccl.git
@@ -30,7 +30,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % make -j install
 ```
 
-..1. Build and install MCCL:
+..#. Build and install MCCL:
 
 ``` bash
 % cd mccl
@@ -38,7 +38,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % ./configure –prefix=mccl_install --with-tccl=<tccl_install>
 ```
 
-..1. Build and install Open MPI :
+..#. Build and install Open MPI :
 
 ``` bash
 % git clone https://github.com/vspetrov/ompi/tree/mccl ompi-mccl
@@ -49,7 +49,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % make -j install
 ```
  
-..1. Run :
+..#. Run :
 
 ``` bash
 % export tccl=<path>/lib
@@ -57,8 +57,9 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % export ucx=<path>/lib  
 % export mccl=<path>/lib  
 % export mpirun=<path_to_ompi>/bin/mpirun
+% export nnodes=2 ppn=28
 
-% nnodes=2; ppn=28; $mpirun  -x MCCL_ENABLE_VMC=0 -x VMC_DEV=mlx5_0:1 -x UCX_LOG_LEVEL=fatal -mca coll ^hcoll   -mca coll_mccl_verbose 0 -x TCCL_TEAM_LIB_PATH=$WDIR/tccl_install/install/lib/tccl -x UCX_HANDLE_ERRORS=freeze -x LD_LIBRARY_PATH=$tccl:$ucx:$vmc:$mccl:$LD_LIBRARY_PATH -mca pml ucx  -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core -x UCX_NET_DEVICES=mlx5_0:1 --tag-output ./osu_bcast_ompi -f
+% $mpirun -x MCCL_ENABLE_VMC=0 -x VMC_DEV=mlx5_0:1 -x UCX_LOG_LEVEL=fatal -mca coll ^hcoll   -mca coll_mccl_verbose 0 -x TCCL_TEAM_LIB_PATH=$WDIR/tccl_install/install/lib/tccl -x UCX_HANDLE_ERRORS=freeze -x LD_LIBRARY_PATH=$tccl:$ucx:$vmc:$mccl:$LD_LIBRARY_PATH -mca pml ucx  -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core -x UCX_NET_DEVICES=mlx5_0:1 --tag-output ./osu_bcast_ompi -f
 ```
 
 # Performance 
