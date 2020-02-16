@@ -6,7 +6,7 @@ The library consists of two layers:
    * A shared memory Team
    * A UCX Team 
    * A SHARP Team
-   * A Hardware multicast Team 
+   * A Hardware multicast Team (vmc)
 
 2. **MCCL** - is the upper layer and implements a light-weight, highly scalable framework for expressing hierarchical collectives in terms of the Team abstraction.
    
@@ -59,8 +59,8 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 
 # Performance 
 
-## One-level Allreduce: SHARP team  
-Helios Cluster: EDR 16 nodes, 1 process-per-node
+### One-level Allreduce: SHARP team  
+>Helios Cluster: EDR 16 nodes, 1 process-per-node
 
 **OSU Allreduce**
 | msglen	| HCOLL (SHARP) | MCCL |	
@@ -75,9 +75,8 @@ Helios Cluster: EDR 16 nodes, 1 process-per-node
 | 512 |	3.77 | 2.86 |
 
 
-## Two-level Allreduce: shared memory socket team, shared memory NUMA team 
-
-Single node POWER9 168 threads  
+### Two-level Allreduce: shared memory socket team, shared memory NUMA team 
+>Single node POWER9 168 threads  
 
 **OSU Allreduce**
 | msglen | 	hcoll | mccl |
@@ -95,7 +94,7 @@ Single node POWER9 168 threads
 
 
 ## Three-level Broadcast: UCX team, UCX team, Hardware Multicast team (VMC) :
-Hercules test bed: HDR100 110 nodes, 32 processes-per-node
+>Hercules test bed: HDR100 110 nodes, 32 processes-per-node
 
 **OSU Bcast**
 | msglen	| hcoll	| mccl |
