@@ -25,7 +25,8 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 %git clone https://github.com/openucx/mccl.git
 % cd tccl
 % ./autogen.sh
-% ./configure --prefix=tccl_install --with-vmc=/path/to/vmc/install --with-ucx=/path/to/ucx/install --with-sharp=/path/to/sharp/install
+% ./configure --prefix=tccl_install --with-vmc=/path/to/vmc/install \ 
+--with-ucx=/path/to/ucx/install --with-sharp=/path/to/sharp/install
 % make -j install
 ```
 
@@ -34,7 +35,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 ``` bash
 % cd mccl
 % ./autogen.sh
-% ./configure –prefix=mccl_install --with-tccl=<tccl_install>`
+% ./configure –prefix=mccl_install --with-tccl=<tccl_install>
 ```
 
 ..1. Build and install Open MPI :
@@ -43,7 +44,8 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % git clone https://github.com/vspetrov/ompi/tree/mccl ompi-mccl
 % cd ompi-mccl
 % ./autogen.pl
-% ./configure --prefix=$PWD/install --enable-mpirun-prefix-by-default --with-ucx=$HPCX_UCX_DIR --enable-mca-no-build=btl-uct,btl-openib  --with-mccl=<mccl_install> CPPFLAGS=”-I/path/to/tccl_install/tccl/install/include” ``
+% ./configure --prefix=$PWD/install --enable-mpirun-prefix-by-default \
+--with-ucx=$HPCX_UCX_DIR --enable-mca-no-build=btl-uct,btl-openib  --with-mccl=<mccl_install> CPPFLAGS=”-I/path/to/tccl_install/tccl/install/include” 
 % make -j install
 ```
  
