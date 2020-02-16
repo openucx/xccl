@@ -39,8 +39,8 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % git clone https://github.com/vspetrov/ompi/tree/mccl ompi-mccl
 % cd ompi-mccl
 % ./autogen.pl
-% ./configure --prefix=$PWD/install --enable-mpirun-prefix-by-default \
---with-ucx=$HPCX_UCX_DIR --enable-mca-no-build=btl-uct,btl-openib  --with-mccl=<mccl_install> CPPFLAGS=”-I/path/to/tccl_install/tccl/install/include” 
+% ./configure --prefix=$PWD/install --with-platform=contrib/platform/mellanox/optimized \
+--with-mccl=<mccl_install> CPPFLAGS=”-I/path/to/tccl_install/tccl/install/include” 
 % make -j install
 ```
  
