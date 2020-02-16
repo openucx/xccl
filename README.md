@@ -14,7 +14,7 @@ The library consists of two layers:
 
 The SHARP and hardware multicast teams requires Mellanox's SHARP software library, the hardware multicast team requires Mellanox's VMC software library.
 
-   # Build and install TCCL:
+   ### Build and install TCCL:
 
 ``` bash
 %git clone https://github.com/openucx/mccl.git
@@ -25,7 +25,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % make -j install
 ```
 
-   # Build and install MCCL:
+   ### Build and install MCCL:
 
 ``` bash
 % cd mccl
@@ -33,7 +33,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % ./configure –prefix=mccl_install --with-tccl=<tccl_install>
 ```
 
-   # Build and install Open MPI :
+   ### Build and install Open MPI :
 
 ``` bash
 % git clone https://github.com/vspetrov/ompi/tree/mccl ompi-mccl
@@ -44,7 +44,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % make -j install
 ```
  
-   # Run :
+   ### Run :
 
 ``` bash
 % export tccl=<path>/lib
