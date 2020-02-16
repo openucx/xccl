@@ -2,18 +2,13 @@
 
 The library consists of two layers: 
 
-1. **TCCL**  
-
-   TCCL, *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCX CWG** for the following:
+1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCX CWG** for the following:
    * A shared memory Team
    * A UCX Team 
    * A SHARP Team
    * A Hardware multicast Team 
 
-2. **MCCL**
-
-   MCCL is the upper layer and implements a light-weight, highly scalable framework for expressing hierarchical collectives in terms of the Team abstraction.
-
+2. **MCCL** - is the upper layer and implements a light-weight, highly scalable framework for expressing hierarchical collectives in terms of the Team abstraction.
    
 # Quick Start Guide
 
@@ -30,7 +25,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % make -j install
 ```
 
-..#. Build and install MCCL:
+..* Build and install MCCL:
 
 ``` bash
 % cd mccl
@@ -38,7 +33,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % ./configure –prefix=mccl_install --with-tccl=<tccl_install>
 ```
 
-..#. Build and install Open MPI :
+..* Build and install Open MPI :
 
 ``` bash
 % git clone https://github.com/vspetrov/ompi/tree/mccl ompi-mccl
@@ -49,7 +44,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % make -j install
 ```
  
-..#. Run :
+..* Run :
 
 ``` bash
 % export tccl=<path>/lib
