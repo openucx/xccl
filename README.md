@@ -2,7 +2,7 @@
 
 The MCCL library framework is a continuous extension of the advanced research and development on extreme-scale collective communications used by Mellanox for HPC, AI/ML application domains. The MCCL library implements "Teams API" concepts which is flexible and feature-rich for current and emerging programming models and runtimes. 
 
-## High-level features
+## MCCL Goals
 
 * Provides collective operations for HPC and AI/ML programming models
 * Enables hierarchial collectives (dynamic and static hiearchies)
@@ -17,7 +17,7 @@ The MCCL library framework is a continuous extension of the advanced research an
 
 ### The library consists of two layers: 
 
-1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCX CWG** for the following:
+1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCX Collectives WG** for the following:
    * A UCX Team 
    * A SHARP Team
    * A shared memory Team (proprietary)
@@ -108,7 +108,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 | 2048 | 12.5 | 25.18 |
 
 
-## Three-level Broadcast: UCX team, UCX team, Hardware Multicast team (VMC) :
+### Three-level Broadcast: UCX team, UCX team, Hardware Multicast team (VMC) :
 >Hercules test bed: HDR100 110 nodes, 32 processes-per-node
 
 **OSU Bcast**
