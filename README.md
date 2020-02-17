@@ -33,7 +33,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 
 ``` bash
 # Line below is needed for all "HPCX_*" variables used in examples below
-% source /path/to/hpcx/dir/hpcx-init.sh --nompi
+% module load /path/to/hpcx/dir/modulefiles/hpcx-stack
 % export MCCL_DIR=$PWD/mccl
 
 % git clone https://github.com/openucx/mccl.git $MCCL_DIR
