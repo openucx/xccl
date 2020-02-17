@@ -40,7 +40,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % cd $MCCL_DIR
 % ./autogen.sh
 % ./configure --prefix=$PWD/install --with-vmc=$HPCX_VMC_DIR \ 
---with-ucx=$HPCX_UCX_DIR --with-sharp=$HPCX_SHARP_DIR
+  --with-ucx=$HPCX_UCX_DIR --with-sharp=$HPCX_SHARP_DIR
 % make -j install
 ```
 
@@ -53,16 +53,18 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 % git fetch origin pull/7409/head
 % git submodule update --init --recursive
 % ./autogen.pl
-% ./configure --prefix=$OMPI_MCCL_DIR/install --with-platform=contrib/platform/mellanox/optimized \
---with-mccl=$MCCL_DIR/install
+% ./configure --prefix=$OMPI_MCCL_DIR/install \
+  --with-platform=contrib/platform/mellanox/optimized \
+  --with-mccl=$MCCL_DIR/install
 % make -j install
 ```
  
    ### Run :
 
-Example shows how to run osu_allreduce benchmark (https://mvapich.cse.ohio-state.edu/benchmarks/) with MCCL support
+>Example shows how to run osu_allreduce benchmark (https://mvapich.cse.ohio-state.edu/benchmarks/) with MCCL support
 ``` bash
-% export LD_LIBRARY_PATH="$MCCL_DIR/install/lib:$MCCL_DIR/install/lib/tccl:$OMPI_MCCL_DIR/install/lib:$LD_LIBRARY_PATH"
+% export LD_LIBRARY_PATH="$MCCL_DIR/install/lib:$MCCL_DIR/install/lib/tccl"
+% export LD_LIBRARY_PATH="$OMPI_MCCL_DIR/install/lib:$LD_LIBRARY_PATH"
 % export nnodes=2 ppn=28
 
 % mpirun -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core ./osu_allreduce -f
