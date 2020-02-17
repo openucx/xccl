@@ -45,7 +45,8 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 ```
 
    ### Build and install Open MPI :
-
+   > OpenMPI is taken from PR https://github.com/open-mpi/ompi/pull/7409
+   
 ``` bash
 % export OMPI_MCCL_DIR=$PWD/ompi-mccl
 % git clone https://github.com/open-mpi/ompi
