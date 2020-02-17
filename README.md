@@ -48,24 +48,24 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 
 ``` bash
 % export OMPI_MCCL_DIR=$PWD/ompi-mccl
-% git clone https://github.com/vspetrov/ompi/tree/mccl $OMPI_MCCL_DIR
+% git clone https://github.com/open-mpi/ompi
 % cd $OMPI_MCCL_DIR
+% git fetch origin pull/7409/head
+% git submodule update --init --recursive
 % ./autogen.pl
 % ./configure --prefix=$OMPI_MCCL_DIR/install --with-platform=contrib/platform/mellanox/optimized \
---with-mccl=$MCCL_DIR
+--with-mccl=$MCCL_DIR/install
 % make -j install
 ```
  
    ### Run :
 
+Example shows how to run osu_allreduce benchmark (https://mvapich.cse.ohio-state.edu/benchmarks/) with MCCL support
 ``` bash
-% export OPAL_PREFIX=$OMPI_MCCL_DIR/install
-% export PATH=$OMPI_MCCL_DIR/install/bin:$PATH
-% export LD_LIBRARY_PATH="$MCCL_DIR/install/lib:$OMPI_MCCL_DIR/install/lib:$LD_LIBRARY_PATH"
-% export TCCL_TEAM_LIB_PATH="$MCCL_DIR/install/lib/tccl"
+% export LD_LIBRARY_PATH="$MCCL_DIR/install/lib:$MCCL_DIR/install/lib/tccl:$OMPI_MCCL_DIR/install/lib:$LD_LIBRARY_PATH"
 % export nnodes=2 ppn=28
 
-% mpirun -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core $HPCX_OSU_DIR/osu_allreduce -f
+% mpirun -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core ./osu_allreduce -f
 ```
 
 # Performance 
