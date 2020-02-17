@@ -18,10 +18,10 @@ The MCCL library framework is a continuous extension of the advanced research an
 The library consists of two layers: 
 
 1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCX CWG** for the following:
-   * A shared memory Team
    * A UCX Team 
    * A SHARP Team
-   * A Hardware multicast Team (vmc)
+   * A shared memory Team (proprietary)
+   * A VNC - Hardware multicast Team (proprietary)
 
 2. **MCCL** - is the upper layer and implements a light-weight, highly scalable framework for expressing hierarchical collectives in terms of the Team abstraction.
    
