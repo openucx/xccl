@@ -1,5 +1,20 @@
 # MCCL - Mellanox Collective Communication Library
 
+The MCCL library framework is a continuous extension of the advanced research and development on extreme-scale collective communications used by Mellanox for HPC, AI/ML application domains. The MCCL library implements "Teams API" concepts which is flexible and feature-rich for current and emerging programming models and runtimes. 
+
+## High-level features
+
+* Provides collective operations for HPC and AI/ML programming models
+* Enables hierarchial collectives (dynamic and static hiearchies)
+* Enables direct use of hardware collectives by programming model
+* Supports a variety of resource allocation models
+* Supports relaxed ordering model
+* Supports a variery of synchronization models
+* Supports repetitive collective operations (init once and invoke multiple times)
+* Support point-to-point operations in the context of group
+* Supports global memory management
+* Support multiple vendors open and proprietary plugins
+
 The library consists of two layers: 
 
 1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCX CWG** for the following:
