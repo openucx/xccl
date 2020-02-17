@@ -1,8 +1,8 @@
 #!/bin/sh
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 echo "autogen: TCCL"
-$DIR/tccl/autogen.sh
-
+cd tccl
+./autogen.sh
+cd ..
 echo "autogen: MCCL"
 rm -rf autom4te.cache
 mkdir -p config/m4 config/aux
