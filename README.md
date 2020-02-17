@@ -17,7 +17,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
    ### Build and install MCCL and TCCL libraries:
 
 ``` bash
-# Need for all HPCX_ variable used in examples below
+# Line below is needed for all "HPCX_*" variables used in examples below
 % source /path/to/hpcx/dir/hpcx-init.sh --nompi
 % export MCCL_DIR=$PWD/mccl
 
