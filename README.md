@@ -44,14 +44,13 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
    ### Run :
 
 ``` bash
-% export mpirun=$OMPI_MCCL_DIR/install/bin/mpirun
 % export OPAL_PREFIX=$OMPI_MCCL_DIR/install
 % export PATH=$OMPI_MCCL_DIR/install/bin
 % export LD_LIBRARY_PATH="$HPCX_UCX_DIR/lib:$HPCX_SHARP_DIR/lib:$MCCL_DIR/install/lib:$OMPI_MCCL_DIR/install/lib"
 % export TCCL_TEAM_LIB_PATH="$MCCL_DIR/install/lib/tccl"
 % export nnodes=2 ppn=28
 
-% $mpirun -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core $HPCX_OSU_DIR/osu_allreduce -f
+% mpirun -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core $HPCX_OSU_DIR/osu_allreduce -f
 ```
 
 # Performance 
