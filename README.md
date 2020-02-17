@@ -30,6 +30,7 @@ The MCCL library framework is a continuous extension of the advanced research an
 The SHARP and hardware multicast teams requires Mellanox's SHARP software library, the hardware multicast team requires Mellanox's VMC software library.
 
    ### Build and install MCCL and TCCL libraries:
+   >HPCX can be downloaded from https://www.mellanox.com/products/hpc-x-toolkit
 
 ``` bash
 # Line below is needed for all "HPCX_*" variables used in examples below
