@@ -14,51 +14,44 @@ The library consists of two layers:
 
 The SHARP and hardware multicast teams requires Mellanox's SHARP software library, the hardware multicast team requires Mellanox's VMC software library.
 
-   ### Build and install TCCL:
+   ### Build and install MCCL and TCCL libraries:
 
 ``` bash
-%git clone https://github.com/openucx/mccl.git
-% cd tccl
+# Need for all HPCX_ variable used in examples below
+% source /path/to/hpcx/dir/hpcx-init.sh --nompi
+% export MCCL_DIR=$PWD/mccl
+
+% git clone https://github.com/openucx/mccl.git $MCCL_DIR
+% cd $MCCL_DIR
 % ./autogen.sh
-% ./configure --prefix=tccl_install --with-vmc=/path/to/vmc/install \ 
---with-ucx=/path/to/ucx/install --with-sharp=/path/to/sharp/install
+% ./configure --prefix=$PWD/install --with-vmc=$HPCX_VMC_DIR \ 
+--with-ucx=$HPCX_UCX_DIR --with-sharp=$HPCX_SHARP_DIR
 % make -j install
-```
-
-   ### Build and install MCCL:
-
-``` bash
-% cd mccl
-% ./autogen.sh
-% ./configure –prefix=mccl_install --with-tccl=<tccl_install>
 ```
 
    ### Build and install Open MPI :
 
 ``` bash
-% git clone https://github.com/vspetrov/ompi/tree/mccl ompi-mccl
-% cd ompi-mccl
+% export OMPI_MCCL_DIR=$PWD/ompi-mccl
+% git clone https://github.com/vspetrov/ompi/tree/mccl $OMPI_MCCL_DIR
+% cd $OMPI_MCCL_DIR
 % ./autogen.pl
-% ./configure --prefix=$PWD/install --with-platform=contrib/platform/mellanox/optimized \
---with-mccl=<mccl_install> CPPFLAGS=”-I/path/to/tccl_install/tccl/install/include” 
+% ./configure --prefix=$OMPI_MCCL_DIR/install --with-platform=contrib/platform/mellanox/optimized \
+--with-mccl=$MCCL_DIR
 % make -j install
 ```
  
    ### Run :
 
 ``` bash
-% export tccl=<path>/lib
-% export vmc=<path>/lib  
-% export ucx=<path>/lib  
-% export mccl=<path>/lib  
-% export mpirun=<path_to_ompi>/bin/mpirun
+% export mpirun=$OMPI_MCCL_DIR/install/bin/mpirun
+% export OPAL_PREFIX=$OMPI_MCCL_DIR/install
+% export PATH=$OMPI_MCCL_DIR/install/bin
+% export LD_LIBRARY_PATH="$HPCX_UCX_DIR/lib:$HPCX_SHARP_DIR/lib:$MCCL_DIR/install/lib:$OMPI_MCCL_DIR/install/lib"
+% export TCCL_TEAM_LIB_PATH="$MCCL_DIR/install/lib/tccl"
 % export nnodes=2 ppn=28
 
-% $mpirun -x MCCL_ENABLE_VMC=0 -x VMC_DEV=mlx5_0:1 -x UCX_LOG_LEVEL=fatal -mca coll ^hcoll \
--mca coll_mccl_verbose 0 -x TCCL_TEAM_LIB_PATH=$WDIR/tccl_install/install/lib/tccl \
--x UCX_HANDLE_ERRORS=freeze -x LD_LIBRARY_PATH=$tccl:$ucx:$vmc:$mccl:$LD_LIBRARY_PATH \
--mca pml ucx  -np $((nnodes*ppn)) --map-by ppr:$ppn:node \
---bind-to core -x UCX_NET_DEVICES=mlx5_0:1 --tag-output ./osu_bcast_ompi -f
+% $mpirun -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core $HPCX_OSU_DIR/osu_allreduce -f
 ```
 
 # Performance 
