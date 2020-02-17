@@ -15,7 +15,7 @@ The MCCL library framework is a continuous extension of the advanced research an
 * Supports global memory management
 * Support multiple vendors open and proprietary plugins
 
-The library consists of two layers: 
+### The library consists of two layers: 
 
 1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCX CWG** for the following:
    * A UCX Team 
@@ -61,7 +61,7 @@ The SHARP and hardware multicast teams requires Mellanox's SHARP software librar
 ``` bash
 % export OPAL_PREFIX=$OMPI_MCCL_DIR/install
 % export PATH=$OMPI_MCCL_DIR/install/bin:$PATH
-% export LD_LIBRARY_PATH="$HPCX_UCX_DIR/lib:$HPCX_SHARP_DIR/lib:$MCCL_DIR/install/lib:$OMPI_MCCL_DIR/install/lib:$LD_LIBRARY_PATH"
+% export LD_LIBRARY_PATH="$MCCL_DIR/install/lib:$OMPI_MCCL_DIR/install/lib:$LD_LIBRARY_PATH"
 % export TCCL_TEAM_LIB_PATH="$MCCL_DIR/install/lib/tccl"
 % export nnodes=2 ppn=28
 
