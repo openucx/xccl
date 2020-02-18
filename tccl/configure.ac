@@ -106,5 +106,6 @@ AC_CONFIG_FILES([
                  src/team_lib/ucx/Makefile
                  src/team_lib/sharp/Makefile
                  src/team_lib/vmc/Makefile
+                 test/Makefile
                  ])
 AC_OUTPUT
