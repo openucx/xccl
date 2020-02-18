@@ -16,6 +16,37 @@
  * This section describes TCCL API.
  * @}
  */
+/**
+ * @ingroup TCCL_TEAM_LIB
+ * @brief @todo
+ *
+ */
+typedef enum tccl_team_usage_type {
+    TCCL_USAGE_HW_COLLECTIVES    = TCCL_BIT(0),
+    TCCL_USAGE_SW_COLLECTIVES    = TCCL_BIT(1),
+    TCCL_USAGE_P2P_NETWORK       = TCCL_BIT(2),
+    TCCL_USAGE_HYBRID            = TCCL_BIT(3),
+    TCCL_USAGE_NO_COMMUNICATION  = TCCL_BIT(4)
+} tccl_team_usage_type_t;
+
+typedef enum tccl_lib_config_field_mask {
+        TCCL_LIB_CONFIG_FIELD_REPRODUCIBLE    = TCCL_BIT(0),
+        TCCL_LIB_CONFIG_FIELD_THREAD_MODE     = TCCL_BIT(1),
+        TCCL_LIB_CONFIG_FIELD_TEAM_USAGE      = TCCL_BIT(2),
+        TCCL_LIB_CONFIG_FIELD_CONTEXT_CONFIG  = TCCL_BIT(3),
+        TCCL_LIB_CONFIG_FIELD_TEAM_CONFIG     = TCCL_BIT(4),
+        TCCL_LIB_CONFIG_FIELD_COLL_TYPES      = TCCL_BIT(5)
+} tccl_lib_config_field_mask_t;
+
+typedef enum tccl_reproducibility {
+    TCCL_LIB_REPRODUCIBLE     = TCCL_BIT(0),
+    TCCL_LIB_NON_REPRODUCIBLE = TCCL_BIT(1),
+} tccl_reproducibility_t;
+
+typedef enum tccl_thread_mode {
+    TCCL_LIB_THREAD_MULTIPLE  = TCCL_BIT(0),
+    TCCL_LIB_THREAD_SINGLE    = TCCL_BIT(1),
+} tccl_thread_mode_t;
 
 /**
  * @ingroup TCCL_TEAM_CONTEXT
@@ -28,11 +59,6 @@ typedef enum {
     TCCL_TEAM_COMPLETION_SPLIT_PHASE = 2
 } tccl_team_completion_type_t;
 
-typedef enum {
-    TCCL_THREAD_MODE_PRIVATE = 0 ,
-    TCCL_THREAD_MODE_SHARED  = 1
-} tccl_threading_support_t;
-
 typedef struct tccl_oob_collectives {
     int (*allgather)(void *src_buf, void *recv_buff, size_t size,
                      void *coll_context);
@@ -41,8 +67,17 @@ typedef struct tccl_oob_collectives {
     int size;
 } tccl_oob_collectives_t;
 
+typedef enum tccl_context_config_field_mask {
+    TCCL_CONTEXT_CONFIG_FIELD_TEAM_LIB_NAME    = TCCL_BIT(0),
+    TCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE      = TCCL_BIT(1),
+    TCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE  = TCCL_BIT(2),
+    TCCL_CONTEXT_CONFIG_FIELD_OOB              = TCCL_BIT(3),
+} tccl_context_config_field_mask_t;
+
 typedef struct tccl_team_context_config {
-    tccl_threading_support_t    thread_support;
+    uint64_t                    field_mask;
+    char*                       team_lib_name;
+    tccl_thread_mode_t          thread_mode;
     tccl_team_completion_type_t completion_type;
     tccl_oob_collectives_t      oob;
 } tccl_team_context_config_t;
@@ -104,11 +139,11 @@ typedef struct tccl_team_lib_attr {
 tccl_status_t tccl_team_lib_query(tccl_team_lib_h team_lib,
                                 tccl_team_lib_attr_t *attr);
 
-tccl_status_t tccl_create_team_context(tccl_team_lib_h lib,
-                                     tccl_team_context_config_h config,
-                                     tccl_team_context_h *team_ctx);
+tccl_status_t tccl_create_context(tccl_lib_h lib,
+                                  tccl_team_context_config_t config,
+                                  tccl_team_context_h *team_ctx);
 
-tccl_status_t tccl_destroy_team_context(tccl_team_context_h team_ctx);
+tccl_status_t tccl_destroy_context(tccl_team_context_h team_ctx);
 
 /**
  * @ingroup TCCL_TEAM
@@ -264,45 +299,14 @@ tccl_status_t tccl_collective_finalize(tccl_coll_req_h request);
 tccl_status_t tccl_context_progress(tccl_team_context_h context);
 
 /**
- * @ingroup TCCL_TEAM_LIB
- * @brief @todo
- *
- */
-typedef enum tccl_team_usage_type {
-    TCCL_USAGE_HW_COLLECTIVES    = TCCL_BIT(0),
-    TCCL_USAGE_SW_COLLECTIVES    = TCCL_BIT(1),
-    TCCL_USAGE_P2P_NETWORK       = TCCL_BIT(2),
-    TCCL_USAGE_HYBRID            = TCCL_BIT(3),
-    TCCL_USAGE_NO_COMMUNICATION  = TCCL_BIT(4)
-} tccl_team_usage_type_t;
-
-typedef enum tccl_lib_config_field_mask {
-        TCCL_LIB_CONFIG_FIELD_REPRODUCIBLE    = TCCL_BIT(0),
-        TCCL_LIB_CONFIG_FIELD_THREAD_MODE     = TCCL_BIT(1),
-        TCCL_LIB_CONFIG_FIELD_TEAM_USAGE      = TCCL_BIT(2),
-        TCCL_LIB_CONFIG_FIELD_CONTEXT_CONFIG  = TCCL_BIT(3),
-        TCCL_LIB_CONFIG_FIELD_TEAM_CONFIG     = TCCL_BIT(4),
-        TCCL_LIB_CONFIG_FIELD_COLL_TYPES      = TCCL_BIT(5)
-} tccl_lib_config_field_mask_t;
-
-typedef enum tccl_lib_reproducibility {
-    TCCL_LIB_REPRODUCIBLE     = TCCL_BIT(0),
-    TCCL_LIB_NON_REPRODUCIBLE = TCCL_BIT(1),
-} tccl_lib_reproducibility_t;
-
-typedef enum tccl_lib_thread_mode {
-    TCCL_LIB_THREAD_MULTIPLE  = TCCL_BIT(0),
-    TCCL_LIB_THREAD_SINGLE    = TCCL_BIT(1),
-} tccl_lib_thread_mode_t;
-/**
  * @ingroup TCCL_LIB
  * @brief TCCL team library initializatoin parameters
  *
  */
 typedef struct tccl_lib_config {
-        tccl_lib_config_field_mask_t field_mask;
-        tccl_lib_reproducibility_t   reproducible;
-        tccl_lib_thread_mode_t       thread_mode;
+        uint64_t                     field_mask;
+        tccl_reproducibility_t       reproducible;
+        tccl_thread_mode_t           thread_mode;
         tccl_team_usage_type_t       team_usage;
         tccl_collective_type_t       coll_types;
         tccl_team_context_config_t   context_config;
