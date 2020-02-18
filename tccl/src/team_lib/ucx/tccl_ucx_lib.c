@@ -184,6 +184,12 @@ static tccl_status_t tccl_ucx_collective_finalize(tccl_coll_req_h request)
 
 tccl_team_lib_ucx_t tccl_team_lib_ucx = {
     .super.name                 = "team_lib_ucx",
+    .super.priority             = 10,
+    .super.config.reproducible  = TCCL_LIB_NON_REPRODUCIBLE,
+    .super.config.thread_mode   = TCCL_LIB_THREAD_SINGLE | TCCL_LIB_THREAD_MULTIPLE,
+    .super.config.team_usage    = TCCL_USAGE_SW_COLLECTIVES,
+    .super.config.coll_types    = TCCL_BARRIER | TCCL_FANIN | TCCL_FANOUT |
+                                  TCCL_REDUCE | TCCL_BCAST | TCCL_ALLREDUCE,
     .super.ctx_create_mode      = TCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.create_team_context  = tccl_ucx_create_context,
     .super.destroy_team_context = tccl_ucx_destroy_context,

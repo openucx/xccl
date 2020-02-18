@@ -10,53 +10,159 @@
 #include <string.h>
 #include <stdio.h>
 #include <dlfcn.h>
+#include <link.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <err.h>
+#include <fts.h>
 
-tccl_status_t tccl_team_lib_init(tccl_team_lib_params_t *tccl_params,
-                               tccl_team_lib_h *team_lib)
+static int
+callback(struct dl_phdr_info *info, size_t size, void *data)
 {
-    const int tccl_team_lib_name_max = 16;
-    int len;
-    char *var, *lib_path, *soname;
+    char *str;
+    tccl_lib_t *lib = (tccl_lib_t*)data;
+    if (NULL != (str = strstr(info->dlpi_name, "libtccl.so"))) {
+        int pos = (int)(str - info->dlpi_name);
+        lib->lib_path = (char*)malloc(pos+8);
+        strncpy(lib->lib_path, info->dlpi_name, pos);
+        lib->lib_path[pos] = '\0';
+        strcat(lib->lib_path, "tccl");
+    }
+    return 0;
+}
+
+static void get_default_lib_path(tccl_lib_t *lib)
+{
+    dl_iterate_phdr(callback, (void*)lib);
+}
+
+tccl_status_t tccl_team_lib_init(const char *so_path,
+                                 tccl_team_lib_h *team_lib)
+{
     char team_lib_struct[128];
     void *handle;
     tccl_team_lib_t *lib;
-    
-    var = getenv("TCCL_TEAM_LIB_PATH");
-    if (var) {
-        lib_path = var;
-    } else {
-        lib_path = "";
-    }
 
-    len = strlen(lib_path) + strlen("/tccl_team_lib_") +
-        tccl_team_lib_name_max + strlen(".so") + 1;
-    soname = (char*)malloc(len*sizeof(char));
-    strcpy(soname, lib_path);
-    if (0 != strcmp(lib_path, "")) {
-        strcat(soname, "/");
+    int pos = (int)(strstr(so_path, "tccl_team_lib_") - so_path);
+    if (pos < 0) {
+        return TCCL_ERR_NO_MESSAGE;
     }
-    strcat(soname, "tccl_team_lib_");
-    strcat(soname, tccl_params->team_lib_name);
-    strcat(soname, ".so");
-    handle = dlopen(soname, RTLD_LAZY);
+    strncpy(team_lib_struct, so_path+pos, strlen(so_path) - pos - 3);
+    team_lib_struct[strlen(so_path) - pos - 3] = '\0';
+    handle = dlopen(so_path, RTLD_LAZY);
     if (!handle) {
         fprintf(stderr, "Failed to load TCCL Team library: %s\n. "
-                "Check TCCL_TEAM_LIB_PATH or LD_LIBRARY_PATH\n", soname);
-        free(soname);
+                "Check TCCL_TEAM_LIB_PATH or LD_LIBRARY_PATH\n", so_path);
         *team_lib = NULL;
         return TCCL_ERR_NO_MESSAGE;
     }
-    free(soname);
-    sprintf(team_lib_struct, "tccl_team_lib_%s", tccl_params->team_lib_name);
     lib = (tccl_team_lib_t*)dlsym(handle, team_lib_struct);
     lib->dl_handle = handle;
-    memcpy(&lib->params, tccl_params, sizeof(*tccl_params));
     (*team_lib) = lib;
     return TCCL_OK;
 }
 
+static void load_team_lib_plugins(tccl_lib_t *lib)
+{
+    FTS *ftsp;
+    FTSENT *p, *chp;
+    int fts_options = FTS_COMFOLLOW | FTS_LOGICAL | FTS_NOCHDIR;
+    int rval = 0;
+    char* const arr[2] = {lib->lib_path, NULL};
+    if ((ftsp = fts_open(arr, fts_options, NULL)) == NULL) {
+        warn("fts_open");
+        return;
+    }
+    /* Initialize ftsp with as many argv[] parts as possible. */
+    chp = fts_children(ftsp, 0);
+    if (chp == NULL) {
+        return;               /* no files to traverse */
+
+    }
+    while ((p = fts_read(ftsp)) != NULL) {
+        switch (p->fts_info) {
+        case FTS_D:
+            /*directory should not be there, skip */
+            break;
+        case FTS_F:
+            if (strstr(p->fts_name, "tccl_team_lib_") &&
+                strstr(p->fts_name, ".so")) {
+                printf("f %s\n", p->fts_name);
+                if (lib->n_libs_opened == lib->libs_array_size) {
+                    lib->libs_array_size += 8;
+                    lib->libs = (tccl_team_lib_t**)realloc(lib->libs,
+                                                           lib->libs_array_size*sizeof(*lib->libs));
+                }
+                tccl_team_lib_init(p->fts_path, &lib->libs[lib->n_libs_opened]);
+                lib->n_libs_opened++;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    fts_close(ftsp);
+}
+
 tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib) {
     dlclose(lib);
+}
+
+#define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{\
+        if ((config.field_mask & TCCL_LIB_CONFIG_FIELD_ ## _CAP_FIELD) && \
+            !(config. _cap & tl->config. _cap)) {                       \
+        printf("Disqualifying team %s due to %s cap\n", tl->name, TCCL_PP_QUOTE(_CAP_FIELD));\
+            tccl_team_lib_finalize(tl);                                 \
+            lib->libs[i] = NULL;                                        \
+            kept--;                                                     \
+            continue;                                                   \
+        }                                                               \
+    } while(0)
+
+static void tccl_lib_filter(tccl_lib_config_t config,
+                            tccl_lib_t *lib) {
+    int i;
+    int kept = lib->n_libs_opened;
+    for (i=0; i<lib->n_libs_opened; i++) {
+        tccl_team_lib_t *tl = lib->libs[i];
+        CHECK_LIB_CONFIG_CAP(reproducible, REPRODUCIBLE);
+        CHECK_LIB_CONFIG_CAP(thread_mode,  THREAD_MODE);
+        CHECK_LIB_CONFIG_CAP(team_usage,   TEAM_USAGE);
+        CHECK_LIB_CONFIG_CAP(coll_types,   COLL_TYPES);
+    }
+    if (kept != lib->n_libs_opened) {
+        tccl_team_lib_t **libs = (tccl_team_lib_t**)malloc(kept*sizeof(*libs));
+        kept = 0;
+        for (i=0; i<lib->n_libs_opened; i++) {
+            if (lib->libs[i]) {
+                libs[kept++] = lib->libs[i];
+            }
+        }
+        free(lib->libs);
+        lib->libs = libs;
+        lib->n_libs_opened = kept;
+    }
+}
+
+tccl_status_t tccl_lib_init(tccl_lib_config_t config,
+                            tccl_lib_h *tccl_lib)
+{
+    char *var;
+    tccl_lib_t *lib = (tccl_lib_t*)malloc(sizeof(*lib));
+    lib->libs = NULL;
+    lib->n_libs_opened = 0;
+    lib->libs_array_size = 0;
+    var = getenv("TCCL_TEAM_LIB_PATH");
+    if (var) {
+        lib->lib_path = var;
+    } else {
+        get_default_lib_path(lib);
+    }
+    printf("LIB PATH:%s\n", lib->lib_path);
+    load_team_lib_plugins(lib);
+    tccl_lib_filter(config, lib);
+    (*tccl_lib) = lib;
+    return TCCL_OK;
 }
 
 tccl_status_t tccl_team_lib_query(tccl_team_lib_h team_lib,
