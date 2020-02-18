@@ -39,7 +39,7 @@ void tccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
         if (UCS_PTR_IS_ERR(ucx_req)) {                                  \
             fprintf(stderr,"Error in %s: tag %d; dest %d; worker_id"    \
                     " %d; errmsg %s\n",                                 \
-                    tag, dest_group_rank,                               \
+                    __func__, tag, dest_group_rank,                     \
                     *((uint16_t *) &TEAM_UCX_WORKER(team)),             \
                     ucs_status_string(UCS_PTR_STATUS(ucx_req)));        \
             ucp_request_cancel(TEAM_UCX_WORKER(team), ucx_req);         \
