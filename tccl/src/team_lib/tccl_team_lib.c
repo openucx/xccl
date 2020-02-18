@@ -89,7 +89,7 @@ static void load_team_lib_plugins(tccl_lib_t *lib)
         case FTS_F:
             if (strstr(p->fts_name, "tccl_team_lib_") &&
                 strstr(p->fts_name, ".so")) {
-                printf("f %s\n", p->fts_name);
+                /* printf("f %s\n", p->fts_name); */
                 if (lib->n_libs_opened == lib->libs_array_size) {
                     lib->libs_array_size += 8;
                     lib->libs = (tccl_team_lib_t**)realloc(lib->libs,
@@ -107,7 +107,8 @@ static void load_team_lib_plugins(tccl_lib_t *lib)
 }
 
 static tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib) {
-    dlclose(lib);
+    dlclose(lib->dl_handle);
+    return TCCL_OK;
 }
 
 #define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{\
@@ -160,7 +161,7 @@ tccl_status_t tccl_lib_init(tccl_lib_config_t config,
     } else {
         get_default_lib_path(lib);
     }
-    printf("LIB PATH:%s\n", lib->lib_path);
+    /* printf("LIB PATH:%s\n", lib->lib_path); */
     load_team_lib_plugins(lib);
     tccl_lib_filter(config, lib);
     (*tccl_lib) = lib;
@@ -173,6 +174,16 @@ tccl_status_t tccl_team_lib_query(tccl_team_lib_h team_lib,
     if (attr->field_mask & TCCL_ATTR_FIELD_CONTEXT_CREATE_MODE) {
         attr->context_create_mode = team_lib->ctx_create_mode;
     }
+    return TCCL_OK;
+}
+
+tccl_status_t tccl_lib_finalize(tccl_lib_h lib)
+{
+    int i;
+    for (i=0; i<lib->n_libs_opened; i++) {
+        tccl_team_lib_finalize(lib->libs[i]);
+    }
+    free(lib->libs);
     return TCCL_OK;
 }
 
@@ -220,7 +231,7 @@ tccl_status_t tccl_create_context(tccl_lib_h lib, tccl_team_context_config_t con
     return TCCL_OK;
 }
 
-tccl_status_t tccl_destroy_team_context(tccl_team_context_h team_ctx)
+tccl_status_t tccl_destroy_context(tccl_team_context_h team_ctx)
 {
     return team_ctx->lib->destroy_team_context(team_ctx);
 }
