@@ -169,7 +169,7 @@ static tccl_status_t tccl_ucx_collective_test(tccl_coll_req_h request)
     tccl_ucx_collreq_t *req = (tccl_ucx_collreq_t *)request;
     tccl_status_t status;
     if (TCCL_INPROGRESS == req->complete) {
-        if (UCS_OK != (status = req->progress(req))) {
+        if (TCCL_OK != (status = req->progress(req))) {
             return status;
         };
     }
