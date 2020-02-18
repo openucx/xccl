@@ -4,16 +4,18 @@
 * See file LICENSE for terms.
 */
 
+
 #include "config.h"
+#define _GNU_SOURCE
 #include "tccl_team_lib.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <dlfcn.h>
-#include <link.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <err.h>
+#include <link.h>
+#include <dlfcn.h>
 #include <fts.h>
 
 static int
@@ -36,8 +38,8 @@ static void get_default_lib_path(tccl_lib_t *lib)
     dl_iterate_phdr(callback, (void*)lib);
 }
 
-tccl_status_t tccl_team_lib_init(const char *so_path,
-                                 tccl_team_lib_h *team_lib)
+static tccl_status_t tccl_team_lib_init(const char *so_path,
+                                        tccl_team_lib_h *team_lib)
 {
     char team_lib_struct[128];
     void *handle;
@@ -104,7 +106,7 @@ static void load_team_lib_plugins(tccl_lib_t *lib)
     fts_close(ftsp);
 }
 
-tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib) {
+static tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib) {
     dlclose(lib);
 }
 
@@ -174,9 +176,9 @@ tccl_status_t tccl_team_lib_query(tccl_team_lib_h team_lib,
     return TCCL_OK;
 }
 
-tccl_status_t tccl_create_team_context(tccl_team_lib_h lib,
-                                       tccl_team_context_config_h config,
-                                       tccl_team_context_h *team_ctx)
+static tccl_status_t tccl_create_team_context(tccl_team_lib_h lib,
+                                              tccl_team_context_config_h config,
+                                              tccl_team_context_h *team_ctx)
 {
     tccl_status_t status;
     status = lib->create_team_context(lib, config, team_ctx);

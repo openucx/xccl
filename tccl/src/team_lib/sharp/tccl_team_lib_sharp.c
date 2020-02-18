@@ -203,7 +203,7 @@ static tccl_status_t tccl_team_sharp_destroy(tccl_team_h team)
 }
 
 tccl_team_lib_sharp_t tccl_team_lib_sharp = {
-    .super.name                 = "team_lib_sharp",
+    .super.name                 = "sharp",
     .super.priority             = 100,
     .super.config.reproducible  = TCCL_LIB_NON_REPRODUCIBLE,
     .super.config.thread_mode   = TCCL_LIB_THREAD_SINGLE | TCCL_LIB_THREAD_MULTIPLE,
