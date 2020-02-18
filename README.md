@@ -13,11 +13,11 @@ The MCCL library framework is a continuous extension of the advanced research an
 * Supports repetitive collective operations (init once and invoke multiple times)
 * Support point-to-point operations in the context of group
 * Supports global memory management
-* Support multiple vendors open and proprietary plugins
+* Support multiple vendors' open and proprietary plugins
 
 ### The library consists of two layers: 
 
-1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCX Collectives WG** for the following:
+1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCF Collectives WG** for the following:
    * A UCX Team 
    * A SHARP Team
    * A shared memory Team (proprietary)
@@ -27,7 +27,7 @@ The MCCL library framework is a continuous extension of the advanced research an
    
 # Quick Start Guide
 
-The SHARP and hardware multicast teams requires Mellanox's SHARP software library, the hardware multicast team requires Mellanox's VMC software library.
+The SHARP teams require Mellanox's SHARP software library, and the hardware multicast team requires Mellanox's VMC software library.
 
    ### Build and install MCCL and TCCL libraries:
    >HPCX can be downloaded from https://www.mellanox.com/products/hpc-x-toolkit
