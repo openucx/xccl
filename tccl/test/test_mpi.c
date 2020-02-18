@@ -10,6 +10,12 @@
 #include <unistd.h>
 #include "api/tccl.h"
 
+#define STR(x) # x
+#define TCCL_CHECK(_call) if (TCCL_OK != (_call)) {\
+        fprintf(stderr, "fail: %s\n", STR(_call)); \
+        exit(-1);                                  \
+    }
+
 static int oob_allgather(void *sbuf, void *rbuf, size_t len, void *coll_context) {
     MPI_Comm comm = (MPI_Comm)coll_context;
     MPI_Allgather(sbuf, len, MPI_BYTE, rbuf, len, MPI_BYTE, comm);
@@ -23,18 +29,31 @@ int main (int argc, char **argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     var = getenv("TCCL_TEST_TEAM");
-    tccl_team_lib_params_t lib_params = {
-        .tccl_model_type = TCCL_MODEL_TYPE_MPI,
-        .team_lib_name = var ? var : "ucx",
-        .ucp_context = NULL
+    tccl_lib_config_t lib_config = {
+        .field_mask = TCCL_LIB_CONFIG_FIELD_TEAM_USAGE,
+        .team_usage = TCCL_USAGE_SW_COLLECTIVES |
+                      TCCL_USAGE_HW_COLLECTIVES,
     };
-    tccl_team_lib_h lib;
-    tccl_team_lib_init(&lib_params, &lib);
+    tccl_lib_h lib;
+    tccl_lib_init(lib_config, &lib);
 
     tccl_team_context_config_t team_ctx_config = {
-        .thread_support = TCCL_THREAD_MODE_PRIVATE,
-        .completion_type = TCCL_TEAM_COMPLETION_BLOCKING
+        .field_mask = TCCL_CONTEXT_CONFIG_FIELD_TEAM_LIB_NAME |
+                      TCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE |
+                      TCCL_CONTEXT_CONFIG_FIELD_OOB |
+                      TCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE,
+        .team_lib_name   = var ? var : "ucx",
+        .thread_mode     = TCCL_LIB_THREAD_SINGLE,
+        .completion_type = TCCL_TEAM_COMPLETION_BLOCKING,
+        .oob = {
+            .allgather    = oob_allgather,
+            .coll_context = (void*)MPI_COMM_WORLD,
+            .rank         = rank,
+            .size         = size
+        },
     };
+#if 0
+    //TODO
     tccl_team_lib_attr_t team_lib_attr;
     team_lib_attr.field_mask = TCCL_ATTR_FIELD_CONTEXT_CREATE_MODE;
     tccl_team_lib_query(lib, &team_lib_attr);
@@ -48,13 +67,19 @@ int main (int argc, char **argv) {
 
         team_ctx_config.oob = oob_ctx;
     }
+#endif    
     tccl_team_context_h team_ctx;
-    tccl_create_team_context(lib, &team_ctx_config, &team_ctx);
+    TCCL_CHECK(tccl_create_context(lib, team_ctx_config, &team_ctx));
     {
         /* Create TEAM for comm world */
         tccl_team_config_t team_config = {
             .team_size = size,
             .team_rank = rank,
+            .range     = {
+                .type           = TCCL_EP_RANGE_STRIDED,
+                .strided.start  = 0,
+                .strided.stride = 1
+            }
         };
 
         tccl_oob_collectives_t oob = {
@@ -107,7 +132,5 @@ int main (int argc, char **argv) {
         }
     }
     tccl_destroy_team_context(team_ctx);
-
-
     MPI_Finalize();
 }
