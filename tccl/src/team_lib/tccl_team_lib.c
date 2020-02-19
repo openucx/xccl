@@ -69,8 +69,8 @@ static void load_team_lib_plugins(tccl_lib_t *lib)
     FTS *ftsp;
     FTSENT *p, *chp;
     int fts_options = FTS_COMFOLLOW | FTS_LOGICAL | FTS_NOCHDIR;
-    int rval = 0;
     char* const arr[2] = {lib->lib_path, NULL};
+
     if ((ftsp = fts_open(arr, fts_options, NULL)) == NULL) {
         warn("fts_open");
         return;
@@ -155,14 +155,23 @@ tccl_status_t tccl_lib_init(tccl_lib_config_t config,
     lib->libs = NULL;
     lib->n_libs_opened = 0;
     lib->libs_array_size = 0;
+    lib->lib_path = NULL;
     var = getenv("TCCL_TEAM_LIB_PATH");
     if (var) {
-        lib->lib_path = var;
+        lib->lib_path = strdup(var);
     } else {
         get_default_lib_path(lib);
     }
+    if (!lib->lib_path) {
+        fprintf(stderr, "Failed to get tccl library path. set TCCL_TEAM_LIB_PATH.\n");
+        return TCCL_ERR_NO_MESSAGE;
+    }
     /* printf("LIB PATH:%s\n", lib->lib_path); */
     load_team_lib_plugins(lib);
+    if (lib->n_libs_opened == 0) {
+        fprintf(stderr, "TCCL init: couldn't find any tccl_team_lib_<name>.so plugins.\n");
+        return TCCL_ERR_NO_MESSAGE;
+    }
     tccl_lib_filter(config, lib);
     (*tccl_lib) = lib;
     return TCCL_OK;
@@ -183,7 +192,12 @@ tccl_status_t tccl_lib_finalize(tccl_lib_h lib)
     for (i=0; i<lib->n_libs_opened; i++) {
         tccl_team_lib_finalize(lib->libs[i]);
     }
-    free(lib->libs);
+    if (lib->lib_path) {
+        free(lib->lib_path);
+    }
+    if (lib->libs) {
+        free(lib->libs);
+    }
     return TCCL_OK;
 }
 

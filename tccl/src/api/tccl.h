@@ -30,12 +30,12 @@ typedef enum tccl_team_usage_type {
 } tccl_team_usage_type_t;
 
 typedef enum tccl_lib_config_field_mask {
-        TCCL_LIB_CONFIG_FIELD_REPRODUCIBLE    = TCCL_BIT(0),
-        TCCL_LIB_CONFIG_FIELD_THREAD_MODE     = TCCL_BIT(1),
-        TCCL_LIB_CONFIG_FIELD_TEAM_USAGE      = TCCL_BIT(2),
-        TCCL_LIB_CONFIG_FIELD_CONTEXT_CONFIG  = TCCL_BIT(3),
-        TCCL_LIB_CONFIG_FIELD_TEAM_CONFIG     = TCCL_BIT(4),
-        TCCL_LIB_CONFIG_FIELD_COLL_TYPES      = TCCL_BIT(5)
+    TCCL_LIB_CONFIG_FIELD_REPRODUCIBLE    = TCCL_BIT(0),
+    TCCL_LIB_CONFIG_FIELD_THREAD_MODE     = TCCL_BIT(1),
+    TCCL_LIB_CONFIG_FIELD_TEAM_USAGE      = TCCL_BIT(2),
+    TCCL_LIB_CONFIG_FIELD_CONTEXT_CONFIG  = TCCL_BIT(3),
+    TCCL_LIB_CONFIG_FIELD_TEAM_CONFIG     = TCCL_BIT(4),
+    TCCL_LIB_CONFIG_FIELD_COLL_TYPES      = TCCL_BIT(5)
 } tccl_lib_config_field_mask_t;
 
 typedef enum tccl_reproducibility {
@@ -200,19 +200,19 @@ tccl_status_t tccl_team_create_post(tccl_context_h team_ctx,
 tccl_status_t tccl_team_destroy(tccl_team_h team);
 
 typedef enum {
-    TCCL_BARRIER     = TCCL_BIT(1),
-    TCCL_ALLTOALL    = TCCL_BIT(2),
-    TCCL_ALLTOALLV   = TCCL_BIT(3),
-    TCCL_BCAST       = TCCL_BIT(4),
-    TCCL_GATHER      = TCCL_BIT(5),
-    TCCL_ALLGATHER   = TCCL_BIT(6),
-    TCCL_REDUCE      = TCCL_BIT(7),
-    TCCL_ALLREDUCE   = TCCL_BIT(8),
-    TCCL_SCATTER     = TCCL_BIT(9),
-    TCCL_FANIN       = TCCL_BIT(10),
-    TCCL_FANOUT      = TCCL_BIT(11),
-    TCCL_FLUSH_ALL   = TCCL_BIT(12),
-    TCCL_MULTICAST   = TCCL_BIT(13),
+    TCCL_BARRIER     = TCCL_BIT(0),
+    TCCL_ALLTOALL    = TCCL_BIT(1),
+    TCCL_ALLTOALLV   = TCCL_BIT(2),
+    TCCL_BCAST       = TCCL_BIT(3),
+    TCCL_GATHER      = TCCL_BIT(4),
+    TCCL_ALLGATHER   = TCCL_BIT(5),
+    TCCL_REDUCE      = TCCL_BIT(6),
+    TCCL_ALLREDUCE   = TCCL_BIT(7),
+    TCCL_SCATTER     = TCCL_BIT(8),
+    TCCL_FANIN       = TCCL_BIT(9),
+    TCCL_FANOUT      = TCCL_BIT(10),
+    TCCL_FLUSH_ALL   = TCCL_BIT(11),
+    TCCL_MULTICAST   = TCCL_BIT(12),
     TCCL_COLL_ALL    = TCCL_MASK(13)
 } tccl_collective_type_t;
 
@@ -276,9 +276,9 @@ typedef struct tccl_coll_op_args {
     tccl_collective_type_t  coll_type;
     tccl_coll_buffer_info_t buffer_info;
     tccl_reduce_info_t      reduce_info;
-    int                    root;
+    int                     root;
     tccl_coll_algorithm_t   alg;
-    uint16_t               tag;
+    uint16_t                tag;
 } tccl_coll_op_args_t;
 
 typedef struct tccl_coll_req {
@@ -304,13 +304,13 @@ tccl_status_t tccl_context_progress(tccl_context_h context);
  *
  */
 typedef struct tccl_lib_config {
-        uint64_t                     field_mask;
-        tccl_reproducibility_t       reproducible;
-        tccl_thread_mode_t           thread_mode;
-        tccl_team_usage_type_t       team_usage;
-        tccl_collective_type_t       coll_types;
-        tccl_context_config_t        context_config;
-        tccl_team_config_t           team_config;
+    uint64_t                     field_mask;
+    tccl_reproducibility_t       reproducible;
+    tccl_thread_mode_t           thread_mode;
+    tccl_team_usage_type_t       team_usage;
+    tccl_collective_type_t       coll_types;
+    tccl_context_config_t        context_config;
+    tccl_team_config_t           team_config;
 } tccl_lib_config_t;
 
 /**
