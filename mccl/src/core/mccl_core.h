@@ -27,20 +27,20 @@ typedef enum {
 } mccl_tccl_team_lib_t;
 
 typedef struct mccl_team_lib_t {
-    tccl_team_lib_h     tccl_lib;
-    tccl_team_context_h tccl_ctx;
-    int                enabled;
+    tccl_context_h tccl_ctx;
+    int            enabled;
 } mccl_team_lib_t;
 
 typedef struct mccl_context_t {
-    mccl_config_t config;
-    proc_data_t local_proc; // local proc data
-    proc_data_t *procs; // data for all processes
-    int nnodes;
-    int min_ppn;
-    int max_ppn;
-    int max_sockets_per_node;
-    int max_ranks_per_socket;
+    mccl_config_t   config;
+    tccl_lib_h      tccl_lib;
+    proc_data_t     local_proc; // local proc data
+    proc_data_t    *procs; // data for all processes
+    int             nnodes;
+    int             min_ppn;
+    int             max_ppn;
+    int             max_sockets_per_node;
+    int             max_ranks_per_socket;
     mccl_team_lib_t libs[TCCL_LIB_LAST];
 } mccl_context_t;
 
@@ -59,12 +59,12 @@ typedef enum {
 
 typedef struct mccl_comm_t {
     mccl_comm_config_t config;
-    int *world_ranks; // map of local comm ranks to world ranks
-    sbgp_t sbgps[SBGP_LAST];
-    mccl_team_t *teams[MCCL_TEAM_LAST];
-    void *static_team_data[MCCL_TEAM_LAST];
-    int64_t seq_num;
-    int ctx_id; //TODO
+    int               *world_ranks; // map of local comm ranks to world ranks
+    sbgp_t             sbgps[SBGP_LAST];
+    mccl_team_t       *teams[MCCL_TEAM_LAST];
+    void              *static_team_data[MCCL_TEAM_LAST];
+    int64_t            seq_num;
+    int                ctx_id; //TODO
 } mccl_comm_t;
 
 int mccl_get_bound_socket_id(int *socketid);

@@ -8,6 +8,12 @@
 #include <assert.h>
 #include <string.h>
 
+int oob_allgather_ctx(void *sbuf, void *rbuf, size_t msglen, void *ctx) {
+        MPI_Comm comm = (MPI_Comm)ctx;
+        MPI_Allgather(sbuf, msglen, MPI_BYTE, rbuf, msglen, MPI_BYTE, comm);
+        return 0;
+}
+
 int oob_allgather(void *sbuf, void *rbuf, size_t msglen,
                    int my_rank, int *ranks, int nranks,  void *oob_coll_ctx) {
     MPI_Comm comm = (MPI_Comm)oob_coll_ctx;
@@ -43,8 +49,10 @@ int mccl_test_init(int argc, char **argv, uint64_t caps) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     mccl_config_t config = {
-        .flags = 0,
-        .world_size = size,
+        .flags        = 0,
+        .world_size   = size,
+        .allgather    = oob_allgather_ctx,
+        .oob_coll_ctx = (void*)MPI_COMM_WORLD,
     };
 
     mccl_init_context(&config, &mccl_test_context);
