@@ -188,14 +188,14 @@ tccl_status_t tccl_lib_finalize(tccl_lib_h lib)
 }
 
 static tccl_status_t tccl_create_team_context(tccl_team_lib_h lib,
-                                              tccl_team_context_config_h config,
-                                              tccl_team_context_h *team_ctx)
+                                              tccl_context_config_h config,
+                                              tccl_context_h *team_ctx)
 {
     tccl_status_t status;
     status = lib->create_team_context(lib, config, team_ctx);
     if (TCCL_OK == status) {
         (*team_ctx)->lib = lib;
-        memcpy(&((*team_ctx)->cfg), config, sizeof(tccl_team_context_config_t));
+        memcpy(&((*team_ctx)->cfg), config, sizeof(tccl_context_config_t));
     }
     return status;
 }
@@ -213,8 +213,8 @@ static tccl_status_t find_tlib_by_name(tccl_lib_t *lib, const char *tlib_name,
     return TCCL_ERR_NO_ELEM;
 }
 
-tccl_status_t tccl_create_context(tccl_lib_h lib, tccl_team_context_config_t config,
-                                  tccl_team_context_t **context)
+tccl_status_t tccl_create_context(tccl_lib_h lib, tccl_context_config_t config,
+                                  tccl_context_t **context)
 {
     tccl_status_t status;
     if (config.field_mask & TCCL_CONTEXT_CONFIG_FIELD_TEAM_LIB_NAME) {
@@ -231,12 +231,12 @@ tccl_status_t tccl_create_context(tccl_lib_h lib, tccl_team_context_config_t con
     return TCCL_OK;
 }
 
-tccl_status_t tccl_destroy_context(tccl_team_context_h team_ctx)
+tccl_status_t tccl_destroy_context(tccl_context_h team_ctx)
 {
     return team_ctx->lib->destroy_team_context(team_ctx);
 }
 
-tccl_status_t tccl_team_create_post(tccl_team_context_h team_ctx,
+tccl_status_t tccl_team_create_post(tccl_context_h team_ctx,
                                   tccl_team_config_h config,
                                   tccl_oob_collectives_t oob, tccl_team_h *team)
 {
@@ -280,7 +280,7 @@ tccl_status_t tccl_collective_finalize(tccl_coll_req_h request)
     return request->lib->collective_finalize(request);
 }
 
-tccl_status_t tccl_context_progress(tccl_team_context_h team_ctx)
+tccl_status_t tccl_context_progress(tccl_context_h team_ctx)
 {
     if (team_ctx->lib->progress) {
         return team_ctx->lib->progress(team_ctx);

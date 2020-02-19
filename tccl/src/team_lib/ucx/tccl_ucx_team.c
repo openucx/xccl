@@ -14,7 +14,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-tccl_status_t tccl_ucx_team_create_post(tccl_team_context_t *context, tccl_team_config_t *config,
+tccl_status_t tccl_ucx_team_create_post(tccl_context_t *context, tccl_team_config_t *config,
                                       tccl_oob_collectives_t oob, tccl_team_t **team)
 {
     //TODO need to make this non blocking + team_ucx_wait

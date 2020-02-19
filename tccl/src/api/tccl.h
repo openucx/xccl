@@ -74,13 +74,13 @@ typedef enum tccl_context_config_field_mask {
     TCCL_CONTEXT_CONFIG_FIELD_OOB              = TCCL_BIT(3),
 } tccl_context_config_field_mask_t;
 
-typedef struct tccl_team_context_config {
+typedef struct tccl_context_config {
     uint64_t                    field_mask;
     char*                       team_lib_name;
     tccl_thread_mode_t          thread_mode;
     tccl_team_completion_type_t completion_type;
     tccl_oob_collectives_t      oob;
-} tccl_team_context_config_t;
+} tccl_context_config_t;
 
 
 typedef enum {
@@ -140,10 +140,10 @@ tccl_status_t tccl_team_lib_query(tccl_team_lib_h team_lib,
                                 tccl_team_lib_attr_t *attr);
 
 tccl_status_t tccl_create_context(tccl_lib_h lib,
-                                  tccl_team_context_config_t config,
-                                  tccl_team_context_h *team_ctx);
+                                  tccl_context_config_t config,
+                                  tccl_context_h *team_ctx);
 
-tccl_status_t tccl_destroy_context(tccl_team_context_h team_ctx);
+tccl_status_t tccl_destroy_context(tccl_context_h team_ctx);
 
 /**
  * @ingroup TCCL_TEAM
@@ -193,7 +193,7 @@ typedef struct tccl_team_config {
     tccl_ep_range_t range;
 } tccl_team_config_t;
 
-tccl_status_t tccl_team_create_post(tccl_team_context_h team_ctx,
+tccl_status_t tccl_team_create_post(tccl_context_h team_ctx,
                                   tccl_team_config_h config,
                                   tccl_oob_collectives_t oob, tccl_team_h *team);
 
@@ -296,7 +296,7 @@ tccl_status_t tccl_collective_test(tccl_coll_req_h request);
 
 tccl_status_t tccl_collective_finalize(tccl_coll_req_h request);
 
-tccl_status_t tccl_context_progress(tccl_team_context_h context);
+tccl_status_t tccl_context_progress(tccl_context_h context);
 
 /**
  * @ingroup TCCL_LIB
@@ -309,7 +309,7 @@ typedef struct tccl_lib_config {
         tccl_thread_mode_t           thread_mode;
         tccl_team_usage_type_t       team_usage;
         tccl_collective_type_t       coll_types;
-        tccl_team_context_config_t   context_config;
+        tccl_context_config_t        context_config;
         tccl_team_config_t           team_config;
 } tccl_lib_config_t;
 

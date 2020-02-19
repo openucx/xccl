@@ -18,8 +18,8 @@ void tccl_team_vmc_runtime_progress()
 }
 
 tccl_status_t tccl_team_vmc_create_context(tccl_team_lib_h team_lib,
-                                         tccl_team_context_config_h config,
-                                         tccl_team_context_h *team_context)
+                                         tccl_context_config_h config,
+                                         tccl_context_h *team_context)
 {
     tccl_team_vmc_context_t *team_vmc_ctx = malloc(sizeof(*team_vmc_ctx));
     vmc_ctx_params_t       vmc_params;
@@ -41,11 +41,11 @@ tccl_status_t tccl_team_vmc_create_context(tccl_team_lib_h team_lib,
         return TCCL_ERR_NO_MESSAGE;
     }
 
-    *team_context = (tccl_team_context_h)team_vmc_ctx;
+    *team_context = (tccl_context_h)team_vmc_ctx;
     return TCCL_OK;
 }
 
-tccl_status_t tccl_team_vmc_destroy_context(tccl_team_context_h team_context)
+tccl_status_t tccl_team_vmc_destroy_context(tccl_context_h team_context)
 {
     tccl_team_vmc_context_t *team_vmc_ctx = (tccl_team_vmc_context_t*)team_context; 
     
@@ -63,7 +63,7 @@ static int vmc_comm_rank_to_world_mapper(int rank, void *mapper_ctx)
     return tccl_team_rank_to_world(cfg, rank);
 }
 
-tccl_status_t tccl_team_vmc_create_post(tccl_team_context_h team_context,
+tccl_status_t tccl_team_vmc_create_post(tccl_context_h team_context,
                                       tccl_team_config_h config,
                                       tccl_oob_collectives_t oob,
                                       tccl_team_h *team)
@@ -176,7 +176,7 @@ tccl_status_t tccl_team_vmc_collective_finalize(tccl_coll_req_h request)
     return TCCL_OK;
 }
 
-tccl_status_t tccl_team_vmc_context_progress(tccl_team_context_h team_context)
+tccl_status_t tccl_team_vmc_context_progress(tccl_context_h team_context)
 {
     tccl_team_vmc_context_t *team_vmc_ctx = (tccl_team_vmc_context_t*)team_context;
     vmc_progress(team_vmc_ctx->vmc_ctx);

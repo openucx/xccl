@@ -32,7 +32,7 @@ typedef struct tccl_team* tccl_team_h;
  *
  * @todo add description here
  */
-typedef struct tccl_team_context* tccl_team_context_h;
+typedef struct tccl_context* tccl_context_h;
 
 /**
  * @ingroup TCCL_TEAM_CONTEXT
@@ -40,7 +40,7 @@ typedef struct tccl_team_context* tccl_team_context_h;
  *
  * @todo add description here
  */
-typedef struct tccl_team_context_config* tccl_team_context_config_h;
+typedef struct tccl_context_config* tccl_context_config_h;
 
 /**
  * @ingroup TCCL_TEAM

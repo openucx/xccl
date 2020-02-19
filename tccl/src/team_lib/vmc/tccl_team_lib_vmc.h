@@ -12,7 +12,7 @@ typedef struct tccl_team_lib_vmc {
 } tccl_team_lib_vmc_t;
 
 typedef struct tccl_team_vmc_context {
-    tccl_team_context_t super;
+    tccl_context_t     super;
     vmc_ctx_h          vmc_ctx;
 } tccl_team_vmc_context_t;
 

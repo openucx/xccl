@@ -15,11 +15,11 @@ typedef struct tccl_team_lib {
     tccl_team_lib_context_create_mode_t ctx_create_mode;
     void*                               dl_handle;
     tccl_status_t                       (*create_team_context)(tccl_team_lib_h lib,
-                                                              tccl_team_context_config_h config,
-                                                              tccl_team_context_h *team_context);
-    tccl_status_t                       (*destroy_team_context)(tccl_team_context_h team_context);
-    tccl_status_t                       (*progress)(tccl_team_context_h team_context);
-    tccl_status_t                       (*team_create_post)(tccl_team_context_h team_ctx,
+                                                              tccl_context_config_h config,
+                                                              tccl_context_h *team_context);
+    tccl_status_t                       (*destroy_team_context)(tccl_context_h team_context);
+    tccl_status_t                       (*progress)(tccl_context_h team_context);
+    tccl_status_t                       (*team_create_post)(tccl_context_h team_ctx,
                                                            tccl_team_config_h config,
                                                            tccl_oob_collectives_t oob, tccl_team_h *team);
     tccl_status_t                       (*team_destroy)(tccl_team_h team);
@@ -39,13 +39,13 @@ typedef struct tccl_lib {
     tccl_team_lib_t **libs;
 } tccl_lib_t;
 
-typedef struct tccl_team_context {
+typedef struct tccl_context {
     tccl_team_lib_t            *lib;
-    tccl_team_context_config_t  cfg;
-} tccl_team_context_t;
+    tccl_context_config_t  cfg;
+} tccl_context_t;
 
 typedef struct tccl_team {
-    tccl_team_context_t   *ctx;
+    tccl_context_t   *ctx;
     tccl_team_config_t     cfg;
     tccl_oob_collectives_t oob;
 } tccl_team_t;
@@ -77,7 +77,7 @@ static inline int tccl_team_rank_to_world(tccl_team_config_t *cfg, int rank)
 
 #define TCCL_CONTEXT_SUPER_INIT(_ctx, _lib, _config) do {                \
         (_ctx).lib = (_lib);                                            \
-        memcpy(&((_ctx).cfg), (_config), sizeof(tccl_team_context_config_t)); \
+        memcpy(&((_ctx).cfg), (_config), sizeof(tccl_context_config_t)); \
     }while(0)
 
 #define TCCL_STATIC_ASSERT(_cond) \

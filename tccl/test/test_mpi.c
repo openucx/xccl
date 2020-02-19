@@ -3,7 +3,7 @@
 tccl_team_h tccl_world_team;
 
 static tccl_lib_h lib;
-static tccl_team_context_h team_ctx;
+static tccl_context_h team_ctx;
 
 static int oob_allgather(void *sbuf, void *rbuf, size_t len, void *coll_context) {
     MPI_Comm comm = (MPI_Comm)coll_context;
@@ -29,7 +29,7 @@ int tccl_mpi_test_init(int argc, char **argv) {
     TCCL_CHECK(tccl_lib_init(lib_config, &lib));
 
     /* Init tccl context for a specified TCCL_TEST_TEAM */
-    tccl_team_context_config_t team_ctx_config = {
+    tccl_context_config_t team_ctx_config = {
         .field_mask = TCCL_CONTEXT_CONFIG_FIELD_TEAM_LIB_NAME |
         TCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE |
         TCCL_CONTEXT_CONFIG_FIELD_OOB |
