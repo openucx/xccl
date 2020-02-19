@@ -119,6 +119,7 @@ int mccl_init_context(mccl_config_t *conf, mccl_context_h *context) {
     ctx->procs = (proc_data_t*)malloc(conf->world_size*sizeof(proc_data_t));
     mccl_get_bound_socket_id(&ctx->local_proc.socketid);
     memset(ctx->libs, 0, sizeof(ctx->libs));
+    *context = NULL;
     for (i=0; i<TCCL_LIB_LAST; i++) {
         ctx->libs[i].enabled = 1;
     }
@@ -138,7 +139,6 @@ int mccl_init_context(mccl_config_t *conf, mccl_context_h *context) {
        /* ctx->local_proc.node_hash, ctx->local_proc.socketid); */
     for (i=0; i<TCCL_LIB_LAST; i++) {
         if (MCCL_SUCCESS != mccl_tccl_init_lib(ctx, i)) {
-            *context = NULL;
             return MCCL_ERROR;
         }
     }

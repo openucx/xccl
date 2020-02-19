@@ -16,7 +16,7 @@
 #include <err.h>
 #include <link.h>
 #include <dlfcn.h>
-#include <fts.h>
+#include <glob.h>
 
 static int
 callback(struct dl_phdr_info *info, size_t size, void *data)
@@ -66,44 +66,28 @@ static tccl_status_t tccl_team_lib_init(const char *so_path,
 
 static void load_team_lib_plugins(tccl_lib_t *lib)
 {
-    FTS *ftsp;
-    FTSENT *p, *chp;
-    int fts_options = FTS_COMFOLLOW | FTS_LOGICAL | FTS_NOCHDIR;
-    char* const arr[2] = {lib->lib_path, NULL};
+    const char *tl_pattern = "/tccl_team_lib_*.so";
+    glob_t globbuf;
+    int i;
+    char *pattern = (char*)malloc(strlen(lib->lib_path) + strlen(tl_pattern) + 1);
 
-    if ((ftsp = fts_open(arr, fts_options, NULL)) == NULL) {
-        warn("fts_open");
-        return;
-    }
-    /* Initialize ftsp with as many argv[] parts as possible. */
-    chp = fts_children(ftsp, 0);
-    if (chp == NULL) {
-        return;               /* no files to traverse */
-
-    }
-    while ((p = fts_read(ftsp)) != NULL) {
-        switch (p->fts_info) {
-        case FTS_D:
-            /*directory should not be there, skip */
-            break;
-        case FTS_F:
-            if (strstr(p->fts_name, "tccl_team_lib_") &&
-                strstr(p->fts_name, ".so")) {
-                /* printf("f %s\n", p->fts_name); */
-                if (lib->n_libs_opened == lib->libs_array_size) {
-                    lib->libs_array_size += 8;
-                    lib->libs = (tccl_team_lib_t**)realloc(lib->libs,
-                                                           lib->libs_array_size*sizeof(*lib->libs));
-                }
-                tccl_team_lib_init(p->fts_path, &lib->libs[lib->n_libs_opened]);
-                lib->n_libs_opened++;
-            }
-            break;
-        default:
-            break;
+    strcpy(pattern, lib->lib_path);
+    strcat(pattern, tl_pattern);
+    glob(pattern, 0, NULL, &globbuf);
+    free(pattern);
+    for(i=0; i<globbuf.gl_pathc; i++) {
+        if (lib->n_libs_opened == lib->libs_array_size) {
+            lib->libs_array_size += 8;
+            lib->libs = (tccl_team_lib_t**)realloc(lib->libs,
+                                                   lib->libs_array_size*sizeof(*lib->libs));
         }
+        tccl_team_lib_init(globbuf.gl_pathv[i], &lib->libs[lib->n_libs_opened]);
+        lib->n_libs_opened++;
     }
-    fts_close(ftsp);
+
+    if (globbuf.gl_pathc > 0) {
+        globfree(&globbuf);
+    }
 }
 
 static tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib) {
@@ -111,10 +95,11 @@ static tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib) {
     return TCCL_OK;
 }
 
-#define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{\
+#define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{                      \
         if ((config.field_mask & TCCL_LIB_CONFIG_FIELD_ ## _CAP_FIELD) && \
             !(config. _cap & tl->config. _cap)) {                       \
-        printf("Disqualifying team %s due to %s cap\n", tl->name, TCCL_PP_QUOTE(_CAP_FIELD));\
+            printf("Disqualifying team %s due to %s cap\n",             \
+                   tl->name, TCCL_PP_QUOTE(_CAP_FIELD));                \
             tccl_team_lib_finalize(tl);                                 \
             lib->libs[i] = NULL;                                        \
             kept--;                                                     \
