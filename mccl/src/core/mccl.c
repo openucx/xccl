@@ -55,26 +55,23 @@ static int mccl_tccl_init_lib(mccl_context_t *ctx, mccl_tccl_team_lib_t libtype)
         return MCCL_SUCCESS;
     }
 
-    tccl_team_lib_params_t lib_params = {
-        .tccl_model_type = TCCL_MODEL_TYPE_MPI,
-        .team_lib_name = tccl_libtype_to_char(libtype),
-        .ucp_context = NULL
-    };
-    if (TCCL_OK != tccl_team_lib_init(&lib_params, &ctx->libs[libtype].tccl_lib)) {
-        return MCCL_ERROR;
-    }
-
-    tccl_team_context_config_t team_ctx_config = {
-        .thread_support   = TCCL_THREAD_MODE_PRIVATE,
+    tccl_context_config_t team_ctx_config = {
+        .field_mask = TCCL_CONTEXT_CONFIG_FIELD_TEAM_LIB_NAME |
+                      TCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE   |
+                      TCCL_CONTEXT_CONFIG_FIELD_OOB           |
+                      TCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE,
+        .team_lib_name    = tccl_libtype_to_char(libtype),
+        .thread_mode      = TCCL_LIB_THREAD_SINGLE,
         .completion_type  = TCCL_TEAM_COMPLETION_BLOCKING,
         .oob.allgather    = ctx->config.allgather,
         .oob.coll_context = ctx->config.oob_coll_ctx,
         .oob.rank         = ctx->config.world_rank,
         .oob.size         = ctx->config.world_size
     };
-
-    tccl_create_team_context(ctx->libs[libtype].tccl_lib, &team_ctx_config,
-                            &ctx->libs[libtype].tccl_ctx);
+    if (TCCL_OK != tccl_create_context(ctx->tccl_lib, team_ctx_config,
+                                       &ctx->libs[libtype].tccl_ctx)) {
+        return MCCL_ERROR;
+    }
     return MCCL_SUCCESS;
 }
 
@@ -122,16 +119,26 @@ int mccl_init_context(mccl_config_t *conf, mccl_context_h *context) {
     ctx->procs = (proc_data_t*)malloc(conf->world_size*sizeof(proc_data_t));
     mccl_get_bound_socket_id(&ctx->local_proc.socketid);
     memset(ctx->libs, 0, sizeof(ctx->libs));
+    *context = NULL;
     for (i=0; i<TCCL_LIB_LAST; i++) {
         ctx->libs[i].enabled = 1;
     }
-
     init_env_params(ctx);
+
+    tccl_lib_config_t lib_config = {
+        .field_mask = TCCL_LIB_CONFIG_FIELD_TEAM_USAGE,
+        .team_usage = TCCL_USAGE_SW_COLLECTIVES |
+        TCCL_USAGE_HW_COLLECTIVES,
+    };
+
+    if (TCCL_OK != tccl_lib_init(lib_config, &ctx->tccl_lib)) {
+        return MCCL_ERROR;
+    }
+
     /* printf("node: %s, node_hash %u, scoket id %d\n", hostname, */
        /* ctx->local_proc.node_hash, ctx->local_proc.socketid); */
     for (i=0; i<TCCL_LIB_LAST; i++) {
         if (MCCL_SUCCESS != mccl_tccl_init_lib(ctx, i)) {
-            *context = NULL;
             return MCCL_ERROR;
         }
     }
@@ -144,11 +151,12 @@ int mccl_finalize(mccl_context_h context) {
     mccl_context_t *ctx = (mccl_context_t *)context;
     int i;
     for (i=0; i<TCCL_LIB_LAST; i++) {
-        if (ctx->libs[i].tccl_lib) {
-            tccl_destroy_team_context(ctx->libs[i].tccl_ctx);
-            tccl_team_lib_finalize(ctx->libs[i].tccl_lib);
+        if (ctx->libs[i].enabled) {
+            assert(ctx->libs[i].tccl_ctx);
+            tccl_destroy_context(ctx->libs[i].tccl_ctx);
         }
     }
+    tccl_lib_finalize(ctx->tccl_lib);
     free(ctx->procs);
     free(ctx);
     return MCCL_SUCCESS;

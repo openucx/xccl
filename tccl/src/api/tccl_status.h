@@ -24,6 +24,7 @@ typedef enum {
     TCCL_ERR_MESSAGE_TRUNCATED      =  -9,
     TCCL_ERR_NO_PROGRESS            = -10,
     TCCL_ERR_BUFFER_TOO_SMALL       = -11,
+    TCCL_ERR_NO_ELEM                = -12,
     TCCL_ERR_UNSUPPORTED            = -22,
     TCCL_ERR_LAST                   = -100
 } tccl_status_t;

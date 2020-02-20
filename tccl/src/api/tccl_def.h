@@ -16,6 +16,7 @@
  * @todo add description here
  */
 typedef struct tccl_team_lib* tccl_team_lib_h;
+typedef struct tccl_lib* tccl_lib_h;
 
 /**
  * @ingroup TCCL_TEAM
@@ -31,7 +32,7 @@ typedef struct tccl_team* tccl_team_h;
  *
  * @todo add description here
  */
-typedef struct tccl_team_context* tccl_team_context_h;
+typedef struct tccl_context* tccl_context_h;
 
 /**
  * @ingroup TCCL_TEAM_CONTEXT
@@ -39,7 +40,7 @@ typedef struct tccl_team_context* tccl_team_context_h;
  *
  * @todo add description here
  */
-typedef struct tccl_team_context_config* tccl_team_context_config_h;
+typedef struct tccl_context_config* tccl_context_config_h;
 
 /**
  * @ingroup TCCL_TEAM
@@ -58,4 +59,7 @@ typedef struct tccl_team_config* tccl_team_config_h;
 
 typedef struct tccl_coll_req* tccl_coll_req_h;
 
+#define TCCL_BIT(i)               (1ul << (i))
+#define TCCL_MASK(i)              (TCCL_BIT(i) - 1)
+#define TCCL_PP_QUOTE(x)                 # x
 #endif

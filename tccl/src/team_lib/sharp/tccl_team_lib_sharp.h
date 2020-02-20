@@ -16,7 +16,7 @@ typedef struct tccl_team_lib_sharp {
 } tccl_team_lib_sharp_t;
 
 typedef struct tccl_team_sharp_context {
-    tccl_team_context_t        super;
+    tccl_context_t             super;
     tccl_oob_collectives_t     oob;
     struct sharp_coll_context *sharp_context;
 } tccl_team_sharp_context_t;

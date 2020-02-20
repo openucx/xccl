@@ -13,7 +13,7 @@ typedef struct tccl_ucx_team_t {
     ucp_ep_h*    ucp_eps;
 } tccl_ucx_team_t;
 
-tccl_status_t tccl_ucx_team_create_post(tccl_team_context_t *context, tccl_team_config_t *config,
+tccl_status_t tccl_ucx_team_create_post(tccl_context_t *context, tccl_team_config_t *config,
                                       tccl_oob_collectives_t oob, tccl_team_t **team);
 tccl_status_t tccl_ucx_team_destroy(tccl_team_t *team);
 

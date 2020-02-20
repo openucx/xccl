@@ -3,10 +3,14 @@
 *
 * See file LICENSE for terms.
 */
-#include <mpi.h>
-#include "api/mccl.h"
 #include <assert.h>
 #include <string.h>
+#include "mccl_test.h"
+int oob_allgather_ctx(void *sbuf, void *rbuf, size_t msglen, void *ctx) {
+        MPI_Comm comm = (MPI_Comm)ctx;
+        MPI_Allgather(sbuf, msglen, MPI_BYTE, rbuf, msglen, MPI_BYTE, comm);
+        return 0;
+}
 
 int oob_allgather(void *sbuf, void *rbuf, size_t msglen,
                    int my_rank, int *ranks, int nranks,  void *oob_coll_ctx) {
@@ -43,11 +47,13 @@ int mccl_test_init(int argc, char **argv, uint64_t caps) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     mccl_config_t config = {
-        .flags = 0,
-        .world_size = size,
+        .flags        = 0,
+        .world_size   = size,
+        .allgather    = oob_allgather_ctx,
+        .oob_coll_ctx = (void*)MPI_COMM_WORLD,
     };
 
-    mccl_init_context(&config, &mccl_test_context);
+    MCCL_CHECK(mccl_init_context(&config, &mccl_test_context));
     mccl_comm_config_t comm_config = {
         .allgather = oob_allgather,
         .oob_coll_ctx = (void*)MPI_COMM_WORLD,
@@ -59,13 +65,13 @@ int mccl_test_init(int argc, char **argv, uint64_t caps) {
         .caps.tagged_colls = 0,
     };
 
-    mccl_comm_create(&comm_config, &mccl_comm_world);
+    MCCL_CHECK(mccl_comm_create(&comm_config, &mccl_comm_world));
     return MCCL_SUCCESS;
 }
 
 int mccl_test_fini(void) {
-    mccl_comm_free(mccl_comm_world);
-    mccl_finalize(mccl_test_context);
+    MCCL_CHECK(mccl_comm_free(mccl_comm_world));
+    MCCL_CHECK(mccl_finalize(mccl_test_context));
     MPI_Finalize();
     return MCCL_SUCCESS;
 }

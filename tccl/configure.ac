@@ -19,10 +19,11 @@ define([tccl_git_sha], esyscmd([sh -c "git rev-parse --short HEAD"]))
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
 # current:rev:age
 define([libtccl_so_version], 1:0:0)
-
 AC_INIT([tccl], [tccl_ver_major.tccl_ver_minor])
-AC_USE_SYSTEM_EXTENSIONS
-AC_GNU_SOURCE
+: ${CPPFLAGS=""}
+: ${CFLAGS=""}
+: ${CXXFLAGS=""}
+
 AC_CONFIG_HEADERS([config.h])
 
 TCCL_TOP_BUILDDIR="`pwd`"
@@ -35,7 +36,6 @@ cd "$TCCL_TOP_BUILDDIR"
 
 AC_MSG_NOTICE([builddir: $TCCL_TOP_BUILDDIR])
 AC_MSG_NOTICE([srcdir: $TCCL_TOP_SRCDIR])
-
 AM_INIT_AUTOMAKE([1.10 foreign tar-ustar silent-rules subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AM_MAINTAINER_MODE
@@ -106,5 +106,6 @@ AC_CONFIG_FILES([
                  src/team_lib/ucx/Makefile
                  src/team_lib/sharp/Makefile
                  src/team_lib/vmc/Makefile
+                 test/Makefile
                  ])
 AC_OUTPUT

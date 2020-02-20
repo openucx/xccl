@@ -83,8 +83,8 @@ int tccl_team_sharp_oob_bcast(void *context, void *buf, int size, int root)
 
 static tccl_status_t
 tccl_team_sharp_create_context(tccl_team_lib_h team_lib,
-                              tccl_team_context_config_h config,
-                              tccl_team_context_h *team_context)
+                              tccl_context_config_h config,
+                              tccl_context_h *team_context)
 {
     tccl_team_sharp_context_t *team_sharp_ctx = malloc(sizeof(*team_sharp_ctx));
     struct sharp_coll_init_spec init_spec = {0};
@@ -120,12 +120,12 @@ tccl_team_sharp_create_context(tccl_team_lib_h team_lib,
         free(team_sharp_ctx);
         return TCCL_ERR_NO_MESSAGE;
     }
-    *team_context = (tccl_team_context_h)team_sharp_ctx;
+    *team_context = (tccl_context_h)team_sharp_ctx;
     return TCCL_OK;
 }
 
 static tccl_status_t
-tccl_team_sharp_destroy_context(tccl_team_context_h team_context)
+tccl_team_sharp_destroy_context(tccl_context_h team_context)
 {
     tccl_team_sharp_context_t *team_sharp_ctx =
         (tccl_team_sharp_context_t *)team_context;
@@ -137,7 +137,7 @@ tccl_team_sharp_destroy_context(tccl_team_context_h team_context)
 }
 
 static tccl_status_t
-tccl_team_sharp_create_post(tccl_team_context_h team_context,
+tccl_team_sharp_create_post(tccl_context_h team_context,
                            tccl_team_config_h config,
                            tccl_oob_collectives_t oob,
                            tccl_team_h *team)
@@ -203,7 +203,12 @@ static tccl_status_t tccl_team_sharp_destroy(tccl_team_h team)
 }
 
 tccl_team_lib_sharp_t tccl_team_lib_sharp = {
-    .super.name                 = "team_lib_sharp",
+    .super.name                 = "sharp",
+    .super.priority             = 100,
+    .super.config.reproducible  = TCCL_LIB_NON_REPRODUCIBLE,
+    .super.config.thread_mode   = TCCL_LIB_THREAD_SINGLE | TCCL_LIB_THREAD_MULTIPLE,
+    .super.config.team_usage    = TCCL_USAGE_HW_COLLECTIVES,
+    .super.config.coll_types    = TCCL_BARRIER | TCCL_ALLREDUCE,
     .super.ctx_create_mode      = TCCL_TEAM_LIB_CONTEXT_CREATE_MODE_GLOBAL,
     .super.create_team_context  = tccl_team_sharp_create_context,
     .super.destroy_team_context = tccl_team_sharp_destroy_context,
