@@ -9,11 +9,11 @@
 
 if HAVE_SHARP
 sources = \
-	tccl_team_lib_sharp.c \
-	tccl_team_lib_sharp.h \
+	tccl_sharp_lib.c \
+	tccl_sharp_lib.h \
 	tccl_sharp_map.h \
-	tccl_team_sharp_collective.c \
-	tccl_team_sharp_collective.h 
+	tccl_sharp_collective.c \
+	tccl_sharp_collective.h
 
 component_noinst =
 component_install = tccl_team_lib_sharp.la
