@@ -9,8 +9,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-int mccl_bcast_init(void *buf,int count, tccl_dt_t dtype,
-                   int root, mccl_comm_h comm, mccl_request_h *req)
+mccl_status_t mccl_bcast_init(void *buf,int count, tccl_dt_t dtype,
+                              int root, mccl_comm_h comm, mccl_request_h *req)
 {
     coll_schedule_t *schedule;
     mccl_comm_t *mccl_comm = (mccl_comm_t*)comm;
@@ -24,11 +24,11 @@ int mccl_bcast_init(void *buf,int count, tccl_dt_t dtype,
                               root, top_lvl_team);
 
     *req = (mccl_request_h)schedule;
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }
 
-int mccl_bcast(void* buf, int count, tccl_dt_t dtype,
-              int root, mccl_comm_h comm)
+mccl_status_t mccl_bcast(void* buf, int count, tccl_dt_t dtype,
+                         int root, mccl_comm_h comm)
 {
     mccl_request_h req;
     mccl_bcast_init(buf, count, dtype, root, comm, &req);
@@ -36,5 +36,5 @@ int mccl_bcast(void* buf, int count, tccl_dt_t dtype,
     mccl_wait(req);
     /* fprintf(stderr, "Bcast done\n"); */
     mccl_request_free(req);
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }

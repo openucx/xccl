@@ -5,7 +5,7 @@
 */
 #ifndef SBGP_H
 #define SBGP_H
-
+#include <api/mccl.h>
 typedef enum sbgp_type_t {
     SBGP_UNDEF = 0,
     SBGP_NUMA,
@@ -36,6 +36,6 @@ typedef struct sbgp_t {
 
 extern char* sbgp_type_str[SBGP_LAST];
 
-int sbgp_create(mccl_comm_t *mccl_comm, sbgp_type_t type, sbgp_t *sbgp);
-int sbgp_cleanup(sbgp_t *sbgp);
+mccl_status_t sbgp_create(mccl_comm_t *mccl_comm, sbgp_type_t type, sbgp_t *sbgp);
+mccl_status_t sbgp_cleanup(sbgp_t *sbgp);
 #endif

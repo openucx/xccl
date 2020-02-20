@@ -9,8 +9,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-int mccl_allreduce_init(void *sbuf, void*rbuf, int count, tccl_dt_t dtype,
-                       tccl_op_t op, mccl_comm_h comm, mccl_request_h *req)
+mccl_status_t mccl_allreduce_init(void *sbuf, void*rbuf, int count, tccl_dt_t dtype,
+                                  tccl_op_t op, mccl_comm_h comm, mccl_request_h *req)
 {
     coll_schedule_t *schedule;
     mccl_comm_t *mccl_comm = (mccl_comm_t*)comm;
@@ -32,10 +32,10 @@ int mccl_allreduce_init(void *sbuf, void*rbuf, int count, tccl_dt_t dtype,
                                   sock_team, sock_lead_team, top_lvl_team);
 
     *req = (mccl_request_h)schedule;
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }
 
-int mccl_allreduce(void *sbuf, void*rbuf, int count, tccl_dt_t dtype,
+mccl_status_t mccl_allreduce(void *sbuf, void*rbuf, int count, tccl_dt_t dtype,
                   tccl_op_t op, mccl_comm_h comm)
 {
     mccl_request_h req;
@@ -43,5 +43,5 @@ int mccl_allreduce(void *sbuf, void*rbuf, int count, tccl_dt_t dtype,
     mccl_start(req);
     mccl_wait(req);
     mccl_request_free(req);
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }

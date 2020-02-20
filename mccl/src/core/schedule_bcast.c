@@ -12,6 +12,7 @@
 #include "schedule.h"
 #include "mccl_team.h"
 #include "mccl_inline.h"
+
 static inline int
 root_at_socket(int root, sbgp_t *sbgp) {
     int i;
@@ -25,9 +26,9 @@ root_at_socket(int root, sbgp_t *sbgp) {
     return socket_root_rank;
 }
 
-void build_bcast_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
-                               void *buf, int count, tccl_dt_t dtype, int root,
-                               int node_leaders_teamtype) {
+mccl_status_t build_bcast_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
+                                        void *buf, int count, tccl_dt_t dtype, int root,
+                                        int node_leaders_teamtype) {
     int have_node_leaders_group = (comm->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
     int have_socket_group = (comm->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (comm->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
@@ -118,4 +119,5 @@ void build_bcast_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
     schedule->super.n_completed_colls = 0;
     memset(schedule->reqs, 0, sizeof(schedule->reqs));
     (*sched) = &schedule->super;
+    return MCCL_SUCCESS;
 }

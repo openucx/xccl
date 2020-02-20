@@ -67,5 +67,5 @@ typedef struct mccl_comm_t {
     int                ctx_id; //TODO
 } mccl_comm_t;
 
-int mccl_get_bound_socket_id(int *socketid);
+mccl_status_t mccl_get_bound_socket_id(int *socketid);
 #endif
