@@ -25,13 +25,14 @@ unsigned long hash(const char *str) {
     return hash;
 }
 
-static int oob_tccl_allgather(void *sbuf, void *rbuf, size_t len, void *coll_context) {
+static int
+oob_tccl_allgather(void *sbuf, void *rbuf, size_t len, void *coll_context) {
     sbgp_t *sbgp = (sbgp_t*)coll_context;
     mccl_comm_t *mccl_comm = sbgp->mccl_comm;
     mccl_comm->config.allgather(sbuf, rbuf, len, mccl_comm->config.comm_rank,
                                sbgp->mccl_rank_map, sbgp->group_size,
                                mccl_comm->config.oob_coll_ctx);
-    return MCCL_SUCCESS;
+    return 0;
 }
 
 static inline char* tccl_libtype_to_char(mccl_tccl_team_lib_t libtype) {
@@ -50,7 +51,8 @@ static inline char* tccl_libtype_to_char(mccl_tccl_team_lib_t libtype) {
     return NULL;
 }
 
-static int mccl_tccl_init_lib(mccl_context_t *ctx, mccl_tccl_team_lib_t libtype) {
+static mccl_status_t
+mccl_tccl_init_lib(mccl_context_t *ctx, mccl_tccl_team_lib_t libtype) {
     if (!ctx->libs[libtype].enabled) {
         return MCCL_SUCCESS;
     }
@@ -75,7 +77,7 @@ static int mccl_tccl_init_lib(mccl_context_t *ctx, mccl_tccl_team_lib_t libtype)
     return MCCL_SUCCESS;
 }
 
-static int init_env_params(mccl_context_t *ctx)
+static mccl_status_t init_env_params(mccl_context_t *ctx)
 {
     char *var;
     /* Just quick simple getenv to have smth working.
@@ -105,10 +107,10 @@ static int init_env_params(mccl_context_t *ctx)
         ctx->libs[TCCL_LIB_VMC].enabled = 0;
     }
 
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }
 
-int mccl_init_context(mccl_config_t *conf, mccl_context_h *context) {
+mccl_status_t mccl_init_context(mccl_config_t *conf, mccl_context_h *context) {
     mccl_context_t *ctx;
     char hostname[256];
     int i;
@@ -147,7 +149,7 @@ int mccl_init_context(mccl_config_t *conf, mccl_context_h *context) {
     return MCCL_SUCCESS;
 }
 
-int mccl_finalize(mccl_context_h context) {
+mccl_status_t mccl_finalize(mccl_context_h context) {
     mccl_context_t *ctx = (mccl_context_t *)context;
     int i;
     for (i=0; i<TCCL_LIB_LAST; i++) {
@@ -225,8 +227,8 @@ static int mccl_team_rank_to_world(int team_rank, void *rank_mapper_ctx) {
         sbgp->mccl_comm->world_ranks[mccl_ctx_rank] : mccl_ctx_rank;;
 }
 
-static int mccl_create_team(sbgp_t *sbgp, mccl_comm_t *comm,
-                           mccl_tccl_team_lib_t libtype, mccl_team_type_t teamtype) {
+static mccl_status_t mccl_create_team(sbgp_t *sbgp, mccl_comm_t *comm,
+                                      mccl_tccl_team_lib_t libtype, mccl_team_type_t teamtype) {
     mccl_context_t *mccl_ctx = comm->config.mccl_ctx;
     if (sbgp->status != SBGP_ENABLED) {
         return 0;
@@ -254,7 +256,7 @@ static int mccl_create_team(sbgp_t *sbgp, mccl_comm_t *comm,
     return MCCL_SUCCESS;
 }
 
-int mccl_comm_create(mccl_comm_config_t *conf, mccl_comm_h *mccl_comm) {
+mccl_status_t mccl_comm_create(mccl_comm_config_t *conf, mccl_comm_h *mccl_comm) {
     mccl_context_t *ctx = conf->mccl_ctx;
     mccl_comm_t *comm = (mccl_comm_t*)calloc(1, sizeof(*comm));
     int i;
@@ -306,7 +308,7 @@ int mccl_comm_create(mccl_comm_config_t *conf, mccl_comm_h *mccl_comm) {
     return MCCL_SUCCESS;
 }
 
-int mccl_comm_free(mccl_comm_h comm) {
+mccl_status_t mccl_comm_free(mccl_comm_h comm) {
     mccl_comm_t *mccl_comm = (mccl_comm_t *)comm;
     int i;
     for (i=0; i<MCCL_TEAM_LAST; i++) {
@@ -330,7 +332,7 @@ int mccl_comm_free(mccl_comm_h comm) {
     return MCCL_SUCCESS;
 }
 
-int mccl_progress(mccl_context_h mccl_ctx) {
+mccl_status_t mccl_progress(mccl_context_h mccl_ctx) {
     mccl_context_t *ctx = (mccl_context_t*)mccl_ctx;
     int i;
     for (i=0; i<TCCL_LIB_LAST; i++) {
@@ -338,4 +340,5 @@ int mccl_progress(mccl_context_h mccl_ctx) {
             tccl_context_progress(ctx->libs[i].tccl_ctx);
         }
     }
+    return MCCL_SUCCESS;
 }

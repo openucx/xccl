@@ -26,7 +26,7 @@ static inline int is_rank_local(int rank, mccl_comm_t *mccl_comm, int local) {
     }
 }
 
-static inline int sbgp_create_local(sbgp_t *sbgp, int local) {
+static inline mccl_status_t sbgp_create_local(sbgp_t *sbgp, int local) {
     mccl_comm_t *mccl_comm = sbgp->mccl_comm;
     int *local_ranks;
     int group_size     = mccl_comm->config.comm_size;
@@ -60,15 +60,15 @@ static inline int sbgp_create_local(sbgp_t *sbgp, int local) {
     return MCCL_SUCCESS;
 }
 
-static int sbgp_create_node(sbgp_t *sbgp) {
+static mccl_status_t sbgp_create_node(sbgp_t *sbgp) {
     return sbgp_create_local(sbgp, LOCAL_NODE);
 }
 
-static int sbgp_create_socket(sbgp_t *sbgp) {
+static mccl_status_t sbgp_create_socket(sbgp_t *sbgp) {
     return sbgp_create_local(sbgp, LOCAL_SOCKET);
 }
 
-static int sbgp_create_node_leaders(sbgp_t *sbgp) {
+static mccl_status_t sbgp_create_node_leaders(sbgp_t *sbgp) {
     mccl_comm_t *mccl_comm = sbgp->mccl_comm;
     mccl_context_t* mccl_ctx = (mccl_context_t*)mccl_comm->config.mccl_ctx;
     int comm_size     = mccl_comm->config.comm_size;
@@ -121,7 +121,7 @@ static int sbgp_create_node_leaders(sbgp_t *sbgp) {
     return MCCL_SUCCESS;
 }
 
-static int sbgp_create_socket_leaders(sbgp_t *sbgp) {
+static mccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp) {
     mccl_comm_t *mccl_comm = sbgp->mccl_comm;
     mccl_context_t* mccl_ctx = (mccl_context_t*)mccl_comm->config.mccl_ctx;
     int comm_size     = mccl_comm->config.comm_size;
@@ -191,8 +191,9 @@ static void print_sbgp(sbgp_t *sbgp) {
         printf("\n");
     }
 }
-int sbgp_create(mccl_comm_t *mccl_comm, sbgp_type_t type, sbgp_t *sbgp) {
-    int ret;
+
+mccl_status_t sbgp_create(mccl_comm_t *mccl_comm, sbgp_type_t type, sbgp_t *sbgp) {
+    mccl_status_t ret;
     sbgp->mccl_comm = mccl_comm;
     sbgp->type = type;
     switch(type) {
@@ -220,7 +221,7 @@ int sbgp_create(mccl_comm_t *mccl_comm, sbgp_type_t type, sbgp_t *sbgp) {
     return ret;
 }
 
-int sbgp_cleanup(sbgp_t *sbgp) {
+mccl_status_t sbgp_cleanup(sbgp_t *sbgp) {
     if (sbgp->mccl_rank_map) {
         free(sbgp->mccl_rank_map);
     }

@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-int mccl_barrier_init(mccl_comm_h comm, mccl_request_h *req)
+mccl_status_t mccl_barrier_init(mccl_comm_h comm, mccl_request_h *req)
 {
     coll_schedule_t *schedule;
     mccl_comm_t *mccl_comm = (mccl_comm_t*)comm;
@@ -31,5 +31,5 @@ int mccl_barrier_init(mccl_comm_h comm, mccl_request_h *req)
                                 sock_team, sock_lead_team, top_lvl_team);
 
     *req = (mccl_request_h)schedule;
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }

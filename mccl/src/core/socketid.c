@@ -56,7 +56,7 @@ static int parse_cpuset_file(FILE *file, int* nr_psbl_cpus) {
     return 0;
 }
 
-int mccl_get_bound_socket_id(int *socketid) {
+mccl_status_t mccl_get_bound_socket_id(int *socketid) {
     int err, nr_cpus=0, nr_onl_cpus=0, nr_psbl_cpus=0, try=1000, i=0, pos = 0;
     int max_sockets = 64;
     unsigned cpu;

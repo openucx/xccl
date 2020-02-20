@@ -1,21 +1,16 @@
-/**
-* Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
-*
-* See file LICENSE for terms.
-*/
 #include <stdio.h>
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-
 #include "schedule.h"
 #include "mccl_team.h"
-void build_allreduce_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
-                                   coll_schedule_type_t sched_type, int count,
-                                   tccl_dt_t dtype, tccl_op_t op, void *sbuf, void *rbuf,
-                                   int socket_teamtype, int socket_leaders_teamtype,
-                                   int node_leaders_teamtype) {
+
+mccl_status_t build_allreduce_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
+                                            coll_schedule_type_t sched_type, int count,
+                                            tccl_dt_t dtype, tccl_op_t op, void *sbuf, void *rbuf,
+                                            int socket_teamtype, int socket_leaders_teamtype,
+                                            int node_leaders_teamtype) {
     int have_node_leaders_group = (comm->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
     int have_socket_group = (comm->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (comm->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
@@ -98,12 +93,13 @@ void build_allreduce_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
     schedule->super.n_completed_colls = 0;
     schedule->req = NULL;
     (*sched) = &schedule->super;
+    return MCCL_SUCCESS;
 }
 
-void build_barrier_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
-                                 coll_schedule_type_t sched_type,
-                                 int socket_teamtype, int socket_leaders_teamtype,
-                                 int node_leaders_teamtype) {
+mccl_status_t build_barrier_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
+                                          coll_schedule_type_t sched_type,
+                                          int socket_teamtype, int socket_leaders_teamtype,
+                                          int node_leaders_teamtype) {
     int have_node_leaders_group = (comm->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
     int have_socket_group = (comm->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (comm->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
@@ -173,9 +169,11 @@ void build_barrier_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
     schedule->super.n_completed_colls = 0;
     schedule->req = NULL;
     (*sched) = &schedule->super;
+    return MCCL_SUCCESS;
 }
 
-static inline int coll_schedule_progress_sequential(coll_schedule_sequential_t *schedule) {
+static inline mccl_status_t
+coll_schedule_progress_sequential(coll_schedule_sequential_t *schedule) {
     int i;
     int curr_idx;
     mccl_coll_args_t *curr_op;
@@ -196,10 +194,10 @@ static inline int coll_schedule_progress_sequential(coll_schedule_sequential_t *
             i = 0;
         }
     }
-    return 0;
+    return MCCL_SUCCESS;
 }
 
-static inline int
+static inline mccl_status_t
 coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule) {
     int i, p;
     int curr_idx;
@@ -264,10 +262,10 @@ coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule) {
             }
         }
     }
-    return 0;
+    return MCCL_SUCCESS;
 }
 
-int coll_schedule_progress(coll_schedule_t *schedule) {
+mccl_status_t coll_schedule_progress(coll_schedule_t *schedule) {
     switch(schedule->type) {
     case MCCL_COLL_SCHED_SEQ:
         return coll_schedule_progress_sequential((coll_schedule_sequential_t*)schedule);
@@ -276,31 +274,33 @@ int coll_schedule_progress(coll_schedule_t *schedule) {
     default:
         break;
     }
-    return TCCL_ERR_INVALID_PARAM;;
+    return MCCL_ERROR;
 }
 
-int mccl_start(mccl_request_h req) {
+mccl_status_t mccl_start(mccl_request_h req) {
     coll_schedule_t *schedule = (coll_schedule_t*)req;
     coll_schedule_progress(schedule);
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }
 
-int mccl_test(mccl_request_h req) {
+mccl_status_t mccl_test(mccl_request_h req) {
     coll_schedule_t *schedule = (coll_schedule_t*)req;
     coll_schedule_progress(schedule);
     return schedule->n_completed_colls == schedule->n_colls ?
-        TCCL_OK : TCCL_INPROGRESS;
+        MCCL_SUCCESS : MCCL_IN_PROGRESS;
 }
-int mccl_wait(mccl_request_h req) {
+
+mccl_status_t mccl_wait(mccl_request_h req) {
     int ret = mccl_test(req);
-    while (TCCL_OK != ret) {
+    while (MCCL_SUCCESS != ret) {
         ret = mccl_test(req);
     }
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }
-int mccl_request_free(mccl_request_h req) {
+
+mccl_status_t mccl_request_free(mccl_request_h req) {
     coll_schedule_t *schedule = (coll_schedule_t*)req;
     free(schedule);//todo mpool
-    return TCCL_OK;
+    return MCCL_SUCCESS;
 }
 

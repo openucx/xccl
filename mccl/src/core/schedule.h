@@ -45,19 +45,19 @@ typedef struct coll_schedule_single_dep {
     int dep_id;
 } coll_schedule_single_dep_t;
 
-void build_allreduce_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **schedule,
-                                   coll_schedule_type_t sched_type,
-                                   int count, tccl_dt_t dtype, tccl_op_t op, void *sbuf, void *rbuf,
-                                   int socket_teamtype, int socket_leaders_teamtype,
-                                   int node_leaders_teamtype);
-void build_barrier_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **schedule,
-                                 coll_schedule_type_t sched_type,
-                                 int socket_teamtype, int socket_leaders_teamtype,
-                                 int node_leaders_teamtype);
-void build_bcast_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
-                               void *buf, int count, tccl_dt_t dtype, int root,
-                               int node_leaders_teamtype);
+mccl_status_t build_allreduce_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **schedule,
+                                            coll_schedule_type_t sched_type,
+                                            int count, tccl_dt_t dtype, tccl_op_t op, void *sbuf, void *rbuf,
+                                            int socket_teamtype, int socket_leaders_teamtype,
+                                            int node_leaders_teamtype);
+mccl_status_t build_barrier_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **schedule,
+                                          coll_schedule_type_t sched_type,
+                                          int socket_teamtype, int socket_leaders_teamtype,
+                                          int node_leaders_teamtype);
+mccl_status_t build_bcast_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sched,
+                                        void *buf, int count, tccl_dt_t dtype, int root,
+                                        int node_leaders_teamtype);
 
-int coll_schedule_progress(coll_schedule_t *schedule);
+mccl_status_t coll_schedule_progress(coll_schedule_t *schedule);
 
 #endif
