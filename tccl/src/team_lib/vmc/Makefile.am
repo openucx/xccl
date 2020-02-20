@@ -9,8 +9,8 @@
 
 if HAVE_VMC
 sources = \
-	tccl_team_lib_vmc.c \
-	tccl_team_lib_vmc.h
+	tccl_vmc_lib.c \
+	tccl_vmc_lib.h
 
 component_noinst =
 component_install = tccl_team_lib_vmc.la
