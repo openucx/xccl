@@ -190,13 +190,7 @@ static tccl_status_t tccl_create_team_context(tccl_team_lib_h lib,
                                               tccl_context_config_h config,
                                               tccl_context_h *team_ctx)
 {
-    tccl_status_t status;
-    status = lib->create_team_context(lib, config, team_ctx);
-    if (TCCL_OK == status) {
-        (*team_ctx)->lib = lib;
-        memcpy(&((*team_ctx)->cfg), config, sizeof(tccl_context_config_t));
-    }
-    return status;
+    return lib->create_team_context(lib, config, team_ctx);
 }
 
 static tccl_status_t find_tlib_by_name(tccl_lib_t *lib, const char *tlib_name,
@@ -239,13 +233,7 @@ tccl_status_t tccl_team_create_post(tccl_context_h team_ctx,
                                   tccl_team_config_h config,
                                   tccl_oob_collectives_t oob, tccl_team_h *team)
 {
-    tccl_status_t status;
-    status = team_ctx->lib->team_create_post(team_ctx, config, oob, team);
-    if (TCCL_OK == status) {
-        (*team)->ctx = team_ctx;
-        memcpy(&((*team)->cfg), config, sizeof(tccl_team_config_t));
-    }
-    return status;
+    return team_ctx->lib->team_create_post(team_ctx, config, oob, team);
 }
 
 tccl_status_t tccl_team_destroy(tccl_team_h team)
