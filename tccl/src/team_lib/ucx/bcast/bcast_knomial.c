@@ -17,8 +17,8 @@ tccl_status_t tccl_ucx_bcast_knomial_progress(tccl_ucx_collreq_t *req)
     tccl_team_h team   = req->team;
     void *data_buffer = req->args.buffer_info.dst_buffer;
     size_t data_size  = req->args.buffer_info.len;
-    int group_rank    = team->cfg.team_rank;
-    int group_size    = team->cfg.team_size;
+    int group_rank    = team->oob.rank;
+    int group_size    = team->oob.size;
     int root          = req->args.root;
     int radix         = req->bcast_kn.radix;
     tccl_ucx_request_t **reqs = req->bcast_kn.reqs;
@@ -77,12 +77,12 @@ tccl_status_t tccl_ucx_bcast_knomial_progress(tccl_ucx_collreq_t *req)
 tccl_status_t tccl_ucx_bcast_knomial_start(tccl_ucx_collreq_t *req)
 {
     size_t data_size = req->args.buffer_info.len;
-    int group_rank   = req->team->cfg.team_rank;
-    int group_size   = req->team->cfg.team_size;
+    int group_rank   = req->team->oob.rank;
+    int group_size   = req->team->oob.size;
     memset(req->bcast_kn.reqs, 0, sizeof(req->bcast_kn.reqs));
     req->bcast_kn.radix   = 4;//TODO
-    if (req->bcast_kn.radix > req->team->cfg.team_size) {
-        req->bcast_kn.radix = req->team->cfg.team_size;
+    if (req->bcast_kn.radix > req->team->oob.size) {
+        req->bcast_kn.radix = req->team->oob.size;
     }
 
     req->bcast_kn.active_reqs = 0;

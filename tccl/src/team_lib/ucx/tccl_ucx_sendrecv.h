@@ -109,7 +109,7 @@ tccl_ucx_send_nb(void *buffer, size_t msglen, int dest_group_rank,
 {
     ucp_datatype_t datatype = ucp_dt_make_contig(msglen);
     ucp_tag_t ucp_tag       =
-        TEAM_UCX_MAKE_SEND_TAG(tag, team->super.cfg.team_rank, team->ctx_id);
+        TEAM_UCX_MAKE_SEND_TAG(tag, team->super.oob.rank, team->ctx_id);
     /* fprintf(stderr,"send to group_rank %d, len %d, tag %d\n", dest_group_rank, msglen, tag); */
     ucp_ep_h ep = get_p2p_ep(team, dest_group_rank);
     tccl_ucx_request_t *ucx_req = (tccl_ucx_request_t *)

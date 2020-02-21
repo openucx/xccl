@@ -187,15 +187,14 @@ typedef struct tccl_ep_range_t {
         } cb;
     };
 } tccl_ep_range_t;
+
 typedef struct tccl_team_config {
-    int            team_size;
-    int            team_rank;
     tccl_ep_range_t range;
 } tccl_team_config_t;
 
 tccl_status_t tccl_team_create_post(tccl_context_h team_ctx,
-                                  tccl_team_config_h config,
-                                  tccl_oob_collectives_t oob, tccl_team_h *team);
+                                    tccl_team_config_h config,
+                                    tccl_oob_collectives_t oob, tccl_team_h *team);
 
 tccl_status_t tccl_team_destroy(tccl_team_h team);
 

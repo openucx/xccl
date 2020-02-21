@@ -72,8 +72,8 @@ tccl_ucx_barrier_knomial_progress(tccl_ucx_collreq_t *req)
     int full_tree_size, pow_k_sup, n_full_subtrees, full_size, node_type;
     int iteration, radix_pow, active_reqs, k, step_size, peer;
     tccl_team_h team   = req->team;
-    int myrank        = team->cfg.team_rank;
-    int group_size    = team->cfg.team_size;
+    int myrank        = team->oob.rank;
+    int group_size    = team->oob.size;
     int radix         = req->barrier.radix;
     tccl_ucx_request_t **reqs = req->barrier.reqs;
     /* fprintf(stderr, "AR, radix %d, data_size %zd, count %d\n",
@@ -168,8 +168,8 @@ tccl_status_t tccl_ucx_barrier_knomial_start(tccl_ucx_collreq_t *req)
 {
     size_t data_size     = req->args.buffer_info.len;
     req->barrier.radix = 4; //TODO
-    if (req->barrier.radix > req->team->cfg.team_size) {
-        req->barrier.radix = req->team->cfg.team_size;
+    if (req->barrier.radix > req->team->oob.size) {
+        req->barrier.radix = req->team->oob.size;
     }
 
     memset(req->barrier.reqs, 0, sizeof(req->barrier.reqs));
