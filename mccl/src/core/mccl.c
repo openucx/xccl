@@ -235,8 +235,6 @@ static mccl_status_t mccl_create_team(sbgp_t *sbgp, mccl_comm_t *comm,
     }
 
     tccl_team_config_t team_config = {
-        .team_size       = sbgp->group_size,
-        .team_rank       = sbgp->group_rank,
         .range.type      = TCCL_EP_RANGE_CB,
         .range.cb.cb     = mccl_team_rank_to_world,
         .range.cb.cb_ctx = (void*)sbgp,

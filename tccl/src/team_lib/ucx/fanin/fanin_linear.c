@@ -8,8 +8,8 @@
 tccl_status_t tccl_ucx_fanin_linear_progress(tccl_ucx_collreq_t *req)
 {
     tccl_team_h team = req->team;
-    int group_rank   = team->cfg.team_rank;
-    int group_size  = team->cfg.team_size;
+    int group_rank   = team->oob.rank;
+    int group_size   = team->oob.size;
     tccl_ucx_request_t **reqs = req->fanin_linear.reqs;
     if (req->args.root == group_rank) {
         if (req->fanin_linear.step == ((group_rank + 1) % group_size)) {
@@ -50,8 +50,8 @@ completion:
 tccl_status_t tccl_ucx_fanin_linear_start(tccl_ucx_collreq_t *req)
 {
     size_t data_size = req->args.buffer_info.len;
-    int group_rank   = req->team->cfg.team_rank;
-    int group_size   = req->team->cfg.team_size;
+    int group_rank   = req->team->oob.rank;
+    int group_size   = req->team->oob.size;
     memset(req->fanin_linear.reqs, 0, sizeof(req->fanin_linear.reqs));
     if (req->args.root == group_rank) {
         req->fanin_linear.step = (group_rank + 1) % group_size;

@@ -65,8 +65,6 @@ int tccl_mpi_test_init(int argc, char **argv) {
 
     /* Create TCCL TEAM for comm world */
     tccl_team_config_t team_config = {
-        .team_size = size,
-        .team_rank = rank,
         .range     = {
             .type           = TCCL_EP_RANGE_STRIDED,
             .strided.start  = 0,

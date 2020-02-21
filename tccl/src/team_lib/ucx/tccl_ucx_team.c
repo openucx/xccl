@@ -15,14 +15,14 @@
 #include <unistd.h>
 
 tccl_status_t tccl_ucx_team_create_post(tccl_context_t *context, tccl_team_config_t *config,
-                                      tccl_oob_collectives_t oob, tccl_team_t **team)
+                                        tccl_oob_collectives_t oob, tccl_team_t **team)
 {
     //TODO need to make this non blocking + team_ucx_wait
     tccl_status_t status      = TCCL_OK;
     tccl_team_lib_ucx_context_t *ctx =
         tccl_derived_of(context, tccl_team_lib_ucx_context_t);
-    int max_cid = 0, max_addrlen = 0, size = config->team_size,
-        rank = config->team_rank;
+    int max_cid = 0, max_addrlen = 0, size = oob.size,
+        rank = oob.rank;
     tccl_ucx_team_t *ucx_team;
     int *tmp;
     int local_addrlen, i, sbuf[2];

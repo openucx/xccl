@@ -75,8 +75,8 @@ tccl_ucx_allreduce_knomial_progress(tccl_ucx_collreq_t *req)
     tccl_team_h team   = req->team;
     void *data_buffer = req->args.buffer_info.dst_buffer;
     size_t data_size  =  req->args.buffer_info.len;
-    int myrank        = team->cfg.team_rank;
-    int group_size    = team->cfg.team_size;
+    int myrank        = team->oob.rank;
+    int group_size    = team->oob.size;
     int radix         = req->allreduce.radix;
     void *scratch     = req->allreduce.scratch;
     tccl_ucx_request_t **reqs = req->allreduce.reqs;
@@ -189,8 +189,8 @@ tccl_status_t tccl_ucx_allreduce_knomial_start(tccl_ucx_collreq_t *req)
 {
     size_t data_size     = req->args.buffer_info.len;
     req->allreduce.radix = 4; //TODO
-    if (req->allreduce.radix > req->team->cfg.team_size) {
-        req->allreduce.radix = req->team->cfg.team_size;
+    if (req->allreduce.radix > req->team->oob.size) {
+        req->allreduce.radix = req->team->oob.size;
     }
 
     memset(req->allreduce.reqs, 0, sizeof(req->allreduce.reqs));
