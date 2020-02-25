@@ -27,9 +27,13 @@ typedef struct mccl_coll_args {
 } mccl_coll_args_t;
 
 typedef struct coll_schedule_t {
-    int type;
-    int n_colls;
-    int n_completed_colls;
+    uint8_t type;
+    uint8_t n_colls;
+    uint8_t n_completed_colls;
+    int     n_frags;
+    int     n_completed_frags;
+    size_t  frag_size;
+    size_t  last_frag_size;
     mccl_comm_t *comm;
     mccl_coll_args_t args[MAX_COLL_SCHEDULE_LENGTH];
 } coll_schedule_t;
@@ -42,7 +46,8 @@ typedef struct coll_schedule_sequential {
 typedef struct coll_schedule_single_dep {
     coll_schedule_t super;
     tccl_coll_req_h reqs[MAX_COLL_SCHEDULE_LENGTH];
-    int dep_id;
+    uint8_t dep_id;
+    uint8_t dep_satisfied;
 } coll_schedule_single_dep_t;
 
 mccl_status_t build_allreduce_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **schedule,

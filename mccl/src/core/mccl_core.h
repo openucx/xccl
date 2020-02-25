@@ -42,6 +42,7 @@ typedef struct mccl_context_t {
     int             max_sockets_per_node;
     int             max_ranks_per_socket;
     mccl_team_lib_t libs[TCCL_LIB_LAST];
+    size_t          bcast_pipeline_thresh;
 } mccl_context_t;
 
 typedef enum {

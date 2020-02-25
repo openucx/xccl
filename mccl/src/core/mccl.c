@@ -107,6 +107,16 @@ static mccl_status_t init_env_params(mccl_context_t *ctx)
         ctx->libs[TCCL_LIB_VMC].enabled = 0;
     }
 
+    var = getenv("MCCL_BCAST_PIPELINE_THRESH");
+    if (var) {
+        if (0 == strcmp("inf", var) || 0 == strcmp("INF", var)) {
+            ctx->bcast_pipeline_thresh = SIZE_MAX;
+        } else {
+            ctx->bcast_pipeline_thresh = (size_t)atoi(var);
+        }
+    } else {
+        ctx->bcast_pipeline_thresh = SIZE_MAX;
+    }
     return MCCL_SUCCESS;
 }
 

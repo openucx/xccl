@@ -45,21 +45,23 @@ mccl_status_t build_bcast_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sch
     int root_on_local_socket = root_on_local_node &&
         is_rank_on_local_socket(root, comm);
     mccl_context_t *ctx = comm->config.mccl_ctx;
-
+    size_t pipeline_thresh = ctx->bcast_pipeline_thresh;
     coll_schedule_single_dep_t *schedule = (coll_schedule_single_dep_t *)malloc(sizeof(*schedule));
+    schedule->super.n_frags = 1;
+    schedule->super.n_completed_frags = 0;
     schedule->super.comm = comm;
     schedule->super.type = MCCL_COLL_SCHED_SINGLE_DEP;
     int c = 0;
 
     int sock_leaders_team = MCCL_TEAM_SOCKET_LEADERS_UCX;
     int sock_team = MCCL_TEAM_SOCKET_UCX;
-
+    size_t len = count*tccl_dt_size(dtype);
     tccl_coll_op_args_t coll = {
         .coll_type = TCCL_BCAST,
         .buffer_info = {
             .src_buffer = buf,
             .dst_buffer = buf,
-            .len        = count*tccl_dt_size(dtype),
+            .len        = len,
         },
         .root            = 0,
         .alg.set_by_user = 0,
@@ -114,9 +116,18 @@ mccl_status_t build_bcast_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **sch
     }
 
     assert(schedule->dep_id >= 0);
-
+    schedule->dep_satisfied = 0;
     schedule->super.n_colls = c;
     schedule->super.n_completed_colls = 0;
+
+    if (len > pipeline_thresh) {
+        int n_frags = (len + pipeline_thresh - 1)/pipeline_thresh;
+        schedule->super.n_frags = n_frags;
+        schedule->super.frag_size = len/n_frags;
+        schedule->super.last_frag_size = len/n_frags + (len % n_frags);
+        /* fprintf(stderr," len %zd, n_frags %d, frag_size %zd, last_frag %zd\n", */
+                /* len, n_frags, schedule->super.frag_size, schedule->super.last_frag_size); */
+    }
     memset(schedule->reqs, 0, sizeof(schedule->reqs));
     (*sched) = &schedule->super;
     return MCCL_SUCCESS;

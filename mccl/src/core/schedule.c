@@ -22,6 +22,8 @@ mccl_status_t build_allreduce_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t *
         (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
 
     coll_schedule_sequential_t *schedule = (coll_schedule_sequential_t *)malloc(sizeof(*schedule));
+    schedule->super.n_frags = 1;
+    schedule->super.n_completed_frags = 0;
     schedule->super.comm = comm;
     schedule->super.type = sched_type;
     int c = 0;
@@ -111,6 +113,8 @@ mccl_status_t build_barrier_schedule_3lvl(mccl_comm_t *comm, coll_schedule_t **s
         (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
 
     coll_schedule_sequential_t *schedule = (coll_schedule_sequential_t *)malloc(sizeof(*schedule));
+    schedule->super.n_frags = 1;
+    schedule->super.n_completed_frags = 0;
     schedule->super.comm = comm;
     schedule->super.type = sched_type;
     int c = 0;
@@ -204,7 +208,7 @@ coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule) {
     mccl_coll_args_t *curr_op;
     int n_colls = schedule->super.n_colls;
     const int n_polls = 10;
-    if (schedule->dep_id >= 0) {
+    if (!schedule->dep_satisfied) {
         curr_idx = schedule->dep_id;
         curr_op = &schedule->super.args[curr_idx];
         if (!schedule->reqs[curr_idx]) {
@@ -239,13 +243,13 @@ coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule) {
                         tccl_collective_post(schedule->reqs[i]);
                     }
                 }
-                schedule->dep_id = -1;
+                schedule->dep_satisfied = 1;
                 break;
             }
         }
     }
 
-    if (schedule->dep_id < 0) {
+    if (schedule->dep_satisfied) {
         for (p=0; p<n_polls && n_colls != schedule->super.n_completed_colls; p++) {
             for (i=0; i<n_colls; i++) {
                 if (schedule->reqs[i]) {
@@ -265,20 +269,75 @@ coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule) {
     return MCCL_SUCCESS;
 }
 
+static inline void coll_schedule_reset(coll_schedule_t *schedule) {
+    schedule->n_completed_colls = 0;
+    if (MCCL_COLL_SCHED_SINGLE_DEP == schedule->type) {
+        coll_schedule_single_dep_t *sched =
+            (coll_schedule_single_dep_t *)schedule;
+        sched->dep_satisfied = 0;
+        memset(sched->reqs, 0, sizeof(sched->reqs));
+    }
+    if (MCCL_COLL_SCHED_SEQ == schedule->type) {
+        coll_schedule_sequential_t *sched =
+            (coll_schedule_sequential_t *)schedule;
+        sched->req = NULL;
+    }
+}
+
+static inline void coll_schedule_setup_frag(coll_schedule_t *schedule) {
+    int i;
+    int n_frags = schedule->n_frags;
+    int curr_frag = schedule->n_completed_frags;
+    ptrdiff_t offset = curr_frag == 0 ? 0 : schedule->frag_size;
+    size_t frag_size = schedule->frag_size;
+    if (curr_frag == n_frags - 1) {
+        /* last fragment */
+        frag_size = schedule->last_frag_size;
+    }
+    /* fprintf(stderr,"Setting up frag %d, offset %zd, frag_size %zd\n", */
+            /* curr_frag, offset, frag_size); */
+    for (i=0; i<schedule->n_colls; i++) {
+        schedule->args[i].tccl_coll.buffer_info.src_buffer =
+            (void*)((ptrdiff_t)schedule->args[i].tccl_coll.buffer_info.src_buffer + offset);
+        schedule->args[i].tccl_coll.buffer_info.dst_buffer =
+            (void*)((ptrdiff_t)schedule->args[i].tccl_coll.buffer_info.dst_buffer + offset);
+        schedule->args[i].tccl_coll.buffer_info.len = frag_size;
+    }
+}
+
 mccl_status_t coll_schedule_progress(coll_schedule_t *schedule) {
+    mccl_status_t status;
+    if (schedule->n_frags == schedule->n_completed_frags) {
+        return MCCL_SUCCESS;
+    }
+
     switch(schedule->type) {
     case MCCL_COLL_SCHED_SEQ:
-        return coll_schedule_progress_sequential((coll_schedule_sequential_t*)schedule);
+        status = coll_schedule_progress_sequential((coll_schedule_sequential_t*)schedule);
+        break;
     case MCCL_COLL_SCHED_SINGLE_DEP:
-        return coll_schedule_progress_single_dep((coll_schedule_single_dep_t*)schedule);
+        status = coll_schedule_progress_single_dep((coll_schedule_single_dep_t*)schedule);
+        break;
     default:
         break;
     }
-    return MCCL_ERROR;
+
+    if (schedule->n_colls == schedule->n_completed_colls) {
+        /* fprintf(stderr,"Completed frag %d out of %d\n", schedule->n_completed_frags, schedule->n_frags); */
+        schedule->n_completed_frags++;
+        if (schedule->n_completed_frags < schedule->n_frags) {
+            coll_schedule_reset(schedule);
+            coll_schedule_setup_frag(schedule);
+        }
+    }
+    return status;
 }
 
 mccl_status_t mccl_start(mccl_request_h req) {
     coll_schedule_t *schedule = (coll_schedule_t*)req;
+    if (schedule->n_frags > 1) {
+        coll_schedule_setup_frag(schedule);
+    }
     coll_schedule_progress(schedule);
     return MCCL_SUCCESS;
 }
@@ -286,7 +345,7 @@ mccl_status_t mccl_start(mccl_request_h req) {
 mccl_status_t mccl_test(mccl_request_h req) {
     coll_schedule_t *schedule = (coll_schedule_t*)req;
     coll_schedule_progress(schedule);
-    return schedule->n_completed_colls == schedule->n_colls ?
+    return schedule->n_completed_frags == schedule->n_frags ?
         MCCL_SUCCESS : MCCL_IN_PROGRESS;
 }
 
