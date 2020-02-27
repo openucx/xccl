@@ -188,8 +188,9 @@ tccl_team_lib_ucx_t tccl_team_lib_ucx = {
     .super.params.reproducible  = TCCL_LIB_NON_REPRODUCIBLE,
     .super.params.thread_mode   = TCCL_LIB_THREAD_SINGLE | TCCL_LIB_THREAD_MULTIPLE,
     .super.params.team_usage    = TCCL_USAGE_SW_COLLECTIVES,
-    .super.params.coll_types    = TCCL_BARRIER | TCCL_FANIN | TCCL_FANOUT |
-                                  TCCL_REDUCE | TCCL_BCAST | TCCL_ALLREDUCE,
+    .super.params.coll_types    = TCCL_COLL_CAP_BARRIER | TCCL_COLL_CAP_FANIN |
+                                  TCCL_COLL_CAP_FANOUT | TCCL_COLL_CAP_REDUCE |
+                                  TCCL_COLL_CAP_BCAST | TCCL_COLL_CAP_ALLREDUCE,
     .super.ctx_create_mode      = TCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.create_team_context  = tccl_ucx_create_context,
     .super.destroy_team_context = tccl_ucx_destroy_context,
@@ -215,4 +216,3 @@ void tccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
     tccl_ucx_request_t *req = request;
     req->status = TCCL_UCX_REQUEST_DONE;
 }
-

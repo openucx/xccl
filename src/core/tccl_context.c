@@ -9,7 +9,7 @@
 #include "tccl_team_lib.h"
 #include <stdlib.h>
 #include <string.h>
-
+#include <stdio.h>
 tccl_status_t tccl_lib_finalize(tccl_lib_h lib);
 static tccl_status_t tccl_create_team_context(tccl_team_lib_h lib,
                                               tccl_context_config_h config,
@@ -61,6 +61,7 @@ tccl_status_t tccl_create_context(tccl_lib_t *lib, const tccl_config_t *config,
         if (TCCL_OK != tccl_create_team_context(tlib, &ctx->cfg, &tl_ctx)) {
             continue;
         } else {
+            /* fprintf(stderr, "Created ctx %s, prio %d\n", tl_ctx->lib->name, tl_ctx->lib->priority); */
             ctx->tl_ctx[ctx->n_tl_ctx++] = tl_ctx;
         }
     }

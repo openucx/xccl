@@ -172,11 +172,11 @@ tccl_status_t tccl_vmc_context_progress(tccl_tl_context_t *context)
 
 tccl_team_lib_vmc_t tccl_team_lib_vmc = {
     .super.name                 = "vmc",
-    .super.priority             = 10,
+    .super.priority             = 100,
     .super.params.reproducible  = TCCL_LIB_NON_REPRODUCIBLE,
     .super.params.thread_mode   = TCCL_LIB_THREAD_SINGLE | TCCL_LIB_THREAD_MULTIPLE,
     .super.params.team_usage    = TCCL_USAGE_HW_COLLECTIVES,
-    .super.params.coll_types    = TCCL_BCAST,
+    .super.params.coll_types    = TCCL_COLL_CAP_BCAST,
     .super.ctx_create_mode      = TCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.create_team_context  = tccl_vmc_create_context,
     .super.destroy_team_context = tccl_vmc_destroy_context,

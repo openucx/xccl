@@ -14,6 +14,12 @@
 #include <inttypes.h>
 
 unsigned int tccl_sharp_global_rand_state;
+
+__attribute__((constructor))
+static void tccl_sharp_constructor(void) {
+    setenv("SHARP_COLL_NUM_COLL_GROUP_RESOURCE_ALLOC_THRESHOLD", "0", 0);
+}
+
 static inline int tccl_sharp_rand()
 {
     return rand_r(&tccl_sharp_global_rand_state);
@@ -199,11 +205,11 @@ static tccl_status_t tccl_sharp_team_destroy(tccl_tl_team_t *team)
 
 tccl_team_lib_sharp_t tccl_team_lib_sharp = {
     .super.name                 = "sharp",
-    .super.priority             = 100,
+    .super.priority             = 90,
     .super.params.reproducible  = TCCL_LIB_NON_REPRODUCIBLE,
     .super.params.thread_mode   = TCCL_LIB_THREAD_SINGLE | TCCL_LIB_THREAD_MULTIPLE,
     .super.params.team_usage    = TCCL_USAGE_HW_COLLECTIVES,
-    .super.params.coll_types    = TCCL_BARRIER | TCCL_ALLREDUCE,
+    .super.params.coll_types    = TCCL_COLL_CAP_BARRIER | TCCL_COLL_CAP_ALLREDUCE,
     .super.ctx_create_mode      = TCCL_TEAM_LIB_CONTEXT_CREATE_MODE_GLOBAL,
     .super.create_team_context  = tccl_sharp_create_context,
     .super.destroy_team_context = tccl_sharp_destroy_context,

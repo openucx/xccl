@@ -153,7 +153,7 @@ static void tccl_constructor(void)
         fprintf(stderr, "TCCL init: couldn't find any tccl_team_lib_<name>.so plugins.\n");
         return;
     }
-    tccl_print_libs(&tccl_static_lib);
+    /* tccl_print_libs(&tccl_static_lib); */
 }
 
 tccl_status_t tccl_lib_init(const tccl_params_t *params,
@@ -171,7 +171,7 @@ tccl_status_t tccl_lib_init(const tccl_params_t *params,
         fprintf(stderr, "TCCL lib init: no plugins left after filtering by params\n");
         return TCCL_ERR_NO_MESSAGE;
     }
-    tccl_print_libs(lib);
+    /* tccl_print_libs(lib); */
     *tccl_lib = lib;
     return TCCL_OK;
 }

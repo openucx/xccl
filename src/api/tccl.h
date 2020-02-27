@@ -191,21 +191,24 @@ tccl_status_t tccl_team_create_post(tccl_context_h team_ctx,
 tccl_status_t tccl_team_destroy(tccl_team_h team);
 
 typedef enum {
-    TCCL_BARRIER     = TCCL_BIT(0),
-    TCCL_ALLTOALL    = TCCL_BIT(1),
-    TCCL_ALLTOALLV   = TCCL_BIT(2),
-    TCCL_BCAST       = TCCL_BIT(3),
-    TCCL_GATHER      = TCCL_BIT(4),
-    TCCL_ALLGATHER   = TCCL_BIT(5),
-    TCCL_REDUCE      = TCCL_BIT(6),
-    TCCL_ALLREDUCE   = TCCL_BIT(7),
-    TCCL_SCATTER     = TCCL_BIT(8),
-    TCCL_FANIN       = TCCL_BIT(9),
-    TCCL_FANOUT      = TCCL_BIT(10),
-    TCCL_FLUSH_ALL   = TCCL_BIT(11),
-    TCCL_MULTICAST   = TCCL_BIT(12),
-    TCCL_COLL_ALL    = TCCL_MASK(13)
+    TCCL_BARRIER = 0,
+    TCCL_BCAST,
+    TCCL_ALLREDUCE,
+    TCCL_REDUCE,
+    TCCL_FANIN,
+    TCCL_FANOUT,
+    TCCL_COLL_LAST
 } tccl_collective_type_t;
+
+typedef enum {
+    TCCL_COLL_CAP_BARRIER     = TCCL_BIT(TCCL_BARRIER),
+    TCCL_COLL_CAP_BCAST       = TCCL_BIT(TCCL_BCAST),
+    TCCL_COLL_CAP_ALLREDUCE   = TCCL_BIT(TCCL_ALLREDUCE),
+    TCCL_COLL_CAP_REDUCE      = TCCL_BIT(TCCL_REDUCE),
+    TCCL_COLL_CAP_FANIN       = TCCL_BIT(TCCL_FANIN),
+    TCCL_COLL_CAP_FANOUT      = TCCL_BIT(TCCL_FANOUT),
+    TCCL_COLL_CAP_ALL         = TCCL_MASK(TCCL_COLL_LAST)
+} tccl_collective_cap_t;
 
 typedef enum {
     TCCL_OP_MAX,
@@ -299,7 +302,7 @@ typedef struct tccl_params {
     tccl_reproducibility_t       reproducible;
     tccl_thread_mode_t           thread_mode;
     tccl_team_usage_type_t       team_usage;
-    tccl_collective_type_t       coll_types;
+    tccl_collective_cap_t        coll_types;
     tccl_context_config_t        context_config;
     tccl_team_config_t           team_config;
 } tccl_params_t;
