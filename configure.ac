@@ -10,54 +10,54 @@
 # $COPYRIGHT$
 # $HEADER$
 
-define([mccl_ver_major], 1)
-define([mccl_ver_minor], 0)
-define([mccl_ver_micro], esyscmd([sh -c "git rev-list HEAD | wc -l | sed -e 's/ *//g' | xargs -n1 printf"]))
-define([mccl_git_sha], esyscmd([sh -c "git rev-parse --short HEAD"]))
+define([tccl_ver_major], 1)
+define([tccl_ver_minor], 0)
+define([tccl_ver_micro], esyscmd([sh -c "git rev-list HEAD | wc -l | sed -e 's/ *//g' | xargs -n1 printf"]))
+define([tccl_git_sha], esyscmd([sh -c "git rev-parse --short HEAD"]))
 
 # This is the API version (see libtool library versioning)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
 # current:rev:age
-define([libmccl_so_version], 1:0:0)
+define([libtccl_so_version], 1:0:0)
+AC_INIT([tccl], [tccl_ver_major.tccl_ver_minor])
+: ${CPPFLAGS=""}
+: ${CFLAGS=""}
+: ${CXXFLAGS=""}
 
-AC_INIT([mccl], [mccl_ver_major.mccl_ver_minor])
-AC_USE_SYSTEM_EXTENSIONS
-AC_GNU_SOURCE
 AC_CONFIG_HEADERS([config.h])
 
-MCCL_TOP_BUILDDIR="`pwd`"
-AC_SUBST(MCCL_TOP_BUILDDIR)
+TCCL_TOP_BUILDDIR="`pwd`"
+AC_SUBST(TCCL_TOP_BUILDDIR)
 
 cd "$srcdir"
-MCCL_TOP_SRCDIR="`pwd`"
-AC_SUBST(MCCL_TOP_SRCDIR)
-cd "$MCCL_TOP_BUILDDIR"
+TCCL_TOP_SRCDIR="`pwd`"
+AC_SUBST(TCCL_TOP_SRCDIR)
+cd "$TCCL_TOP_BUILDDIR"
 
-AC_MSG_NOTICE([builddir: $MCCL_TOP_BUILDDIR])
-AC_MSG_NOTICE([srcdir: $MCCL_TOP_SRCDIR])
-
+AC_MSG_NOTICE([builddir: $TCCL_TOP_BUILDDIR])
+AC_MSG_NOTICE([srcdir: $TCCL_TOP_SRCDIR])
 AM_INIT_AUTOMAKE([1.10 foreign tar-ustar silent-rules subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AM_MAINTAINER_MODE
 AC_CONFIG_MACRO_DIR([m4])
 
-define([mccl_prefix], [/opt/mellanox/mccl])
-AC_PREFIX_DEFAULT([mccl_prefix])
+define([tccl_prefix], [/opt/mellanox/tccl])
+AC_PREFIX_DEFAULT([tccl_prefix])
 
 RPM_RELEASE=1
-MAJOR_VERSION=mccl_ver_major
-MINOR_VERSION=mccl_ver_minor
-MICRO_VERSION=mccl_ver_micro
-UCH_GIT_SHA=mccl_git_sha
+MAJOR_VERSION=tccl_ver_major
+MINOR_VERSION=tccl_ver_minor
+MICRO_VERSION=tccl_ver_micro
+TCCL_GIT_SHA=tccl_git_sha
 VERSION=$MAJOR_VERSION.$MINOR_VERSION.$MICRO_VERSION
-SOVERSION=libmccl_so_version
+SOVERSION=libtccl_so_version
 AC_SUBST(MAJOR_VERSION)
 AC_SUBST(MINOR_VERSION)
 AC_SUBST(MICRO_VERSION)
 AC_SUBST(RPM_RELEASE)
 AC_SUBST(SOVERSION)
-AC_SUBST(UCH_GIT_SHA)
-AC_MSG_RESULT([git sha: $mccl_git_sha])
+AC_SUBST(TCCL_GIT_SHA)
+AC_MSG_RESULT([git sha: $tccl_git_sha])
 
 CFLAGS_save="$CFLAGS"
 AC_PROG_CC
@@ -79,15 +79,33 @@ else
 	CFLAGS="$CFLAGS -O3 -DNDEBUG"
 fi
 
+AM_CONDITIONAL([HAVE_UCX], [false])
+m4_include([m4/ucx.m4])
+TCCL_CHECK_UCX
 
-includes="-I${MCCL_TOP_SRCDIR}/tccl/src -I${MCCL_TOP_SRCDIR}/mccl/src/api -I${MCCL_TOP_SRCDIR}/mccl/src"
+AC_MSG_RESULT([UCX support: $ucx_happy])
+
+AM_CONDITIONAL([HAVE_SHARP], [false])
+m4_include([m4/sharp.m4])
+TCCL_CHECK_SHARP
+
+AC_MSG_RESULT([SHARP support: $sharp_happy])
+
+AM_CONDITIONAL([HAVE_VMC], [false])
+m4_include([m4/vmc.m4])
+TCCL_CHECK_VMC
+
+AC_MSG_RESULT([VMC support: $vmc_happy])
+
+
+includes="-I${TCCL_TOP_SRCDIR}/src/team_lib -I${TCCL_TOP_SRCDIR}/src"
 CPPFLAGS="$CPPFLAGS $includes -std=gnu11"
-
 AC_CONFIG_FILES([
                  Makefile
-                 mccl/Makefile
-                 mccl/src/Makefile
-                 mccl/test/Makefile
+                 src/Makefile
+                 src/team_lib/ucx/Makefile
+                 src/team_lib/sharp/Makefile
+                 src/team_lib/vmc/Makefile
+                 test/Makefile
                  ])
-AC_CONFIG_SUBDIRS([tccl])
 AC_OUTPUT
