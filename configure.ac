@@ -98,7 +98,7 @@ TCCL_CHECK_VMC
 AC_MSG_RESULT([VMC support: $vmc_happy])
 
 
-includes="-I${TCCL_TOP_SRCDIR}/src/team_lib -I${TCCL_TOP_SRCDIR}/src"
+includes="-I${TCCL_TOP_SRCDIR}/src -I${TCCL_TOP_SRCDIR}/src/core"
 CPPFLAGS="$CPPFLAGS $includes -std=gnu11"
 AC_CONFIG_FILES([
                  Makefile

@@ -20,13 +20,21 @@ libtccl_la_CPPFLAGS = $(AM_CPPFLAGS)
 libtccl_la_CFLAGS   =
 libtccl_la_LDFLAGS  = -ldl -version-info $(SOVERSION) --no-undefined
 
-nobase_dist_libtccl_la_HEADERS = api/tccl.h \
-	api/tccl_def.h \
-	api/tccl_version.h \
+nobase_dist_libtccl_la_HEADERS = \
+	api/tccl.h                   \
+	api/tccl_def.h               \
+	api/tccl_version.h           \
 	api/tccl_status.h
 
-noinst_HEADERS = team_lib/tccl_team_lib.h
+noinst_HEADERS = core/tccl_team_lib.h
 
-libtccl_la_SOURCES = team_lib/tccl_team_lib.c
+libtccl_la_SOURCES =      \
+	core/tccl_init.c      \
+	core/tccl_finalize.c  \
+	core/tccl_context.c   \
+	core/tccl_team.c      \
+	core/tccl_collective.c\
+	core/tccl_query.c
+
 libtccl_ladir = $(includedir)
 
