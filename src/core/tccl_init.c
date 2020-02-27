@@ -17,8 +17,12 @@
 #include <link.h>
 #include <dlfcn.h>
 #include <glob.h>
+#include <utils/utils.h>
+#include <unistd.h>
 
 tccl_lib_t tccl_static_lib;
+tccl_local_proc_info_t tccl_local_proc_info;
+
 static int
 callback(struct dl_phdr_info *info, size_t size, void *data)
 {
@@ -132,6 +136,7 @@ __attribute__((constructor))
 static void tccl_constructor(void)
 {
     char *var;
+    char hostname[256];
     tccl_lib_t *lib = &tccl_static_lib;
     lib->libs = NULL;
     lib->n_libs_opened = 0;
@@ -154,6 +159,9 @@ static void tccl_constructor(void)
         return;
     }
     /* tccl_print_libs(&tccl_static_lib); */
+    gethostname(hostname, sizeof(hostname));
+    tccl_local_proc_info.node_hash = tccl_str_hash(hostname);
+    tccl_get_bound_socket_id(&tccl_local_proc_info.socketid);
 }
 
 tccl_status_t tccl_lib_init(const tccl_params_t *params,

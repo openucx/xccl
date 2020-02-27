@@ -34,7 +34,8 @@ libtccl_la_SOURCES =      \
 	core/tccl_context.c   \
 	core/tccl_team.c      \
 	core/tccl_collective.c\
-	core/tccl_query.c
+	core/tccl_query.c     \
+	utils/socketid.c
 
 libtccl_ladir = $(includedir)
 

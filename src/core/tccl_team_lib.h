@@ -78,6 +78,11 @@ tccl_status_t tccl_create_context(tccl_lib_t *lib,
                                   const tccl_config_t *config,
                                   tccl_context_t **team_ctx);
 
+typedef struct tccl_local_proc_info {
+    unsigned long node_hash;
+    int socketid; //if process is bound to a socket
+} tccl_local_proc_info_t;
+extern tccl_local_proc_info_t tccl_local_proc_info;
 
 #define TCCL_TEAM_SUPER_INIT(_team, _ctx, _config, _oob) do {           \
         (_team).oob = (_oob);                                           \
