@@ -139,14 +139,14 @@ static tccl_status_t
 tccl_sharp_team_create_post(tccl_tl_context_t *context,
                             tccl_team_config_h config,
                             tccl_oob_collectives_t oob,
-                            tccl_team_h *team)
+                            tccl_tl_team_t **team)
 {
     tccl_sharp_context_t *team_sharp_ctx =
         tccl_derived_of(context, tccl_sharp_context_t);
     tccl_sharp_team_t *team_sharp = malloc(sizeof(*team_sharp));
     struct sharp_coll_comm_init_spec comm_spec;
     int i, ret;
-    TCCL_TEAM_SUPER_INIT(team_sharp->super, config, oob);
+    TCCL_TEAM_SUPER_INIT(team_sharp->super, context, config, oob);
 
     comm_spec.size              = oob.size;
     comm_spec.rank              = oob.rank;
@@ -177,7 +177,7 @@ tccl_sharp_team_create_post(tccl_tl_context_t *context,
     return TCCL_OK;
 }
 
-static tccl_status_t tccl_sharp_team_destroy(tccl_team_h team)
+static tccl_status_t tccl_sharp_team_destroy(tccl_tl_team_t *team)
 {
     tccl_sharp_team_t *team_sharp = tccl_derived_of(team, tccl_sharp_team_t);
     tccl_sharp_context_t *team_sharp_ctx =

@@ -8,12 +8,12 @@
 
 tccl_status_t tccl_ucx_reduce_linear_progress(tccl_ucx_collreq_t *req)
 {
-    tccl_team_h team = req->team;
-    void *data_buffer = req->args.buffer_info.dst_buffer;
-    size_t data_size =  req->args.buffer_info.len;
-    int group_rank   = team->oob.rank;
-    int group_size  = team->oob.size;
-    void *scratch = req->reduce_linear.scratch;
+    tccl_tl_team_t *team = req->team;
+    void *data_buffer    = req->args.buffer_info.dst_buffer;
+    size_t data_size     =  req->args.buffer_info.len;
+    int group_rank       = team->oob.rank;
+    int group_size       = team->oob.size;
+    void *scratch        = req->reduce_linear.scratch;
     tccl_ucx_request_t **reqs = req->reduce_linear.reqs;
     if (req->args.root == group_rank) {
         if (req->reduce_linear.step == ((group_rank + 1) % group_size)) {

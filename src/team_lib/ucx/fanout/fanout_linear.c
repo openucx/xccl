@@ -7,9 +7,9 @@
 
 tccl_status_t tccl_ucx_fanout_linear_progress(tccl_ucx_collreq_t *req)
 {
-    tccl_team_h team   = req->team;
-    int group_rank    = team->oob.rank;
-    int group_size    = team->oob.size;
+    tccl_tl_team_t *team = req->team;
+    int group_rank       = team->oob.rank;
+    int group_size       = team->oob.size;
     tccl_ucx_request_t **reqs = req->fanout_linear.reqs;
 
     if (req->args.root == group_rank) {

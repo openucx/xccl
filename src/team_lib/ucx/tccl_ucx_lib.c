@@ -21,8 +21,8 @@
 #include <unistd.h>
 
 static inline tccl_status_t
-tccl_ucx_coll_base_init(tccl_coll_op_args_t *coll_args, tccl_team_h team,
-                       tccl_ucx_collreq_t **request)
+tccl_ucx_coll_base_init(tccl_coll_op_args_t *coll_args, tccl_tl_team_t *team,
+                        tccl_ucx_collreq_t **request)
 {
     //todo malloc ->mpool
     tccl_ucx_collreq_t *req = (tccl_ucx_collreq_t *)malloc(sizeof(*req));
@@ -37,7 +37,7 @@ tccl_ucx_coll_base_init(tccl_coll_op_args_t *coll_args, tccl_team_h team,
 
 static inline tccl_status_t
 tccl_ucx_allreduce_init(tccl_coll_op_args_t *coll_args,
-                       tccl_coll_req_h *request, tccl_team_h team)
+                        tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     tccl_ucx_collreq_t *req;
@@ -49,7 +49,7 @@ tccl_ucx_allreduce_init(tccl_coll_op_args_t *coll_args,
 
 static inline tccl_status_t
 tccl_ucx_reduce_init(tccl_coll_op_args_t *coll_args,
-                    tccl_coll_req_h *request, tccl_team_h team)
+                     tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     tccl_ucx_collreq_t *req;
@@ -61,7 +61,7 @@ tccl_ucx_reduce_init(tccl_coll_op_args_t *coll_args,
 
 static inline tccl_status_t
 tccl_ucx_fanin_init(tccl_coll_op_args_t *coll_args,
-                    tccl_coll_req_h *request, tccl_team_h team)
+                    tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     tccl_ucx_collreq_t *req;
@@ -73,7 +73,7 @@ tccl_ucx_fanin_init(tccl_coll_op_args_t *coll_args,
 
 static inline tccl_status_t
 tccl_ucx_fanout_init(tccl_coll_op_args_t *coll_args,
-                     tccl_coll_req_h *request, tccl_team_h team)
+                     tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     tccl_ucx_collreq_t *req;
@@ -85,7 +85,7 @@ tccl_ucx_fanout_init(tccl_coll_op_args_t *coll_args,
 
 static inline tccl_status_t
 tccl_ucx_bcast_init(tccl_coll_op_args_t *coll_args,
-                   tccl_coll_req_h *request, tccl_team_h team)
+                    tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     tccl_ucx_collreq_t *req;
@@ -114,7 +114,7 @@ tccl_ucx_bcast_init(tccl_coll_op_args_t *coll_args,
 
 static inline tccl_status_t
 tccl_ucx_barrier_init(tccl_coll_op_args_t *coll_args,
-                     tccl_coll_req_h *request, tccl_team_h team)
+                      tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     tccl_ucx_collreq_t *req;
@@ -126,7 +126,7 @@ tccl_ucx_barrier_init(tccl_coll_op_args_t *coll_args,
 
 static tccl_status_t
 tccl_ucx_collective_init(tccl_coll_op_args_t *coll_args,
-                        tccl_coll_req_h *request, tccl_team_h team)
+                         tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
     switch (coll_args->coll_type) {
     case TCCL_ALLREDUCE:

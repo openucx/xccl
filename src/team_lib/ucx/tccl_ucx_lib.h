@@ -26,9 +26,9 @@ typedef struct tccl_ucx_request_t {
 typedef struct tccl_ucx_collreq {
     tccl_coll_req_t     super;
     tccl_coll_op_args_t args;
-    tccl_team_h         team;
+    tccl_tl_team_t     *team;
     tccl_status_t       complete;
-    uint16_t           tag;
+    uint16_t            tag;
     tccl_status_t       (*start)(struct tccl_ucx_collreq* req);
     tccl_status_t       (*progress)(struct tccl_ucx_collreq* req);
     union {

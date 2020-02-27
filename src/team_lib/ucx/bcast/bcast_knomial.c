@@ -14,13 +14,13 @@
 
 tccl_status_t tccl_ucx_bcast_knomial_progress(tccl_ucx_collreq_t *req)
 {
-    tccl_team_h team   = req->team;
-    void *data_buffer = req->args.buffer_info.dst_buffer;
-    size_t data_size  = req->args.buffer_info.len;
-    int group_rank    = team->oob.rank;
-    int group_size    = team->oob.size;
-    int root          = req->args.root;
-    int radix         = req->bcast_kn.radix;
+    tccl_tl_team_t *team = req->team;
+    void *data_buffer    = req->args.buffer_info.dst_buffer;
+    size_t data_size     = req->args.buffer_info.len;
+    int group_rank       = team->oob.rank;
+    int group_size       = team->oob.size;
+    int root             = req->args.root;
+    int radix            = req->bcast_kn.radix;
     tccl_ucx_request_t **reqs = req->bcast_kn.reqs;
     int vrank = (group_rank - root + group_size) % group_size;
     int dist  = req->bcast_kn.dist;

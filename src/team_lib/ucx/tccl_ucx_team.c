@@ -15,7 +15,7 @@
 #include <unistd.h>
 
 tccl_status_t tccl_ucx_team_create_post(tccl_tl_context_t *context, tccl_team_config_t *config,
-                                        tccl_oob_collectives_t oob, tccl_team_t **team)
+                                        tccl_oob_collectives_t oob, tccl_tl_team_t **team)
 {
     //TODO need to make this non blocking + team_ucx_wait
     tccl_status_t status      = TCCL_OK;
@@ -29,7 +29,7 @@ tccl_status_t tccl_ucx_team_create_post(tccl_tl_context_t *context, tccl_team_co
     char* addr_array;
 
     ucx_team = (tccl_ucx_team_t*)malloc(sizeof(tccl_ucx_team_t));
-    TCCL_TEAM_SUPER_INIT(ucx_team->super, config, oob);
+    TCCL_TEAM_SUPER_INIT(ucx_team->super, context, config, oob);
 
     local_addrlen            = (int)ctx->ucp_addrlen;
     tmp                      = (int*)malloc(size*sizeof(int)*2);
@@ -68,7 +68,7 @@ cleanup:
     return TCCL_OK;
 }
 
-tccl_status_t tccl_ucx_team_destroy(tccl_team_t *team)
+tccl_status_t tccl_ucx_team_destroy(tccl_tl_team_t *team)
 {
     tccl_ucx_team_t             *ucx_team = tccl_derived_of(team, tccl_ucx_team_t);
     tccl_team_lib_ucx_context_t *ctx      = tccl_derived_of(team->ctx, tccl_team_lib_ucx_context_t);

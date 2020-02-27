@@ -9,6 +9,7 @@
 #include <string.h>
 
 typedef struct tccl_tl_context tccl_tl_context_t;
+typedef struct tccl_tl_team    tccl_tl_team_t;
 typedef struct tccl_team_lib {
     char*                               name;
     int                                 priority;
@@ -22,10 +23,10 @@ typedef struct tccl_team_lib {
     tccl_status_t                       (*progress)(tccl_tl_context_t *team_context);
     tccl_status_t                       (*team_create_post)(tccl_tl_context_t *team_ctx,
                                                             tccl_team_config_h config,
-                                                            tccl_oob_collectives_t oob, tccl_team_h *team);
-    tccl_status_t                       (*team_destroy)(tccl_team_h team);
+                                                            tccl_oob_collectives_t oob, tccl_tl_team_t **team);
+    tccl_status_t                       (*team_destroy)(tccl_tl_team_t *team);
     tccl_status_t                       (*collective_init)(tccl_coll_op_args_t *coll_args,
-                                                          tccl_coll_req_h *request, tccl_team_h team);
+                                                          tccl_coll_req_h *request, tccl_tl_team_t *team);
     tccl_status_t                       (*collective_post)(tccl_coll_req_h request);
     tccl_status_t                       (*collective_wait)(tccl_coll_req_h request);
     tccl_status_t                       (*collective_test)(tccl_coll_req_h request);
@@ -51,10 +52,16 @@ typedef struct tccl_context {
     int                    n_tl_ctx;
 } tccl_context_t;
 
-typedef struct tccl_team {
-    tccl_context_t   *ctx;
+typedef struct tccl_tl_team {
+    tccl_tl_context_t     *ctx;
     tccl_team_config_t     cfg;
     tccl_oob_collectives_t oob;
+} tccl_tl_team_t;
+
+typedef struct tccl_team {
+    tccl_context_t *ctx;
+    int n_teams;
+    tccl_tl_team_t *tl_teams[1];
 } tccl_team_t;
 
 static inline int tccl_team_rank_to_world(tccl_team_config_t *cfg, int rank)
@@ -81,8 +88,9 @@ tccl_status_t tccl_create_context(tccl_lib_t *lib,
                                   tccl_context_t **team_ctx);
 
 
-#define TCCL_TEAM_SUPER_INIT(_team, _config, _oob) do {            \
-        (_team).oob = (_oob);                                          \
+#define TCCL_TEAM_SUPER_INIT(_team, _ctx, _config, _oob) do {           \
+        (_team).oob = (_oob);                                           \
+        (_team).ctx = (_ctx);                                           \
         memcpy(&((_team).cfg), (_config), sizeof(tccl_team_config_t));  \
     }while(0)
 

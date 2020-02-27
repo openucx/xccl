@@ -7,11 +7,11 @@
 
 tccl_status_t tccl_ucx_bcast_linear_progress(tccl_ucx_collreq_t *req)
 {
-    tccl_team_h team   = req->team;
-    void *data_buffer = req->args.buffer_info.dst_buffer;
-    size_t data_size  = req->args.buffer_info.len;
-    int group_rank    = team->oob.rank;
-    int group_size    = team->oob.size;
+    tccl_tl_team_t *team = req->team;
+    void *data_buffer    = req->args.buffer_info.dst_buffer;
+    size_t data_size     = req->args.buffer_info.len;
+    int group_rank       = team->oob.rank;
+    int group_size       = team->oob.size;
     tccl_ucx_request_t **reqs = req->bcast_linear.reqs;
 
     if (req->args.root == group_rank) {

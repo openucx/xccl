@@ -18,7 +18,7 @@ typedef struct tccl_vmc_context {
 } tccl_vmc_context_t;
 
 typedef struct tccl_vmc_team {
-    tccl_team_t super;
+    tccl_tl_team_t super;
     vmc_comm_h  vmc_comm;
 } tccl_vmc_team_t;
 

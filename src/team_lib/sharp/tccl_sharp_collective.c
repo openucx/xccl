@@ -36,7 +36,7 @@ tccl_sharp_allreduce_post(tccl_sharp_coll_req_t *req)
 static tccl_status_t
 tccl_sharp_allreduce_init(tccl_coll_op_args_t* coll_args,
                           tccl_coll_req_h *request,
-                          tccl_team_h team)
+                          tccl_tl_team_t *team)
 {
     tccl_sharp_coll_req_t *req            = malloc(sizeof(tccl_sharp_coll_req_t));
     tccl_sharp_team_t     *team_sharp     = tccl_derived_of(team, tccl_sharp_team_t);
@@ -121,7 +121,7 @@ tccl_sharp_barrier_post(tccl_sharp_coll_req_t *req)
 static tccl_status_t
 tccl_sharp_barrier_init(tccl_coll_op_args_t *coll_args,
                         tccl_coll_req_h *request,
-                        tccl_team_h team)
+                        tccl_tl_team_t *team)
 {
     tccl_sharp_coll_req_t* req;
     tccl_sharp_team_t*     team_sharp;
@@ -141,7 +141,7 @@ tccl_sharp_barrier_init(tccl_coll_op_args_t *coll_args,
 
 tccl_status_t tccl_sharp_collective_init(tccl_coll_op_args_t *coll_args,
                                          tccl_coll_req_h *request,
-                                         tccl_team_h team)
+                                         tccl_tl_team_t *team)
 {
     switch(coll_args->coll_type) {
     case TCCL_ALLREDUCE:

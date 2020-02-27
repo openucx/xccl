@@ -19,7 +19,7 @@ typedef struct tccl_sharp_coll_req {
 } tccl_sharp_coll_req_t;
 
 tccl_status_t tccl_sharp_collective_init(tccl_coll_op_args_t *coll_args, tccl_coll_req_h *request,
-                                         tccl_team_h team);
+                                         tccl_tl_team_t *team);
 tccl_status_t tccl_sharp_collective_post(tccl_coll_req_h request);
 tccl_status_t tccl_sharp_collective_wait(tccl_coll_req_h request);
 tccl_status_t tccl_sharp_collective_test(tccl_coll_req_h request);

@@ -65,13 +65,13 @@ static int vmc_comm_rank_to_world_mapper(int rank, void *mapper_ctx)
 static tccl_status_t tccl_vmc_team_create_post(tccl_tl_context_t *context,
                                                tccl_team_config_h config,
                                                tccl_oob_collectives_t oob,
-                                               tccl_team_h *team)
+                                               tccl_tl_team_t **team)
 {
     tccl_vmc_context_t *team_vmc_ctx = tccl_derived_of(context, tccl_vmc_context_t);
     tccl_vmc_team_t    *team_vmc     = malloc(sizeof(*team_vmc));
     vmc_comm_params_t   vmc_params;
     vmc_status_t        st;
-    TCCL_TEAM_SUPER_INIT(team_vmc->super, config, oob);
+    TCCL_TEAM_SUPER_INIT(team_vmc->super, context, config, oob);
 
     vmc_params.sx_depth             = 512;
     vmc_params.rx_depth             = 1024,
@@ -97,7 +97,7 @@ static tccl_status_t tccl_vmc_team_create_post(tccl_tl_context_t *context,
     return TCCL_OK;
 }
 
-static tccl_status_t tccl_vmc_team_destroy(tccl_team_h team)
+static tccl_status_t tccl_vmc_team_destroy(tccl_tl_team_t *team)
 {
     tccl_vmc_team_t *team_vmc = tccl_derived_of(team, tccl_vmc_team_t);
     if (team_vmc->vmc_comm != NULL) {
@@ -109,7 +109,7 @@ static tccl_status_t tccl_vmc_team_destroy(tccl_team_h team)
 
 static tccl_status_t tccl_vmc_collective_init(tccl_coll_op_args_t *coll_args,
                                               tccl_coll_req_h *request,
-                                              tccl_team_h team)
+                                              tccl_tl_team_t *team)
 {
     tccl_vmc_team_t     *team_vmc = tccl_derived_of(team, tccl_vmc_team_t);
     tccl_vmc_coll_req_t *req      = malloc(sizeof(*req));

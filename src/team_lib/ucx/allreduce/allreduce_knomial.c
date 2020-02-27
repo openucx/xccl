@@ -72,13 +72,13 @@ tccl_ucx_allreduce_knomial_progress(tccl_ucx_collreq_t *req)
     int full_tree_size, pow_k_sup, n_full_subtrees, full_size, node_type;
     int iteration, radix_pow, active_reqs, k, step_size, peer;
     ptrdiff_t recv_offset;
-    tccl_team_h team   = req->team;
-    void *data_buffer = req->args.buffer_info.dst_buffer;
-    size_t data_size  =  req->args.buffer_info.len;
-    int myrank        = team->oob.rank;
-    int group_size    = team->oob.size;
-    int radix         = req->allreduce.radix;
-    void *scratch     = req->allreduce.scratch;
+    tccl_tl_team_t *team = req->team;
+    void *data_buffer    = req->args.buffer_info.dst_buffer;
+    size_t data_size     =  req->args.buffer_info.len;
+    int myrank           = team->oob.rank;
+    int group_size       = team->oob.size;
+    int radix            = req->allreduce.radix;
+    void *scratch        = req->allreduce.scratch;
     tccl_ucx_request_t **reqs = req->allreduce.reqs;
     /* fprintf(stderr, "AR, radix %d, data_size %zd, count %d\n",
  radix, data_size, args->allreduce.count); */

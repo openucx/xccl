@@ -30,7 +30,7 @@ typedef struct tccl_sharp_buf {
 } tccl_sharp_buf_t;
 
 typedef struct tccl_sharp_team {
-    tccl_team_t             super;
+    tccl_tl_team_t          super;
     struct sharp_coll_comm *sharp_comm;
     tccl_sharp_buf_t        bufs[TCCL_SHARP_REG_BUF_NUM];
 } tccl_sharp_team_t;
