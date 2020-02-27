@@ -302,7 +302,7 @@ tccl_status_t tccl_context_progress(tccl_context_h context);
  * @brief TCCL team library initializatoin parameters
  *
  */
-typedef struct tccl_lib_config {
+typedef struct tccl_params {
     uint64_t                     field_mask;
     tccl_reproducibility_t       reproducible;
     tccl_thread_mode_t           thread_mode;
@@ -310,7 +310,11 @@ typedef struct tccl_lib_config {
     tccl_collective_type_t       coll_types;
     tccl_context_config_t        context_config;
     tccl_team_config_t           team_config;
-} tccl_lib_config_t;
+} tccl_params_t;
+
+typedef struct tccl_config {
+    char **tls;
+} tccl_config_t;
 
 /**
  * @ingroup UCP_TEAM_LIB
@@ -323,10 +327,11 @@ typedef struct tccl_lib_config {
  *
  * @return Error code
  */
-tccl_status_t tccl_lib_init(tccl_lib_config_t lib_config,
-                            tccl_lib_h *lib);
+tccl_status_t tccl_init(const tccl_params_t *params,
+                        const tccl_config_t *config,
+                        tccl_context_h *context_p);
 
-tccl_status_t tccl_lib_finalize(tccl_lib_h lib);
+tccl_status_t tccl_cleanup(tccl_context_h context_p);
 
 
 static inline size_t tccl_dt_size(tccl_dt_t dt) {

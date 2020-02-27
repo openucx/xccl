@@ -11,7 +11,7 @@
 
 
 
-static tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib) {
+tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib) {
     dlclose(lib->dl_handle);
     return TCCL_OK;
 }

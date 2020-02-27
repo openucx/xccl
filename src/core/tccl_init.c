@@ -18,6 +18,9 @@
 #include <dlfcn.h>
 #include <glob.h>
 
+tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib);
+
+static tccl_lib_t tccl_lib;
 static int
 callback(struct dl_phdr_info *info, size_t size, void *data)
 {
@@ -91,8 +94,8 @@ static void load_team_lib_plugins(tccl_lib_t *lib)
 }
 
 #define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{                      \
-        if ((config.field_mask & TCCL_LIB_CONFIG_FIELD_ ## _CAP_FIELD) && \
-            !(config. _cap & tl->config. _cap)) {                       \
+        if ((params->field_mask & TCCL_LIB_CONFIG_FIELD_ ## _CAP_FIELD) && \
+            !(params-> _cap & tl->params. _cap)) {                       \
             printf("Disqualifying team %s due to %s cap\n",             \
                    tl->name, TCCL_PP_QUOTE(_CAP_FIELD));                \
             tccl_team_lib_finalize(tl);                                 \
@@ -102,7 +105,7 @@ static void load_team_lib_plugins(tccl_lib_t *lib)
         }                                                               \
     } while(0)
 
-static void tccl_lib_filter(tccl_lib_config_t config,
+static void tccl_lib_filter(const tccl_params_t *params,
                             tccl_lib_t *lib) {
     int i;
     int kept = lib->n_libs_opened;
@@ -127,11 +130,10 @@ static void tccl_lib_filter(tccl_lib_config_t config,
     }
 }
 
-tccl_status_t tccl_lib_init(tccl_lib_config_t config,
-                            tccl_lib_h *tccl_lib)
+static tccl_status_t tccl_lib_init(const tccl_params_t *params)
 {
     char *var;
-    tccl_lib_t *lib = (tccl_lib_t*)malloc(sizeof(*lib));
+    tccl_lib_t *lib = &tccl_lib;
     lib->libs = NULL;
     lib->n_libs_opened = 0;
     lib->libs_array_size = 0;
@@ -152,7 +154,18 @@ tccl_status_t tccl_lib_init(tccl_lib_config_t config,
         fprintf(stderr, "TCCL init: couldn't find any tccl_team_lib_<name>.so plugins.\n");
         return TCCL_ERR_NO_MESSAGE;
     }
-    tccl_lib_filter(config, lib);
-    (*tccl_lib) = lib;
+    tccl_lib_filter(params, lib);
     return TCCL_OK;
+}
+
+tccl_status_t tccl_init(const tccl_params_t *params,
+                        const tccl_config_t *config,
+                        tccl_context_h *context_p)
+{
+    tccl_status_t status;
+    if (TCCL_OK != (status = tccl_lib_init(params))) {
+        return status;
+    }
+
+    return status;
 }

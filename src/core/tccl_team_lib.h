@@ -11,7 +11,7 @@
 typedef struct tccl_team_lib {
     char*                               name;
     int                                 priority;
-    tccl_lib_config_t                   config;
+    tccl_params_t                       params;
     tccl_team_lib_context_create_mode_t ctx_create_mode;
     void*                               dl_handle;
     tccl_status_t                       (*create_team_context)(tccl_team_lib_h lib,
@@ -32,7 +32,6 @@ typedef struct tccl_team_lib {
 } tccl_team_lib_t;
 
 typedef struct tccl_lib {
-    tccl_lib_config_t config_requested;
     int n_libs_opened;
     int libs_array_size;
     char *lib_path;
