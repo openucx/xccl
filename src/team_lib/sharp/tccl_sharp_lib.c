@@ -42,12 +42,10 @@ static int tccl_sharp_oob_barrier(void *context)
     tccl_oob_collectives_t *oob = (tccl_oob_collectives_t*)context;
     int comm_size = oob->size;
     char *tmp = NULL, c = 'c';
-    int rc;
-
     tmp = (char*)malloc(comm_size * sizeof(char));
-    rc = oob->allgather(&c, tmp, sizeof(char), oob->coll_context);
+    tccl_oob_allgather(&c, tmp, sizeof(char), oob);
     free(tmp);
-    return rc;
+    return 0;
 }
 
 static int tccl_sharp_oob_gather(void *context, int root, void *sbuf,
@@ -57,17 +55,16 @@ static int tccl_sharp_oob_gather(void *context, int root, void *sbuf,
     int comm_size = oob->size;
     int comm_rank = oob->rank;
     void *tmp = NULL;
-    int rc;
 
     if (comm_rank != root) {
         tmp = malloc(comm_size*size);
         rbuf = tmp;
     }
-    rc = oob->allgather(sbuf, rbuf, size, oob->coll_context);
+    tccl_oob_allgather(sbuf, rbuf, size, oob);
     if (tmp) {
         free(tmp);
     }
-    return rc;
+    return 0;
 }
 
 static int tccl_sharp_oob_bcast(void *context, void *buf, int size, int root)
@@ -76,15 +73,13 @@ static int tccl_sharp_oob_bcast(void *context, void *buf, int size, int root)
     int comm_size = oob->size;
     int comm_rank = oob->rank;
     void *tmp;
-    int rc;
-
     tmp = malloc(comm_size*size);
-    rc = oob->allgather(buf, tmp, size, oob->coll_context);
+    tccl_oob_allgather(buf, tmp, size, oob);
     if (comm_rank != root) {
         memcpy(buf, (void*)((ptrdiff_t)tmp + root*size), size);
     }
     free(tmp);
-    return rc;
+    return 0;
 }
 
 static tccl_status_t

@@ -35,7 +35,7 @@ tccl_status_t tccl_ucx_team_create_post(tccl_tl_context_t *context, tccl_team_co
     tmp                      = (int*)malloc(size*sizeof(int)*2);
     sbuf[0]                  = local_addrlen;
     sbuf[1]                  = ctx->next_cid;
-    oob.allgather(sbuf, tmp, 2*sizeof(int), oob.coll_context);
+    tccl_oob_allgather(sbuf, tmp, 2*sizeof(int), &oob);
     for (i=0; i<size; i++) {
         if (tmp[2*i] > max_addrlen) max_addrlen = tmp[2*i];
         if (tmp[2*i+1] > max_cid)   max_cid     = tmp[2*i+1];
@@ -48,7 +48,7 @@ tccl_status_t tccl_ucx_team_create_post(tccl_tl_context_t *context, tccl_team_co
                                      // need another alg for cid allocatoin or
                                      // and interface to get from user
     addr_array        = (char*)malloc(size*max_addrlen);
-    oob.allgather(ctx->worker_address, addr_array, max_addrlen, oob.coll_context);
+    tccl_oob_allgather(ctx->worker_address, addr_array, max_addrlen, &oob);
 
     if (!ctx->ucp_eps) {
         ucx_team->ucp_eps = (ucp_ep_h*)calloc(size, sizeof(ucp_ep_h));
@@ -77,7 +77,7 @@ tccl_status_t tccl_ucx_team_destroy(tccl_tl_team_t *team)
     if (ucx_team->ucp_eps) {
         close_eps(ucx_team->ucp_eps, team->oob.size, ctx->ucp_worker);
         tmp = malloc(team->oob.size);
-        team->oob.allgather(tmp, tmp, 1, team->oob.coll_context);
+        tccl_oob_allgather(tmp, tmp, 1, &team->oob);
         free(tmp);
         free(ucx_team->ucp_eps);
     }

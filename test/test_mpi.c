@@ -3,9 +3,32 @@
 tccl_team_h tccl_world_team;
 static tccl_context_h team_ctx;
 
-static int oob_allgather(void *sbuf, void *rbuf, size_t len, void *coll_context) {
+static int oob_allgather(void *sbuf, void *rbuf, size_t msglen,
+                         int my_rank, tccl_ep_range_t range,
+                         void *coll_context) {
     MPI_Comm comm = (MPI_Comm)coll_context;
-    MPI_Allgather(sbuf, len, MPI_BYTE, rbuf, len, MPI_BYTE, comm);
+    if (TCCL_EP_RANGE_UNDEFINED == range.type) {
+        MPI_Allgather(sbuf, msglen, MPI_BYTE, rbuf, msglen, MPI_BYTE, comm);
+    } else {
+        int root = tccl_range_to_rank(range, 0);
+        if (my_rank == root) {
+            int i;
+            memcpy(rbuf, sbuf, msglen);
+            for (i=1; i<range.ep_num; i++) {
+                MPI_Recv((void*)((char*)rbuf + msglen*i), msglen,
+                         MPI_BYTE, tccl_range_to_rank(range, i), 123,
+                         comm, MPI_STATUS_IGNORE);
+            }
+            for (i=1; i<range.ep_num; i++) {
+                MPI_Send(rbuf, msglen*range.ep_num, MPI_BYTE,
+                         tccl_range_to_rank(range, i), 123, comm);
+            }
+        } else {
+            MPI_Send(sbuf, msglen, MPI_BYTE, root, 123, comm);
+            MPI_Recv(rbuf, msglen*range.ep_num, MPI_BYTE, root,
+                     123, comm, MPI_STATUS_IGNORE);
+        }
+    }
     return 0;
 }
 

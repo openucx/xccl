@@ -90,7 +90,8 @@ static inline ucp_ep_h get_p2p_ep(tccl_ucx_team_t *team, int rank)
 {
     ucp_ep_h ep;
     if (TEAM_UCX_CTX(team)->ucp_eps) {
-        ep = TEAM_UCX_CTX(team)->ucp_eps[tccl_team_rank_to_world(&team->super.cfg, rank)];
+        ep = TEAM_UCX_CTX(team)->ucp_eps[
+            tccl_range_to_rank(team->super.cfg.range, rank)];
     } else {
         ep = team->ucp_eps[rank];
     }

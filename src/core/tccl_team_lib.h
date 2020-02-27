@@ -65,23 +65,13 @@ typedef struct tccl_team {
     tccl_tl_team_t *tl_teams[1];
 } tccl_team_t;
 
-static inline int tccl_team_rank_to_world(tccl_team_config_t *cfg, int rank)
+static inline void
+tccl_oob_allgather(void *sbuf, void* rbuf, size_t len, tccl_oob_collectives_t *oob)
 {
-    int r;
-    switch(cfg->range.type) {
-    case TCCL_EP_RANGE_STRIDED:
-        r = cfg->range.strided.start + rank*cfg->range.strided.stride;
-        break;
-    case TCCL_EP_RANGE_MAP:
-        r = cfg->range.map.map[rank];
-        break;
-    case TCCL_EP_RANGE_CB:
-        r = cfg->range.cb.cb(rank, cfg->range.cb.cb_ctx);
-        break;
-    default:
-        assert(0);
-    }
-    return r;
+    tccl_ep_range_t r = {
+        .type = TCCL_EP_RANGE_UNDEFINED,
+    };
+    oob->allgather(sbuf, rbuf, len, 0, r, oob->coll_context);
 }
 
 tccl_status_t tccl_create_context(tccl_lib_t *lib,

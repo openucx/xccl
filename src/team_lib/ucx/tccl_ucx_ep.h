@@ -42,7 +42,7 @@ connect_ep(tccl_team_lib_ucx_context_t *ctx, tccl_ucx_team_t *team,
     ucs_status_t status;
     ucp_ep_h *ep;
     if (ctx->ucp_eps) {
-        ep = &ctx->ucp_eps[tccl_team_rank_to_world(cfg, rank)];
+        ep = &ctx->ucp_eps[tccl_range_to_rank(cfg->range, rank)];
     } else {
         ep = &team->ucp_eps[rank];
     }

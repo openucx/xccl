@@ -80,7 +80,7 @@ tccl_status_t tccl_ucx_destroy_context(tccl_tl_context_t *team_context)
     if (ctx->ucp_eps) {
         close_eps(ctx->ucp_eps, oob->size, ctx->ucp_worker);
         tmp = malloc(oob->size);
-        oob->allgather(tmp, tmp, 1, oob->coll_context);
+        tccl_oob_allgather(tmp, tmp, 1, oob);
         free(tmp);
         free(ctx->ucp_eps);
     }

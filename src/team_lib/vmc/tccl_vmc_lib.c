@@ -9,7 +9,8 @@
 static int tccl_vmc_allgather(void *sbuf, void *rbuf, size_t len, void *comm)
 {
     tccl_oob_collectives_t *oob =(tccl_oob_collectives_t*)comm;
-    return oob->allgather(sbuf, rbuf, len, oob->coll_context);
+    tccl_oob_allgather(sbuf, rbuf, len, oob);
+    return 0;
 }
 
 void tccl_vmc_runtime_progress()
@@ -59,7 +60,7 @@ static tccl_status_t tccl_vmc_destroy_context(tccl_tl_context_t *context)
 static int vmc_comm_rank_to_world_mapper(int rank, void *mapper_ctx)
 {
     tccl_team_config_h cfg = (tccl_team_config_h)mapper_ctx;
-    return tccl_team_rank_to_world(cfg, rank);
+    return tccl_range_to_rank(cfg->range, rank);
 }
 
 static tccl_status_t tccl_vmc_team_create_post(tccl_tl_context_t *context,

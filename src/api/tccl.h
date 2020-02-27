@@ -59,8 +59,76 @@ typedef enum {
     TCCL_TEAM_COMPLETION_SPLIT_PHASE = 2
 } tccl_team_completion_type_t;
 
+/**
+ * @ingroup TCCL_TEAM
+ * @brief TCCL endpoint range descriptor type
+ *
+ * The enumeration specifies the type of endpoint range descriptor
+ * passed to the @ref tccl_team_create_post as part of @ref tccl_team_config_t.
+ *
+ */
+typedef enum {
+    TCCL_EP_RANGE_UNDEFINED = 0, /**< The relation between the team EP and team_context rank is defined
+                                   internally by the TCCL. User does not provide that info. */
+    TCCL_EP_RANGE_FULL      = 1, /**< The ep range of the team  spans all eps from a context*/
+    TCCL_EP_RANGE_STRIDED   = 2, /**< The ep range of the team can be described by the 2 values:
+                                   start, stride. */
+    TCCL_EP_RANGE_MAP       = 3, /**< The ep range is given as an array of intergers that map the ep in
+                                 the team to the team_context rank. */
+    TCCL_EP_RANGE_CB        = 4, /**< The ep range mapping is defined as callback provided by the TCCL user. */
+} tccl_ep_range_type_t;
+
+/**
+ * @ingroup TCCL_TEAM
+ * @brief TCCL Team endpoints range
+ *
+ * The structure defines how the range of endpoints that form a TCCL team is mapped to the
+ * team context (i.e., a mapping to the world rank)
+ * The number of endpoints is provided as part of @ref tccl_team_config_t.
+ */
+typedef struct tccl_ep_range_t {
+    tccl_ep_range_type_t type;
+    int ep_num;
+    union {
+        struct tccl_ep_range_strided {
+            int start;
+            int stride;
+        } strided;
+        struct tccl_ep_range_map {
+            int *map;
+        } map;
+        struct tccl_ep_range_cb {
+            int   (*cb)(int rank, void *cb_ctx);
+            void  *cb_ctx;
+        } cb;
+    };
+} tccl_ep_range_t;
+
+static inline int tccl_range_to_rank(tccl_ep_range_t range, int rank)
+{
+    int r;
+    switch(range.type) {
+    case TCCL_EP_RANGE_FULL:
+        r = rank;
+        break;
+    case TCCL_EP_RANGE_STRIDED:
+        r = range.strided.start + rank*range.strided.stride;
+        break;
+    case TCCL_EP_RANGE_MAP:
+        r = range.map.map[rank];
+        break;
+    case TCCL_EP_RANGE_CB:
+        r = range.cb.cb(rank, range.cb.cb_ctx);
+        break;
+    }
+    return r;
+}
+
+
+
 typedef struct tccl_oob_collectives {
     int (*allgather)(void *src_buf, void *recv_buff, size_t size,
+                     int my_rank, tccl_ep_range_t range,
                      void *coll_context);
     void *coll_context;
     int rank;
@@ -136,49 +204,6 @@ typedef struct tccl_team_lib_attr {
  */
 tccl_status_t tccl_team_lib_query(tccl_team_lib_h team_lib,
                                 tccl_team_lib_attr_t *attr);
-
-/**
- * @ingroup TCCL_TEAM
- * @brief TCCL endpoint range descriptor type
- *
- * The enumeration specifies the type of endpoint range descriptor
- * passed to the @ref tccl_team_create_post as part of @ref tccl_team_config_t.
- *
- */
-typedef enum {
-    TCCL_EP_RANGE_UNDEFINED = 0, /**< The relation between the team EP and team_context rank is defined
-                                   internally by the TCCL. User does not provide that info. */
-    TCCL_EP_RANGE_STRIDED   = 1, /**< The ep range of the team can be described by the 2 values:
-                                   start, stride. */
-    TCCL_EP_RANGE_MAP       = 2, /**< The ep range is given as an array of intergers that map the ep in
-                                 the team to the team_context rank. */
-    TCCL_EP_RANGE_CB        = 3, /**< The ep range mapping is defined as callback provided by the TCCL user. */
-} tccl_ep_range_type_t;
-
-/**
- * @ingroup TCCL_TEAM
- * @brief TCCL Team endpoints range
- *
- * The structure defines how the range of endpoints that form a TCCL team is mapped to the
- * team context (i.e., a mapping to the world rank)
- * The number of endpoints is provided as part of @ref tccl_team_config_t.
- */
-typedef struct tccl_ep_range_t {
-    tccl_ep_range_type_t type;
-    union {
-        struct tccl_ep_range_strided {
-            int start;
-            int stride;
-        } strided;
-        struct tccl_ep_range_map {
-            int *map;
-        } map;
-        struct tccl_ep_range_cb {
-            int   (*cb)(int rank, void *cb_ctx);
-            void  *cb_ctx;
-        } cb;
-    };
-} tccl_ep_range_t;
 
 typedef struct tccl_team_config {
     tccl_ep_range_t range;
