@@ -35,36 +35,38 @@ tccl_status_t tccl_create_context(tccl_lib_t *lib, const tccl_config_t *config,
                                   tccl_context_t **context)
 {
     tccl_context_t *ctx = malloc(sizeof(*ctx));
-    char *default_tls[5] = {"ucx", "sharp", "vmc", "shmseg", NULL};
+    char *default_tls = "ucx,sharp,vmc,shmseg";
     tccl_team_lib_t *tlib;
     tccl_tl_context_t *tl_ctx;
-    char **tls;
-    int num_tls = 0;
+    char *tls, *tl, *saveptr;
+    int i;
+    int num_tls = 1;
     ctx->lib = lib;
     memcpy(&ctx->cfg, &config->ctx_config, sizeof(ctx->cfg));
-    if (config->tls[0]) {
-        tls = config->tls;
+    if (config->tls) {
+        tls = strdup(config->tls);
     } else {
-        tls = default_tls;
+        tls = strdup(default_tls);
     }
-    assert(tls[0]);
-    while (tls[num_tls]) {
-        num_tls++;
+    for (i=0; i<strlen(tls); i++) {
+        if (tls[i] == ',') {
+            num_tls++;
+        }
     }
     ctx->tl_ctx = (tccl_tl_context_t**)malloc(sizeof(tccl_tl_context_t*)*num_tls);
     ctx->n_tl_ctx = 0;
-    num_tls = 0;
-    while (tls[num_tls++]) {
-        if (TCCL_OK != find_tlib_by_name(lib, tls[num_tls-1], &tlib)) {
-            continue;;
+    for (tl = strtok_r(tls, ",", &saveptr); tl != NULL;
+         tl = strtok_r(NULL, ",", &saveptr)) {
+        if (TCCL_OK == find_tlib_by_name(lib, tl, &tlib)) {
+            if (TCCL_OK == tccl_create_team_context(tlib, &ctx->cfg, &tl_ctx)) {
+                /* fprintf(stderr, "Created ctx %s, prio %d\n", tl_ctx->lib->name, tl_ctx->lib->priority); */
+                ctx->tl_ctx[ctx->n_tl_ctx++] = tl_ctx;
+            }
         }
-        if (TCCL_OK != tccl_create_team_context(tlib, &ctx->cfg, &tl_ctx)) {
-            continue;
-        } else {
-            /* fprintf(stderr, "Created ctx %s, prio %d\n", tl_ctx->lib->name, tl_ctx->lib->priority); */
-            ctx->tl_ctx[ctx->n_tl_ctx++] = tl_ctx;
-        }
+        tl = strtok(NULL, ",");
     }
+    free(tls);
+
     *context = ctx;
     return TCCL_OK;
 }
