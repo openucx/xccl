@@ -83,7 +83,7 @@ static int tccl_sharp_oob_bcast(void *context, void *buf, int size, int root)
 
 static tccl_status_t
 tccl_sharp_create_context(tccl_team_lib_h lib, tccl_context_config_h config,
-                          tccl_context_h *context)
+                          tccl_tl_context_t **context)
 {
     tccl_sharp_context_t *ctx = malloc(sizeof(*ctx));
     struct sharp_coll_init_spec init_spec = {0};
@@ -102,12 +102,12 @@ tccl_sharp_create_context(tccl_team_lib_h lib, tccl_context_config_h config,
     init_spec.oob_colls.barrier              = tccl_sharp_oob_barrier;
     init_spec.oob_colls.bcast                = tccl_sharp_oob_bcast;
     init_spec.oob_colls.gather               = tccl_sharp_oob_gather;
-    init_spec.oob_ctx                        = &ctx->super.cfg.oob;
+    init_spec.oob_ctx                        = &ctx->super.cfg->oob;
     init_spec.config                         = sharp_coll_default_config;
     init_spec.config.user_progress_num_polls = 1000000;
     init_spec.config.ib_dev_list             = "mlx5_0:1";
     init_spec.job_id                         = tccl_sharp_rand();
-    tccl_sharp_oob_bcast((void*)&ctx->super.cfg.oob, &init_spec.job_id,
+    tccl_sharp_oob_bcast((void*)&ctx->super.cfg->oob, &init_spec.job_id,
                          sizeof(uint64_t), 0);
     int ret = sharp_coll_init(&init_spec, &ctx->sharp_context);
     if (ret < 0 ) {
@@ -124,7 +124,7 @@ tccl_sharp_create_context(tccl_team_lib_h lib, tccl_context_config_h config,
 }
 
 static tccl_status_t
-tccl_sharp_destroy_context(tccl_context_h context)
+tccl_sharp_destroy_context(tccl_tl_context_t *context)
 {
     tccl_sharp_context_t *team_sharp_ctx =
         tccl_derived_of(context, tccl_sharp_context_t);
@@ -136,7 +136,7 @@ tccl_sharp_destroy_context(tccl_context_h context)
 }
 
 static tccl_status_t
-tccl_sharp_team_create_post(tccl_context_h context,
+tccl_sharp_team_create_post(tccl_tl_context_t *context,
                             tccl_team_config_h config,
                             tccl_oob_collectives_t oob,
                             tccl_team_h *team)
@@ -146,7 +146,7 @@ tccl_sharp_team_create_post(tccl_context_h context,
     tccl_sharp_team_t *team_sharp = malloc(sizeof(*team_sharp));
     struct sharp_coll_comm_init_spec comm_spec;
     int i, ret;
-    TCCL_TEAM_SUPER_INIT(team_sharp->super, context, config, oob);
+    TCCL_TEAM_SUPER_INIT(team_sharp->super, config, oob);
 
     comm_spec.size              = oob.size;
     comm_spec.rank              = oob.rank;

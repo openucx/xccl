@@ -18,7 +18,7 @@ void tccl_vmc_runtime_progress()
 
 static tccl_status_t tccl_vmc_create_context(tccl_team_lib_t *lib,
                                              tccl_context_config_h config,
-                                             tccl_context_t **context)
+                                             tccl_tl_context_t **context)
 {
     tccl_vmc_context_t *ctx = malloc(sizeof(*ctx));
     vmc_ctx_params_t    vmc_params;
@@ -46,7 +46,7 @@ static tccl_status_t tccl_vmc_create_context(tccl_team_lib_t *lib,
     return TCCL_OK;
 }
 
-static tccl_status_t tccl_vmc_destroy_context(tccl_context_h context)
+static tccl_status_t tccl_vmc_destroy_context(tccl_tl_context_t *context)
 {
     tccl_vmc_context_t *team_vmc_ctx = tccl_derived_of(context, tccl_vmc_context_t);
     if (team_vmc_ctx->vmc_ctx != NULL) {
@@ -62,7 +62,7 @@ static int vmc_comm_rank_to_world_mapper(int rank, void *mapper_ctx)
     return tccl_team_rank_to_world(cfg, rank);
 }
 
-static tccl_status_t tccl_vmc_team_create_post(tccl_context_h context,
+static tccl_status_t tccl_vmc_team_create_post(tccl_tl_context_t *context,
                                                tccl_team_config_h config,
                                                tccl_oob_collectives_t oob,
                                                tccl_team_h *team)
@@ -71,7 +71,7 @@ static tccl_status_t tccl_vmc_team_create_post(tccl_context_h context,
     tccl_vmc_team_t    *team_vmc     = malloc(sizeof(*team_vmc));
     vmc_comm_params_t   vmc_params;
     vmc_status_t        st;
-    TCCL_TEAM_SUPER_INIT(team_vmc->super, context, config, oob);
+    TCCL_TEAM_SUPER_INIT(team_vmc->super, config, oob);
 
     vmc_params.sx_depth             = 512;
     vmc_params.rx_depth             = 1024,
@@ -118,7 +118,7 @@ static tccl_status_t tccl_vmc_collective_init(tccl_coll_op_args_t *coll_args,
         return TCCL_ERR_UNSUPPORTED;
     }
 
-    req->super.lib = team->ctx->lib;
+    req->super.lib = &tccl_team_lib_vmc.super;
     req->buf       = coll_args->buffer_info.src_buffer;
     req->len       = coll_args->buffer_info.len;
     req->root      = coll_args->root;
@@ -163,7 +163,7 @@ static tccl_status_t tccl_vmc_collective_finalize(tccl_coll_req_h request)
     return TCCL_OK;
 }
 
-tccl_status_t tccl_vmc_context_progress(tccl_context_h context)
+tccl_status_t tccl_vmc_context_progress(tccl_tl_context_t *context)
 {
     tccl_vmc_context_t *team_vmc_ctx = tccl_derived_of(context, tccl_vmc_context_t);
     vmc_progress(team_vmc_ctx->vmc_ctx);

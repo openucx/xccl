@@ -68,15 +68,13 @@ typedef struct tccl_oob_collectives {
 } tccl_oob_collectives_t;
 
 typedef enum tccl_context_config_field_mask {
-    TCCL_CONTEXT_CONFIG_FIELD_TEAM_LIB_NAME    = TCCL_BIT(0),
-    TCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE      = TCCL_BIT(1),
-    TCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE  = TCCL_BIT(2),
-    TCCL_CONTEXT_CONFIG_FIELD_OOB              = TCCL_BIT(3),
+    TCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE      = TCCL_BIT(0),
+    TCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE  = TCCL_BIT(1),
+    TCCL_CONTEXT_CONFIG_FIELD_OOB              = TCCL_BIT(2),
 } tccl_context_config_field_mask_t;
 
 typedef struct tccl_context_config {
     uint64_t                    field_mask;
-    char*                       team_lib_name;
     tccl_thread_mode_t          thread_mode;
     tccl_team_completion_type_t completion_type;
     tccl_oob_collectives_t      oob;
@@ -138,12 +136,6 @@ typedef struct tccl_team_lib_attr {
  */
 tccl_status_t tccl_team_lib_query(tccl_team_lib_h team_lib,
                                 tccl_team_lib_attr_t *attr);
-
-tccl_status_t tccl_create_context(tccl_lib_h lib,
-                                  tccl_context_config_t config,
-                                  tccl_context_h *team_ctx);
-
-tccl_status_t tccl_destroy_context(tccl_context_h team_ctx);
 
 /**
  * @ingroup TCCL_TEAM
@@ -313,6 +305,7 @@ typedef struct tccl_params {
 } tccl_params_t;
 
 typedef struct tccl_config {
+    tccl_context_config_t ctx_config;
     char **tls;
 } tccl_config_t;
 

@@ -18,7 +18,7 @@ static void tccl_ucx_req_init(void* request)
 static void tccl_ucx_req_cleanup(void* request){ }
 
 tccl_status_t tccl_ucx_create_context(tccl_team_lib_t *lib, tccl_context_config_t *config,
-                                      tccl_context_t **context)
+                                      tccl_tl_context_t **context)
 {
     ucp_params_t params;
     ucp_worker_params_t worker_params;
@@ -71,10 +71,10 @@ tccl_status_t tccl_ucx_create_context(tccl_team_lib_t *lib, tccl_context_config_
     return TCCL_OK;
 }
 
-tccl_status_t tccl_ucx_destroy_context(tccl_context_h team_context)
+tccl_status_t tccl_ucx_destroy_context(tccl_tl_context_t *team_context)
 {
     tccl_team_lib_ucx_context_t *ctx = tccl_derived_of(team_context, tccl_team_lib_ucx_context_t);
-    tccl_oob_collectives_t      *oob = &team_context->cfg.oob;
+    tccl_oob_collectives_t      *oob = &team_context->cfg->oob;
     void *tmp;
 
     if (ctx->ucp_eps) {

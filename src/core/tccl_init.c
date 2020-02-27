@@ -18,9 +18,7 @@
 #include <dlfcn.h>
 #include <glob.h>
 
-tccl_status_t tccl_team_lib_finalize(tccl_team_lib_h lib);
-
-static tccl_lib_t tccl_lib;
+tccl_lib_t tccl_static_lib;
 static int
 callback(struct dl_phdr_info *info, size_t size, void *data)
 {
@@ -98,42 +96,43 @@ static void load_team_lib_plugins(tccl_lib_t *lib)
             !(params-> _cap & tl->params. _cap)) {                       \
             printf("Disqualifying team %s due to %s cap\n",             \
                    tl->name, TCCL_PP_QUOTE(_CAP_FIELD));                \
-            tccl_team_lib_finalize(tl);                                 \
-            lib->libs[i] = NULL;                                        \
-            kept--;                                                     \
             continue;                                                   \
         }                                                               \
     } while(0)
 
-static void tccl_lib_filter(const tccl_params_t *params,
-                            tccl_lib_t *lib) {
+static void tccl_lib_filter(const tccl_params_t *params, tccl_lib_t *lib)
+{
     int i;
-    int kept = lib->n_libs_opened;
-    for (i=0; i<lib->n_libs_opened; i++) {
-        tccl_team_lib_t *tl = lib->libs[i];
+    int n_libs = tccl_static_lib.n_libs_opened;
+    lib->libs = (tccl_team_lib_t**)malloc(sizeof(tccl_team_lib_t*)*n_libs);
+    lib->n_libs_opened = 0;
+    for (i=0; i<n_libs; i++) {
+        tccl_team_lib_t *tl = tccl_static_lib.libs[i];
         CHECK_LIB_CONFIG_CAP(reproducible, REPRODUCIBLE);
         CHECK_LIB_CONFIG_CAP(thread_mode,  THREAD_MODE);
         CHECK_LIB_CONFIG_CAP(team_usage,   TEAM_USAGE);
         CHECK_LIB_CONFIG_CAP(coll_types,   COLL_TYPES);
-    }
-    if (kept != lib->n_libs_opened) {
-        tccl_team_lib_t **libs = (tccl_team_lib_t**)malloc(kept*sizeof(*libs));
-        kept = 0;
-        for (i=0; i<lib->n_libs_opened; i++) {
-            if (lib->libs[i]) {
-                libs[kept++] = lib->libs[i];
-            }
-        }
-        free(lib->libs);
-        lib->libs = libs;
-        lib->n_libs_opened = kept;
+        
+        lib->libs[lib->n_libs_opened++] = tl;
     }
 }
 
-static tccl_status_t tccl_lib_init(const tccl_params_t *params)
+static void tccl_print_libs(tccl_lib_t *lib) {
+    char str[1024];
+    int i;
+    sprintf(str, "n_libs %d: ", lib->n_libs_opened);
+    for (i=0; i<lib->n_libs_opened; i++) {
+        strcat(str, lib->libs[i]->name);
+        strcat(str, " ");
+    }
+    printf("%s\n", str);
+}
+
+__attribute__((constructor))
+static void tccl_constructor(void)
 {
     char *var;
-    tccl_lib_t *lib = &tccl_lib;
+    tccl_lib_t *lib = &tccl_static_lib;
     lib->libs = NULL;
     lib->n_libs_opened = 0;
     lib->libs_array_size = 0;
@@ -146,15 +145,34 @@ static tccl_status_t tccl_lib_init(const tccl_params_t *params)
     }
     if (!lib->lib_path) {
         fprintf(stderr, "Failed to get tccl library path. set TCCL_TEAM_LIB_PATH.\n");
-        return TCCL_ERR_NO_MESSAGE;
+        return;
     }
     /* printf("LIB PATH:%s\n", lib->lib_path); */
     load_team_lib_plugins(lib);
     if (lib->n_libs_opened == 0) {
         fprintf(stderr, "TCCL init: couldn't find any tccl_team_lib_<name>.so plugins.\n");
+        return;
+    }
+    tccl_print_libs(&tccl_static_lib);
+}
+
+tccl_status_t tccl_lib_init(const tccl_params_t *params,
+                            tccl_lib_t **tccl_lib)
+{
+    tccl_lib_t *lib = NULL;
+    if (tccl_static_lib.n_libs_opened == 0) {
         return TCCL_ERR_NO_MESSAGE;
     }
+
+    lib = malloc(sizeof(*lib));
+    lib->lib_path = NULL;
     tccl_lib_filter(params, lib);
+    if (lib->n_libs_opened == 0) {
+        fprintf(stderr, "TCCL lib init: no plugins left after filtering by params\n");
+        return TCCL_ERR_NO_MESSAGE;
+    }
+    tccl_print_libs(lib);
+    *tccl_lib = lib;
     return TCCL_OK;
 }
 
@@ -163,9 +181,11 @@ tccl_status_t tccl_init(const tccl_params_t *params,
                         tccl_context_h *context_p)
 {
     tccl_status_t status;
-    if (TCCL_OK != (status = tccl_lib_init(params))) {
+    int i;
+    tccl_lib_t *lib;
+
+    if (TCCL_OK != (status = tccl_lib_init(params, &lib))) {
         return status;
     }
-
-    return status;
+    return tccl_create_context(lib, config, context_p);
 }

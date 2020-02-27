@@ -10,10 +10,11 @@
 typedef struct tccl_team_lib_vmc {
     tccl_team_lib_t super;
 } tccl_team_lib_vmc_t;
+extern tccl_team_lib_vmc_t tccl_team_lib_vmc;
 
 typedef struct tccl_vmc_context {
-    tccl_context_t     super;
-    vmc_ctx_h          vmc_ctx;
+    tccl_tl_context_t     super;
+    vmc_ctx_h             vmc_ctx;
 } tccl_vmc_context_t;
 
 typedef struct tccl_vmc_team {

@@ -14,7 +14,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-tccl_status_t tccl_ucx_team_create_post(tccl_context_t *context, tccl_team_config_t *config,
+tccl_status_t tccl_ucx_team_create_post(tccl_tl_context_t *context, tccl_team_config_t *config,
                                         tccl_oob_collectives_t oob, tccl_team_t **team)
 {
     //TODO need to make this non blocking + team_ucx_wait
@@ -29,7 +29,7 @@ tccl_status_t tccl_ucx_team_create_post(tccl_context_t *context, tccl_team_confi
     char* addr_array;
 
     ucx_team = (tccl_ucx_team_t*)malloc(sizeof(tccl_ucx_team_t));
-    TCCL_TEAM_SUPER_INIT(ucx_team->super, context, config, oob);
+    TCCL_TEAM_SUPER_INIT(ucx_team->super, config, oob);
 
     local_addrlen            = (int)ctx->ucp_addrlen;
     tmp                      = (int*)malloc(size*sizeof(int)*2);

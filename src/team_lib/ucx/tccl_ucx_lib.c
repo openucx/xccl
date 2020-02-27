@@ -29,7 +29,7 @@ tccl_ucx_coll_base_init(tccl_coll_op_args_t *coll_args, tccl_team_h team,
     memcpy(&req->args, coll_args, sizeof(*coll_args));
     req->complete  = TCCL_INPROGRESS;
     req->team      = team;
-    req->super.lib = (tccl_team_lib_t*)team->ctx->lib;
+    req->super.lib = &tccl_team_lib_ucx.super;
     req->tag       = ((tccl_ucx_team_t*)team)->seq_num++;
     (*request)     = req;
     return TCCL_OK;

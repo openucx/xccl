@@ -54,7 +54,7 @@ tccl_sharp_allreduce_init(tccl_coll_op_args_t* coll_args,
     }
 
     req->sharp_comm = team_sharp->sharp_comm;
-    req->super.lib  = team->ctx->lib;
+    req->super.lib  = &tccl_team_lib_sharp.super;
     req->team       = team_sharp;
 
     if (coll_args->buffer_info.len <= TCCL_SHARP_REG_BUF_SIZE) {
@@ -129,7 +129,7 @@ tccl_sharp_barrier_init(tccl_coll_op_args_t *coll_args,
     req             = malloc(sizeof(tccl_sharp_coll_req_t));
     team_sharp      = tccl_derived_of(team, tccl_sharp_team_t);
     req->sharp_comm = team_sharp->sharp_comm;
-    req->super.lib  = team->ctx->lib;
+    req->super.lib  = &tccl_team_lib_sharp.super;
     req->team       = team_sharp;
     req->start      = tccl_sharp_barrier_post;
     req->sharp_buf  = NULL;
