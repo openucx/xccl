@@ -1,8 +1,6 @@
 #include "test_mpi.h"
 
 tccl_team_h tccl_world_team;
-
-static tccl_lib_h lib;
 static tccl_context_h team_ctx;
 
 static int oob_allgather(void *sbuf, void *rbuf, size_t len, void *coll_context) {
@@ -20,32 +18,31 @@ int tccl_mpi_test_init(int argc, char **argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     /* Init tccl library */
-    var = getenv("TCCL_TEST_TEAM");
-    tccl_lib_config_t lib_config = {
+    var = getenv("TCCL_TEST_TLS");
+    tccl_params_t params = {
         .field_mask = TCCL_LIB_CONFIG_FIELD_TEAM_USAGE,
         .team_usage = TCCL_USAGE_SW_COLLECTIVES |
         TCCL_USAGE_HW_COLLECTIVES,
     };
-    TCCL_CHECK(tccl_lib_init(lib_config, &lib));
 
-    /* Init tccl context for a specified TCCL_TEST_TEAM */
-    tccl_context_config_t team_ctx_config = {
-        .field_mask = TCCL_CONTEXT_CONFIG_FIELD_TEAM_LIB_NAME |
-        TCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE |
-        TCCL_CONTEXT_CONFIG_FIELD_OOB |
-        TCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE,
-        .team_lib_name   = var ? var : "ucx",
-        .thread_mode     = TCCL_LIB_THREAD_SINGLE,
-        .completion_type = TCCL_TEAM_COMPLETION_BLOCKING,
-        .oob = {
-            .allgather    = oob_allgather,
-            .coll_context = (void*)MPI_COMM_WORLD,
-            .rank         = rank,
-            .size         = size
+    /* Init tccl context for a specified TCCL_TEST_TLS */
+    tccl_config_t config = {
+        .ctx_config = {
+            .field_mask = TCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE |
+            TCCL_CONTEXT_CONFIG_FIELD_OOB |
+            TCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE,
+            .thread_mode     = TCCL_LIB_THREAD_SINGLE,
+            .completion_type = TCCL_TEAM_COMPLETION_BLOCKING,
+            .oob = {
+                .allgather    = oob_allgather,
+                .coll_context = (void*)MPI_COMM_WORLD,
+                .rank         = rank,
+                .size         = size
+            },
         },
+        .tls = var, //NULL means auto
     };
-    TCCL_CHECK(tccl_create_context(lib, team_ctx_config, &team_ctx));
-
+    TCCL_CHECK(tccl_init(&params, &config, &team_ctx));
 #if 0
     //TODO need to discuss where this should go
     tccl_team_lib_attr_t team_lib_attr;
@@ -85,8 +82,7 @@ int tccl_mpi_test_init(int argc, char **argv) {
 
 int tccl_mpi_test_finalize(void) {
     TCCL_CHECK(tccl_team_destroy(tccl_world_team));
-    TCCL_CHECK(tccl_destroy_context(team_ctx));
-    TCCL_CHECK(tccl_lib_finalize(lib));
+    TCCL_CHECK(tccl_cleanup(team_ctx));
     MPI_Finalize();
     return 0;
 }

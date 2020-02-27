@@ -3,7 +3,11 @@
 *
 * See file LICENSE for terms.
 */
+#define _BSD_SOURCE
 #include "test_mpi.h"
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
 static inline void
 do_barrier(tccl_team_h team) {
@@ -39,4 +43,5 @@ int main (int argc, char **argv) {
     }
 
     tccl_mpi_test_finalize();
+    return 0;
 }
