@@ -106,7 +106,6 @@ LDFLAGS="$LDFLAGS $UCS_LDFLAGS"
 AC_CONFIG_FILES([
                  Makefile
                  src/Makefile
-                 src/team_lib/tccl_config.h
                  src/team_lib/ucx/Makefile
                  src/team_lib/sharp/Makefile
                  src/team_lib/vmc/Makefile
