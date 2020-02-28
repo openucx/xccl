@@ -135,6 +135,7 @@ tccl_status_t tccl_hier_create_context(tccl_team_lib_t *lib, tccl_context_config
     ctx->procs = (tccl_hier_proc_data_t*)malloc(
         config->oob.size*sizeof(tccl_hier_proc_data_t));
     ctx->local_proc.socketid = tccl_local_proc_info.socketid;
+    ctx->local_proc.node_hash = tccl_local_proc_info.node_hash;
     memset(ctx->tls, 0, sizeof(ctx->tls));
     *context = NULL;
 
