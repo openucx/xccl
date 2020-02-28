@@ -9,7 +9,9 @@
 
 sources = \
 	tccl_hier_lib.h \
-	tccl_hier_lib.c
+	tccl_hier_lib.c \
+	tccl_hier_context.h \
+	tccl_hier_context.c
 
 component_noinst =
 component_install = tccl_team_lib_hier.la

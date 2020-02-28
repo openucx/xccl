@@ -334,7 +334,7 @@ typedef struct tccl_params {
 
 typedef struct tccl_config {
     tccl_context_config_t ctx_config;
-    char *tls;
+    const char *tls;
 } tccl_config_t;
 
 /**

@@ -24,7 +24,8 @@ nobase_dist_libtccl_la_HEADERS = \
 	api/tccl.h                   \
 	api/tccl_def.h               \
 	api/tccl_version.h           \
-	api/tccl_status.h
+	api/tccl_status.h            \
+	api/tccl_tls.h
 
 noinst_HEADERS = core/tccl_team_lib.h
 
