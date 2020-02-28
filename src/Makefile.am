@@ -2,7 +2,7 @@
 # Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
 #
 
-SUBDIRS = 
+SUBDIRS = team_lib/hier
 if HAVE_UCX
 SUBDIRS += team_lib/ucx
 endif
