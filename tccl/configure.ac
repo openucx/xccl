@@ -74,8 +74,10 @@ AS_HELP_STRING([--enable-debug], [Enable extra debugging code (default is NO).])
 
 if test $enable_debug = yes; then
 	AC_DEFINE([ENABLE_DEBUG], [1], [Enable debugging code])
+    AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_TRACE_POLL], [Highest log level])],
     CFLAGS="$CFLAGS -O0 -g3"
 else
+    AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_INFO], [Highest log level])]
 	CFLAGS="$CFLAGS -O3 -DNDEBUG"
 fi
 
@@ -99,10 +101,12 @@ AC_MSG_RESULT([VMC support: $vmc_happy])
 
 
 includes="-I${TCCL_TOP_SRCDIR}/src/team_lib -I${TCCL_TOP_SRCDIR}/src"
-CPPFLAGS="$CPPFLAGS $includes -std=gnu11"
+CPPFLAGS="$CPPFLAGS $UCS_CPPFLAGS $includes -std=gnu11"
+LDFLAGS="$LDFLAGS $UCS_LDFLAGS"
 AC_CONFIG_FILES([
                  Makefile
                  src/Makefile
+                 src/team_lib/tccl_config.h
                  src/team_lib/ucx/Makefile
                  src/team_lib/sharp/Makefile
                  src/team_lib/vmc/Makefile

@@ -7,6 +7,7 @@
 
 #include "config.h"
 #define _GNU_SOURCE
+#include <ucs/debug/log.h>
 #include "tccl_team_lib.h"
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,34 @@
 #include <link.h>
 #include <dlfcn.h>
 #include <glob.h>
+
+const char *log_level_names[] = {
+    [UCS_LOG_LEVEL_FATAL]        = "FATAL",
+    [UCS_LOG_LEVEL_ERROR]        = "ERROR",
+    [UCS_LOG_LEVEL_WARN]         = "WARN",
+    [UCS_LOG_LEVEL_INFO]         = "INFO",
+    [UCS_LOG_LEVEL_DEBUG]        = "DEBUG",
+    [UCS_LOG_LEVEL_TRACE]        = "TRACE",
+    [UCS_LOG_LEVEL_TRACE_REQ]    = "REQ",
+    [UCS_LOG_LEVEL_TRACE_DATA]   = "DATA",
+    [UCS_LOG_LEVEL_TRACE_ASYNC]  = "ASYNC",
+    [UCS_LOG_LEVEL_TRACE_FUNC]   = "FUNC",
+    [UCS_LOG_LEVEL_TRACE_POLL]   = "POLL",
+    [UCS_LOG_LEVEL_LAST]         = NULL,
+    [UCS_LOG_LEVEL_PRINT]        = "PRINT"
+};
+
+static int __find_string_in_list(const char *str, const char **list)
+{
+    int i;
+
+    for (i = 0; *list; ++list, ++i) {
+        if (strcasecmp(*list, str) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
 
 static int
 callback(struct dl_phdr_info *info, size_t size, void *data)
@@ -137,6 +166,8 @@ tccl_status_t tccl_lib_init(tccl_lib_config_t config,
 {
     char *var;
     tccl_lib_t *lib = (tccl_lib_t*)malloc(sizeof(*lib));
+    snprintf(lib->log_config.name, sizeof(lib->log_config.name), "%s", "XCCL");
+    lib->log_config.log_level = UCS_LOG_LEVEL_INFO;
     lib->libs = NULL;
     lib->n_libs_opened = 0;
     lib->libs_array_size = 0;
@@ -147,6 +178,19 @@ tccl_status_t tccl_lib_init(tccl_lib_config_t config,
     } else {
         get_default_lib_path(lib);
     }
+    var = getenv("TCCL_LOG_LEVEL");
+    if (var) {
+        int level;
+        level = __find_string_in_list(var, log_level_names);
+        if (level < 0) {
+            lib->log_config.log_level = UCS_LOG_LEVEL_TRACE;
+        } else {
+            lib->log_config.log_level = level;
+        }
+    } else {
+        lib->log_config.log_level = UCS_LOG_LEVEL_WARN;
+    }
+    ucs_log_component(UCS_LOG_LEVEL_TRACE, &lib->log_config, "TCCL team lib path: %s", lib->lib_path);
     if (!lib->lib_path) {
         fprintf(stderr, "Failed to get tccl library path. set TCCL_TEAM_LIB_PATH.\n");
         return TCCL_ERR_NO_MESSAGE;

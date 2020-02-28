@@ -5,6 +5,7 @@
 #ifndef TCCL_TEAM_LIB_H_
 #define TCCL_TEAM_LIB_H_
 #include "api/tccl.h"
+#include <ucs/config/types.h>
 #include <assert.h>
 #include <string.h>
 
@@ -20,11 +21,11 @@ typedef struct tccl_team_lib {
     tccl_status_t                       (*destroy_team_context)(tccl_context_h team_context);
     tccl_status_t                       (*progress)(tccl_context_h team_context);
     tccl_status_t                       (*team_create_post)(tccl_context_h team_ctx,
-                                                           tccl_team_config_h config,
-                                                           tccl_oob_collectives_t oob, tccl_team_h *team);
+                                                            tccl_team_config_h config,
+                                                            tccl_oob_collectives_t oob, tccl_team_h *team);
     tccl_status_t                       (*team_destroy)(tccl_team_h team);
     tccl_status_t                       (*collective_init)(tccl_coll_op_args_t *coll_args,
-                                                          tccl_coll_req_h *request, tccl_team_h team);
+                                                           tccl_coll_req_h *request, tccl_team_h team);
     tccl_status_t                       (*collective_post)(tccl_coll_req_h request);
     tccl_status_t                       (*collective_wait)(tccl_coll_req_h request);
     tccl_status_t                       (*collective_test)(tccl_coll_req_h request);
@@ -32,20 +33,21 @@ typedef struct tccl_team_lib {
 } tccl_team_lib_t;
 
 typedef struct tccl_lib {
-    tccl_lib_config_t config_requested;
-    int n_libs_opened;
-    int libs_array_size;
-    char *lib_path;
-    tccl_team_lib_t **libs;
+    tccl_lib_config_t         config_requested;
+    ucs_log_component_config_t log_config;
+    int                       n_libs_opened;
+    int                       libs_array_size;
+    char                      *lib_path;
+    tccl_team_lib_t           **libs;
 } tccl_lib_t;
 
 typedef struct tccl_context {
-    tccl_team_lib_t            *lib;
-    tccl_context_config_t  cfg;
+    tccl_team_lib_t       *lib;
+    tccl_context_config_t cfg;
 } tccl_context_t;
 
 typedef struct tccl_team {
-    tccl_context_t   *ctx;
+    tccl_context_t         *ctx;
     tccl_team_config_t     cfg;
     tccl_oob_collectives_t oob;
 } tccl_team_t;
