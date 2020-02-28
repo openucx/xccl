@@ -7,11 +7,11 @@
 
 int main (int argc, char **argv) {
     const int count = 32;
-    tccl_coll_req_h request;
+    xccl_coll_req_h request;
     int rank, size, i, status = 0, status_global;
     int sbuf[count], rbuf[count], rbuf_mpi[count];
 
-    tccl_mpi_test_init(argc, argv);
+    xccl_mpi_test_init(argc, argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -20,26 +20,26 @@ int main (int argc, char **argv) {
         sbuf[i] = rank+1+12345 + i;
     }
 
-    tccl_coll_op_args_t coll = {
-        .coll_type = TCCL_ALLREDUCE,
+    xccl_coll_op_args_t coll = {
+        .coll_type = XCCL_ALLREDUCE,
         .buffer_info = {
             .src_buffer = sbuf,
             .dst_buffer = rbuf,
             .len        = count*sizeof(int),
         },
         .reduce_info = {
-            .dt = TCCL_DT_INT32,
-            .op = TCCL_OP_SUM,
+            .dt = XCCL_DT_INT32,
+            .op = XCCL_OP_SUM,
             .count = count,
         },
         .alg.set_by_user = 0,
         .tag  = 123, //todo
     };
 
-    tccl_collective_init(&coll, &request, tccl_world_team);
-    tccl_collective_post(request);
-    tccl_collective_wait(request);
-    tccl_collective_finalize(request);
+    xccl_collective_init(&coll, &request, xccl_world_team);
+    xccl_collective_post(request);
+    xccl_collective_wait(request);
+    xccl_collective_finalize(request);
 
     MPI_Allreduce(sbuf, rbuf_mpi, count, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
@@ -53,6 +53,6 @@ int main (int argc, char **argv) {
         printf("Correctness check: %s\n", status_global == 0 ? "PASS" : "FAIL");
     }
 
-    tccl_mpi_test_finalize();
+    xccl_mpi_test_finalize();
     return 0;
 }

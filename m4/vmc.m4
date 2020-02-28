@@ -3,7 +3,7 @@
 # See file LICENSE for terms.
 #
 
-AC_DEFUN([TCCL_CHECK_VMC],[
+AC_DEFUN([XCCL_CHECK_VMC],[
 
 AS_IF([test "x$vmc_checked" != "xyes"],[
 
@@ -20,15 +20,15 @@ AS_IF([test "x$with_vmc" != "xno"],
 
      AS_IF([test ! -z "$with_vmc" -a "x$with_vmc" != "xyes" -a "x$with_vmc" != "xguess"],
             [
-            tccl_check_vmc_dir="$with_vmc"
+            xccl_check_vmc_dir="$with_vmc"
             AS_IF([test -d "$with_vmc/lib64"],[libsuff="64"],[libsuff=""])
-            tccl_check_vmc_libdir="$with_vmc/lib$libsuff"
+            xccl_check_vmc_libdir="$with_vmc/lib$libsuff"
             CPPFLAGS="-I$with_vmc/include $save_CPPFLAGS"
-            LDFLAGS="-L$tccl_check_vmc_libdir $save_LDFLAGS"
+            LDFLAGS="-L$xccl_check_vmc_libdir $save_LDFLAGS"
             ])
         AS_IF([test ! -z "$with_vmc_libdir" -a "x$with_vmc_libdir" != "xyes"],
-            [tccl_check_vmc_libdir="$with_vmc_libdir"
-            LDFLAGS="-L$tccl_check_vmc_libdir $save_LDFLAGS"])
+            [xccl_check_vmc_libdir="$with_vmc_libdir"
+            LDFLAGS="-L$xccl_check_vmc_libdir $save_LDFLAGS"])
 
         AC_CHECK_HEADERS([vmc.h],
             [AC_CHECK_LIB([vmc] , [vmc_init],
@@ -43,8 +43,8 @@ AS_IF([test "x$with_vmc" != "xno"],
 
         AS_IF([test "x$vmc_happy" = "xyes"],
             [
-                AC_SUBST(VMC_CPPFLAGS, "-I$tccl_check_vmc_dir/include/ ")
-                AC_SUBST(VMC_LDFLAGS, "-L$tccl_check_vmc_dir/lib -lvmc")
+                AC_SUBST(VMC_CPPFLAGS, "-I$xccl_check_vmc_dir/include/ ")
+                AC_SUBST(VMC_LDFLAGS, "-L$xccl_check_vmc_dir/lib -lvmc")
             ],
             [
                 AS_IF([test "x$with_vmc" != "xguess"],

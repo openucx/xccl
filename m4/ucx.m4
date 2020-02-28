@@ -3,7 +3,7 @@
 # See file LICENSE for terms.
 #
 
-AC_DEFUN([TCCL_CHECK_UCX],[
+AC_DEFUN([XCCL_CHECK_UCX],[
 
 AS_IF([test "x$ucx_checked" != "xyes"],[
 

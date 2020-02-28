@@ -1,7 +1,7 @@
 #include "config.h"
-#include "tccl_ucx_lib.h"
+#include "xccl_ucx_lib.h"
 #include "bcast.h"
-#include "tccl_ucx_sendrecv.h"
+#include "xccl_ucx_sendrecv.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,26 +12,26 @@
         }                                       \
     }while(0)
 
-tccl_status_t tccl_ucx_bcast_knomial_progress(tccl_ucx_collreq_t *req)
+xccl_status_t xccl_ucx_bcast_knomial_progress(xccl_ucx_collreq_t *req)
 {
-    tccl_tl_team_t *team = req->team;
+    xccl_tl_team_t *team = req->team;
     void *data_buffer    = req->args.buffer_info.dst_buffer;
     size_t data_size     = req->args.buffer_info.len;
     int group_rank       = team->oob.rank;
     int group_size       = team->oob.size;
     int root             = req->args.root;
     int radix            = req->bcast_kn.radix;
-    tccl_ucx_request_t **reqs = req->bcast_kn.reqs;
+    xccl_ucx_request_t **reqs = req->bcast_kn.reqs;
     int vrank = (group_rank - root + group_size) % group_size;
     int dist  = req->bcast_kn.dist;
     int i, vpeer, peer, vroot_at_level, root_at_level, pos;
 
     if (req->bcast_kn.active_reqs) {
-        if (TCCL_OK == tccl_ucx_testall((tccl_ucx_team_t *)team, reqs,
+        if (XCCL_OK == xccl_ucx_testall((xccl_ucx_team_t *)team, reqs,
                                            req->bcast_kn.active_reqs)) {
             req->bcast_kn.active_reqs = 0;
         } else {
-            return TCCL_OK;
+            return XCCL_OK;
         }
     }
 
@@ -46,35 +46,35 @@ tccl_status_t tccl_ucx_bcast_knomial_progress(tccl_ucx_collreq_t *req)
                 vpeer = vrank + i*dist;
                 if (vpeer < group_size) {
                     peer = (vpeer + root) % group_size;
-                    tccl_ucx_send_nb(data_buffer, data_size, peer,
-                                    (tccl_ucx_team_t*)team, req->tag,
+                    xccl_ucx_send_nb(data_buffer, data_size, peer,
+                                    (xccl_ucx_team_t*)team, req->tag,
                                     &reqs[req->bcast_kn.active_reqs++]);
                 }
             }
         } else if (pos > 0) {
             vroot_at_level = vrank - pos*dist;
             root_at_level  = (vroot_at_level + root) % group_size;
-            tccl_ucx_recv_nb(data_buffer, data_size, root_at_level,
-                            (tccl_ucx_team_t*)team, req->tag, &reqs[req->bcast_kn.active_reqs++]);
+            xccl_ucx_recv_nb(data_buffer, data_size, root_at_level,
+                            (xccl_ucx_team_t*)team, req->tag, &reqs[req->bcast_kn.active_reqs++]);
             assert(req->bcast_kn.active_reqs == 1);
         }
         dist /= radix;
 
         if (req->bcast_kn.active_reqs) {
-            if (TCCL_OK == tccl_ucx_testall((tccl_ucx_team_t *)team, reqs,
+            if (XCCL_OK == xccl_ucx_testall((xccl_ucx_team_t *)team, reqs,
                                                req->bcast_kn.active_reqs)) {
                 req->bcast_kn.active_reqs = 0;
             } else {
                 req->bcast_kn.dist = dist;
-                return TCCL_OK;
+                return XCCL_OK;
             }
         }
     }
-    req->complete = TCCL_OK;
-    return TCCL_OK;
+    req->complete = XCCL_OK;
+    return XCCL_OK;
 }
 
-tccl_status_t tccl_ucx_bcast_knomial_start(tccl_ucx_collreq_t *req)
+xccl_status_t xccl_ucx_bcast_knomial_start(xccl_ucx_collreq_t *req)
 {
     size_t data_size = req->args.buffer_info.len;
     int group_rank   = req->team->oob.rank;
@@ -94,6 +94,6 @@ tccl_status_t tccl_ucx_bcast_knomial_start(tccl_ucx_collreq_t *req)
                    req->args.buffer_info.src_buffer, data_size);
         }
     }
-    req->progress = tccl_ucx_bcast_knomial_progress;
-    return tccl_ucx_bcast_knomial_progress(req);
+    req->progress = xccl_ucx_bcast_knomial_progress;
+    return xccl_ucx_bcast_knomial_progress(req);
 }

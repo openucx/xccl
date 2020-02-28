@@ -3,7 +3,7 @@
 # See file LICENSE for terms.
 #
 
-AC_DEFUN([TCCL_CHECK_SHARP],[
+AC_DEFUN([XCCL_CHECK_SHARP],[
 
 AS_IF([test "x$sharp_checked" != "xyes"],[
 
@@ -20,15 +20,15 @@ AS_IF([test "x$with_sharp" != "xno"],
 
      AS_IF([test ! -z "$with_sharp" -a "x$with_sharp" != "xyes" -a "x$with_sharp" != "xguess"],
             [
-            tccl_check_sharp_dir="$with_sharp"
+            xccl_check_sharp_dir="$with_sharp"
             AS_IF([test -d "$with_sharp/lib64"],[libsuff="64"],[libsuff=""])
-            tccl_check_sharp_libdir="$with_sharp/lib$libsuff"
+            xccl_check_sharp_libdir="$with_sharp/lib$libsuff"
             CPPFLAGS="-I$with_sharp/include $save_CPPFLAGS"
-            LDFLAGS="-L$tccl_check_sharp_libdir $save_LDFLAGS"
+            LDFLAGS="-L$xccl_check_sharp_libdir $save_LDFLAGS"
             ])
         AS_IF([test ! -z "$with_sharp_libdir" -a "x$with_sharp_libdir" != "xyes"],
-            [tccl_check_sharp_libdir="$with_sharp_libdir"
-            LDFLAGS="-L$tccl_check_sharp_libdir $save_LDFLAGS"])
+            [xccl_check_sharp_libdir="$with_sharp_libdir"
+            LDFLAGS="-L$xccl_check_sharp_libdir $save_LDFLAGS"])
 
         AC_CHECK_HEADERS([sharp/api/sharp_coll.h],
             [AC_CHECK_LIB([sharp_coll] , [sharp_coll_init],
@@ -43,8 +43,8 @@ AS_IF([test "x$with_sharp" != "xno"],
 
         AS_IF([test "x$sharp_happy" = "xyes"],
             [
-                AC_SUBST(SHARP_CPPFLAGS, "-I$tccl_check_sharp_dir/include/ ")
-                AC_SUBST(SHARP_LDFLAGS, "-lsharp_coll -L$tccl_check_sharp_dir/lib")
+                AC_SUBST(SHARP_CPPFLAGS, "-I$xccl_check_sharp_dir/include/ ")
+                AC_SUBST(SHARP_LDFLAGS, "-lsharp_coll -L$xccl_check_sharp_dir/lib")
             ],
             [
                 AS_IF([test "x$with_sharp" != "xguess"],

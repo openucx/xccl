@@ -13,30 +13,30 @@ if HAVE_VMC
 SUBDIRS += team_lib/vmc
 endif
 
-lib_LTLIBRARIES  = libtccl.la
+lib_LTLIBRARIES  = libxccl.la
 noinst_LIBRARIES =
 
-libtccl_la_CPPFLAGS = $(AM_CPPFLAGS)
-libtccl_la_CFLAGS   =
-libtccl_la_LDFLAGS  = -ldl -version-info $(SOVERSION) --no-undefined
+libxccl_la_CPPFLAGS = $(AM_CPPFLAGS)
+libxccl_la_CFLAGS   =
+libxccl_la_LDFLAGS  = -ldl -version-info $(SOVERSION) --no-undefined
 
-nobase_dist_libtccl_la_HEADERS = \
-	api/tccl.h                   \
-	api/tccl_def.h               \
-	api/tccl_version.h           \
-	api/tccl_status.h            \
-	api/tccl_tls.h
+nobase_dist_libxccl_la_HEADERS = \
+	api/xccl.h                   \
+	api/xccl_def.h               \
+	api/xccl_version.h           \
+	api/xccl_status.h            \
+	api/xccl_tls.h
 
-noinst_HEADERS = core/tccl_team_lib.h
+noinst_HEADERS = core/xccl_team_lib.h
 
-libtccl_la_SOURCES =      \
-	core/tccl_init.c      \
-	core/tccl_finalize.c  \
-	core/tccl_context.c   \
-	core/tccl_team.c      \
-	core/tccl_collective.c\
-	core/tccl_query.c     \
+libxccl_la_SOURCES =      \
+	core/xccl_init.c      \
+	core/xccl_finalize.c  \
+	core/xccl_context.c   \
+	core/xccl_team.c      \
+	core/xccl_collective.c\
+	core/xccl_query.c     \
 	utils/socketid.c
 
-libtccl_ladir = $(includedir)
+libxccl_ladir = $(includedir)
 

@@ -16,4 +16,4 @@ test_mpi_barrier_SOURCES=test_mpi_barrier.c test_mpi.c
 CC=mpicc
 CFLAGS+=-I${includedir} -std=c11
 
-LDFLAGS=-L$(libdir) -ltccl
+LDFLAGS=-L$(libdir) -lxccl

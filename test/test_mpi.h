@@ -5,15 +5,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <mpi.h>
-#include <api/tccl.h>
+#include <api/xccl.h>
 #define STR(x) # x
-#define TCCL_CHECK(_call) if (TCCL_OK != (_call)) {\
+#define XCCL_CHECK(_call) if (XCCL_OK != (_call)) {\
         fprintf(stderr, "fail: %s\n", STR(_call)); \
         exit(-1);                                  \
     }
 
-extern tccl_team_h tccl_world_team;
-int tccl_mpi_test_init(int argc, char **argv);
-int tccl_mpi_test_finalize(void);
+extern xccl_team_h xccl_world_team;
+int xccl_mpi_test_init(int argc, char **argv);
+int xccl_mpi_test_finalize(void);
 
 #endif

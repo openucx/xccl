@@ -8,25 +8,25 @@
 #
 
 sources = \
-	tccl_hier_lib.h \
-	tccl_hier_lib.c \
-	tccl_hier_context.h \
-	tccl_hier_context.c \
-	tccl_hier_team.h \
-	tccl_hier_team.c \
-	tccl_hier_sbgp.h \
-	tccl_hier_sbgp.c \
-	tccl_hier_schedule.h \
-	tccl_hier_schedule.c \
-	tccl_hier_schedule_allreduce.c \
-	tccl_hier_schedule_barrier.c \
-	tccl_hier_schedule_bcast.c
+	xccl_hier_lib.h \
+	xccl_hier_lib.c \
+	xccl_hier_context.h \
+	xccl_hier_context.c \
+	xccl_hier_team.h \
+	xccl_hier_team.c \
+	xccl_hier_sbgp.h \
+	xccl_hier_sbgp.c \
+	xccl_hier_schedule.h \
+	xccl_hier_schedule.c \
+	xccl_hier_schedule_allreduce.c \
+	xccl_hier_schedule_barrier.c \
+	xccl_hier_schedule_bcast.c
 
 component_noinst =
-component_install = tccl_team_lib_hier.la
+component_install = xccl_team_lib_hier.la
 
-tccl_team_lib_hier_la_SOURCES =$(sources)
-tccl_team_lib_hier_la_CPPFLAGS = $(AM_CPPFLAGS)
-tccl_team_lib_hier_la_LDFLAGS = -module -avoid-version
+xccl_team_lib_hier_la_SOURCES =$(sources)
+xccl_team_lib_hier_la_CPPFLAGS = $(AM_CPPFLAGS)
+xccl_team_lib_hier_la_LDFLAGS = -module -avoid-version
 pkglib_LTLIBRARIES = $(component_install)
 

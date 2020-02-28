@@ -28,15 +28,15 @@ barrier = barrier.h \
 	barrier/barrier_knomial.c
 
 sources = \
-	tccl_ucx_tag.h \
-	tccl_ucx_team.h \
-	tccl_ucx_team.c \
-	tccl_ucx_context.h \
-	tccl_ucx_context.c \
-	tccl_ucx_lib.h \
-	tccl_ucx_ep.h \
-	tccl_ucx_lib.c \
-	tccl_ucx_sendrecv.h \
+	xccl_ucx_tag.h \
+	xccl_ucx_team.h \
+	xccl_ucx_team.c \
+	xccl_ucx_context.h \
+	xccl_ucx_context.c \
+	xccl_ucx_lib.h \
+	xccl_ucx_ep.h \
+	xccl_ucx_lib.c \
+	xccl_ucx_sendrecv.h \
 	${allreduce} \
 	${reduce} \
 	${fanin}\
@@ -45,11 +45,11 @@ sources = \
 	${barrier}
 
 component_noinst =
-component_install = tccl_team_lib_ucx.la
+component_install = xccl_team_lib_ucx.la
 
-tccl_team_lib_ucx_la_SOURCES =$(sources)
-tccl_team_lib_ucx_la_CPPFLAGS = $(AM_CPPFLAGS) $(UCX_CPPFLAGS)
-tccl_team_lib_ucx_la_LDFLAGS = -module -avoid-version $(UCX_LDFLAGS)
+xccl_team_lib_ucx_la_SOURCES =$(sources)
+xccl_team_lib_ucx_la_CPPFLAGS = $(AM_CPPFLAGS) $(UCX_CPPFLAGS)
+xccl_team_lib_ucx_la_LDFLAGS = -module -avoid-version $(UCX_LDFLAGS)
 
 pkglib_LTLIBRARIES = $(component_install)
 endif

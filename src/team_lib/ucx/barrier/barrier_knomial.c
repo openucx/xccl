@@ -1,7 +1,7 @@
 #include "config.h"
-#include "tccl_ucx_lib.h"
+#include "xccl_ucx_lib.h"
 #include "barrier.h"
-#include "tccl_ucx_sendrecv.h"
+#include "xccl_ucx_sendrecv.h"
 #include "utils/reduce.h"
 #include <stdlib.h>
 #include <string.h>
@@ -66,16 +66,16 @@ enum {
         req->barrier.active_reqs    = active_reqs;   \
     }while(0)
 
-tccl_status_t
-tccl_ucx_barrier_knomial_progress(tccl_ucx_collreq_t *req)
+xccl_status_t
+xccl_ucx_barrier_knomial_progress(xccl_ucx_collreq_t *req)
 {
     int full_tree_size, pow_k_sup, n_full_subtrees, full_size, node_type;
     int iteration, radix_pow, active_reqs, k, step_size, peer;
-    tccl_tl_team_t *team = req->team;
+    xccl_tl_team_t *team = req->team;
     int myrank           = team->oob.rank;
     int group_size       = team->oob.size;
     int radix            = req->barrier.radix;
-    tccl_ucx_request_t **reqs = req->barrier.reqs;
+    xccl_ucx_request_t **reqs = req->barrier.reqs;
     /* fprintf(stderr, "AR, radix %d, data_size %zd, count %d\n",
  radix, data_size, args->barrier.count); */
     KN_RECURSIVE_SETUP(radix, myrank, group_size, pow_k_sup, full_tree_size,
@@ -85,25 +85,25 @@ tccl_ucx_barrier_knomial_progress(tccl_ucx_collreq_t *req)
 
     if (KN_EXTRA == node_type) {
             peer = KN_RECURSIVE_GET_PROXY(myrank, full_size);
-            tccl_ucx_send_nb(NULL, 0, peer,
-                            (tccl_ucx_team_t *)team, req->tag, &reqs[0]);
-            tccl_ucx_recv_nb(NULL, 0, peer,
-                            (tccl_ucx_team_t *)team, req->tag, &reqs[1]);
+            xccl_ucx_send_nb(NULL, 0, peer,
+                            (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
+            xccl_ucx_recv_nb(NULL, 0, peer,
+                            (xccl_ucx_team_t *)team, req->tag, &reqs[1]);
             active_reqs = 2;
     }
 
     if (KN_PROXY == node_type) {
         peer = KN_RECURSIVE_GET_EXTRA(myrank, full_size);
-        tccl_ucx_recv_nb(NULL, 0, peer,
-                        (tccl_ucx_team_t *)team, req->tag, &reqs[0]);
+        xccl_ucx_recv_nb(NULL, 0, peer,
+                        (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
         active_reqs = 1;
     }
 PHASE_EXTRA:
     if (KN_PROXY == node_type || KN_EXTRA == node_type) {
-        if (TCCL_INPROGRESS == tccl_ucx_testall((tccl_ucx_team_t *)team,
+        if (XCCL_INPROGRESS == xccl_ucx_testall((xccl_ucx_team_t *)team,
                                                    reqs, active_reqs)) {
             SAVE_STATE(PHASE_EXTRA);
-            return TCCL_OK;
+            return XCCL_OK;
         }
         if (KN_EXTRA == node_type) {
             goto completion;
@@ -117,8 +117,8 @@ PHASE_EXTRA:
             peer = (myrank + k*radix_pow) % step_size
                 + (myrank - myrank % step_size);
             if (peer >= full_size) continue;
-            tccl_ucx_send_nb(NULL, 0, peer,
-                            (tccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
+            xccl_ucx_send_nb(NULL, 0, peer,
+                            (xccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
             active_reqs++;
         }
 
@@ -126,24 +126,24 @@ PHASE_EXTRA:
             peer = (myrank + k*radix_pow) % step_size
                 + (myrank - myrank % step_size);
             if (peer >= full_size) continue;
-            tccl_ucx_recv_nb(NULL, 0, peer,
-                            (tccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
+            xccl_ucx_recv_nb(NULL, 0, peer,
+                            (xccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
             active_reqs++;
         }
         radix_pow *= radix;
         if (active_reqs) {
         PHASE_1:
-            if (TCCL_INPROGRESS == tccl_ucx_testall((tccl_ucx_team_t *)team,
+            if (XCCL_INPROGRESS == xccl_ucx_testall((xccl_ucx_team_t *)team,
                                                        reqs, active_reqs)) {
                 SAVE_STATE(PHASE_1);
-                return TCCL_OK;
+                return XCCL_OK;
             }
         }
     }
     if (KN_PROXY == node_type) {
         peer = KN_RECURSIVE_GET_EXTRA(myrank, full_size);
-        tccl_ucx_send_nb(NULL, 0, peer,
-                        (tccl_ucx_team_t *)team, req->tag, &reqs[0]);
+        xccl_ucx_send_nb(NULL, 0, peer,
+                        (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
         active_reqs = 1;
         goto PHASE_PROXY;
     } else {
@@ -151,20 +151,20 @@ PHASE_EXTRA:
     }
 
 PHASE_PROXY:
-    if (TCCL_INPROGRESS == tccl_ucx_testall((tccl_ucx_team_t *)team,
+    if (XCCL_INPROGRESS == xccl_ucx_testall((xccl_ucx_team_t *)team,
                                                reqs, active_reqs)) {
         SAVE_STATE(PHASE_PROXY);
-        return TCCL_OK;
+        return XCCL_OK;
     }
 
 completion:
     /* fprintf(stderr, "Complete reduce, level %d frag %d and full coll arg\n", */
     /*         COLL_ID_IN_SCHEDULE(bcol_args), bcol_args->next_frag-1); */
-    req->complete = TCCL_OK;
-    return TCCL_OK;
+    req->complete = XCCL_OK;
+    return XCCL_OK;
 }
 
-tccl_status_t tccl_ucx_barrier_knomial_start(tccl_ucx_collreq_t *req)
+xccl_status_t xccl_ucx_barrier_knomial_start(xccl_ucx_collreq_t *req)
 {
     size_t data_size     = req->args.buffer_info.len;
     req->barrier.radix = 4; //TODO
@@ -177,6 +177,6 @@ tccl_status_t tccl_ucx_barrier_knomial_start(tccl_ucx_collreq_t *req)
     req->barrier.iteration      = 0;
     req->barrier.radix_mask_pow = 1;
     req->barrier.active_reqs    = 0;
-    req->progress = tccl_ucx_barrier_knomial_progress;
-    return tccl_ucx_barrier_knomial_progress(req);
+    req->progress = xccl_ucx_barrier_knomial_progress;
+    return xccl_ucx_barrier_knomial_progress(req);
 }

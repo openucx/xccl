@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sched.h>
-#include <api/tccl_status.h>
+#include <api/xccl_status.h>
 
 #define UNDEFSOCKET -2
 #define NOSOCKET    -1
@@ -56,7 +56,7 @@ static int parse_cpuset_file(FILE *file, int* nr_psbl_cpus) {
     return 0;
 }
 
-tccl_status_t tccl_get_bound_socket_id(int *socketid) {
+xccl_status_t xccl_get_bound_socket_id(int *socketid) {
     int err, nr_cpus=0, nr_onl_cpus=0, nr_psbl_cpus=0, try=1000, i=0, pos = 0;
     int max_sockets = 64;
     unsigned cpu;
@@ -71,7 +71,7 @@ tccl_status_t tccl_get_bound_socket_id(int *socketid) {
 
     socket_ids = malloc(max_sockets * sizeof(long));
     if (socket_ids == NULL) {
-        return TCCL_ERR_NO_MESSAGE;
+        return XCCL_ERR_NO_MESSAGE;
     }
 
     memset(socket_ids, -1, max_sockets * sizeof(long));
@@ -91,7 +91,7 @@ tccl_status_t tccl_get_bound_socket_id(int *socketid) {
 
     if (!nr_cpus) {
         free(socket_ids);
-        return TCCL_ERR_NO_MESSAGE;
+        return XCCL_ERR_NO_MESSAGE;
     }
 
     /* The cpuset size on some kernels needs to be bigger than
@@ -103,7 +103,7 @@ tccl_status_t tccl_get_bound_socket_id(int *socketid) {
     cpuset = __sched_cpualloc(nr_cpus);
     if (NULL == cpuset) {
         free(socket_ids);
-        return TCCL_ERR_NO_MESSAGE;
+        return XCCL_ERR_NO_MESSAGE;
     }
 
     while (0 < sched_getaffinity(0, setsize, cpuset) && try>0) {
@@ -124,7 +124,7 @@ tccl_status_t tccl_get_bound_socket_id(int *socketid) {
         fprintf(stderr, "Error when manually trying to discover socket_id using sched_getaffinity()\n");
         __sched_cpufree(cpuset);
         free(socket_ids);
-        return TCCL_ERR_NO_MESSAGE;
+        return XCCL_ERR_NO_MESSAGE;
     }
 
     /* Loop through all cpus, and check if I'm bound to the socket */
@@ -164,7 +164,7 @@ tccl_status_t tccl_get_bound_socket_id(int *socketid) {
         if (i == max_sockets && tmpid != max_sockets - 1) {
             socket_ids = realloc(socket_ids, max_sockets*=2);
             if (socket_ids == NULL) {
-                return TCCL_ERR_NO_MESSAGE;
+                return XCCL_ERR_NO_MESSAGE;
             }
             memset(socket_ids+i, -1, (max_sockets - i) * sizeof(long));
             socket_ids[i] = tmpid;
@@ -193,7 +193,7 @@ tccl_status_t tccl_get_bound_socket_id(int *socketid) {
     free(socket_ids);
 
     if (*socketid == NOSOCKET) {
-        return TCCL_OK;
+        return XCCL_OK;
     }
 
     /* Some archs (eg. POWER) seem to have non-linear socket_ids.
@@ -206,5 +206,5 @@ tccl_status_t tccl_get_bound_socket_id(int *socketid) {
     }
 
     *socketid = pos;
-    return TCCL_OK;
+    return XCCL_OK;
 }

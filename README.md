@@ -1,8 +1,8 @@
-# MCCL - Mellanox Collective Communication Library
+# XCCL - Mellanox Collective Communication Library
 
-The MCCL library framework is a continuous extension of the advanced research and development on extreme-scale collective communications used by Mellanox for HPC, AI/ML application domains. The MCCL library implements "Teams API" concepts which is flexible and feature-rich for current and emerging programming models and runtimes. 
+The XCCL library framework is a continuous extension of the advanced research and development on extreme-scale collective communications used by Mellanox for HPC, AI/ML application domains. The XCCL library implements "Teams API" concepts which is flexible and feature-rich for current and emerging programming models and runtimes. 
 
-## MCCL Goals
+## XCCL Goals
 
 * Provides collective operations for HPC and AI/ML programming models
 * Enables hierarchial collectives (dynamic and static hiearchies)
@@ -17,28 +17,28 @@ The MCCL library framework is a continuous extension of the advanced research an
 
 ### The library consists of two layers: 
 
-1. **TCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCF Collectives WG** for the following:
+1. **XCCL** - *teams collective communication layer*, is the lower layer and implements a subset of the *Teams API* under consideration by the **UCF Collectives WG** for the following:
    * A UCX Team 
    * A SHARP Team
    * A shared memory Team (proprietary)
    * A VNC - Hardware multicast Team (proprietary)
 
-2. **MCCL** - is the upper layer and implements a light-weight, highly scalable framework for expressing hierarchical collectives in terms of the Team abstraction.
+2. **XCCL** - is the upper layer and implements a light-weight, highly scalable framework for expressing hierarchical collectives in terms of the Team abstraction.
    
 # Quick Start Guide
 
 The SHARP teams require Mellanox's SHARP software library, and the hardware multicast team requires Mellanox's VMC software library.
 
-   ### Build and install MCCL and TCCL libraries:
+   ### Build and install XCCL and XCCL libraries:
    >HPCX can be downloaded from https://www.mellanox.com/products/hpc-x-toolkit
 
 ``` bash
 # Line below is needed for all "HPCX_*" variables used in examples below
 % module load /path/to/hpcx/dir/modulefiles/hpcx-stack
-% export MCCL_DIR=$PWD/mccl
+% export XCCL_DIR=$PWD/xccl
 
-% git clone https://github.com/openucx/mccl.git $MCCL_DIR
-% cd $MCCL_DIR
+% git clone https://github.com/openucx/xccl.git $XCCL_DIR
+% cd $XCCL_DIR
 % ./autogen.sh
 % ./configure --prefix=$PWD/install --with-vmc=$HPCX_VMC_DIR \ 
   --with-ucx=$HPCX_UCX_DIR --with-sharp=$HPCX_SHARP_DIR
@@ -49,24 +49,24 @@ The SHARP teams require Mellanox's SHARP software library, and the hardware mult
    > OpenMPI is taken from PR https://github.com/open-mpi/ompi/pull/7409
    
 ``` bash
-% export OMPI_MCCL_DIR=$PWD/ompi-mccl
+% export OMPI_XCCL_DIR=$PWD/ompi-xccl
 % git clone https://github.com/open-mpi/ompi
-% cd $OMPI_MCCL_DIR
+% cd $OMPI_XCCL_DIR
 % git fetch origin pull/7409/head
 % git submodule update --init --recursive
 % ./autogen.pl
-% ./configure --prefix=$OMPI_MCCL_DIR/install \
+% ./configure --prefix=$OMPI_XCCL_DIR/install \
   --with-platform=contrib/platform/mellanox/optimized \
-  --with-mccl=$MCCL_DIR/install
+  --with-xccl=$XCCL_DIR/install
 % make -j install
 ```
  
    ### Run :
 
->Example shows how to run osu_allreduce benchmark (https://mvapich.cse.ohio-state.edu/benchmarks/) with MCCL support
+>Example shows how to run osu_allreduce benchmark (https://mvapich.cse.ohio-state.edu/benchmarks/) with XCCL support
 ``` bash
-% export LD_LIBRARY_PATH="$MCCL_DIR/install/lib:$MCCL_DIR/install/lib/tccl"
-% export LD_LIBRARY_PATH="$OMPI_MCCL_DIR/install/lib:$LD_LIBRARY_PATH"
+% export LD_LIBRARY_PATH="$XCCL_DIR/install/lib:$XCCL_DIR/install/lib/xccl"
+% export LD_LIBRARY_PATH="$OMPI_XCCL_DIR/install/lib:$LD_LIBRARY_PATH"
 % export nnodes=2 ppn=28
 
 % mpirun -np $((nnodes*ppn)) --map-by ppr:$ppn:node --bind-to core ./osu_allreduce -f
@@ -78,7 +78,7 @@ The SHARP teams require Mellanox's SHARP software library, and the hardware mult
 >Helios Cluster: EDR 16 nodes, 1 process-per-node
 
 **OSU Allreduce**
-| msglen	| HCOLL (SHARP) | MCCL |	
+| msglen	| HCOLL (SHARP) | XCCL |	
 |:--- |:---:|---:| 
 | 4 |	2.81 | 2.21	|
 | 8 | 2.75 | 2.04 |
@@ -94,7 +94,7 @@ The SHARP teams require Mellanox's SHARP software library, and the hardware mult
 >Single node POWER9 168 threads  
 
 **OSU Allreduce**
-| msglen | 	hcoll | mccl |
+| msglen | 	hcoll | xccl |
 |:--- |:---:|---:| 
 | 4 | 	4.6 | 5.6 |	
 | 8	| 4.53 | 5.6	| 
@@ -112,7 +112,7 @@ The SHARP teams require Mellanox's SHARP software library, and the hardware mult
 >Hercules test bed: HDR100 110 nodes, 32 processes-per-node
 
 **OSU Bcast**
-| msglen	| hcoll	| mccl |
+| msglen	| hcoll	| xccl |
 |:--- |:---:|---:| 
 | 1	  | 5.33 | 4.53 |
 | 2	  | 4.62 | 4.48 |
@@ -136,7 +136,7 @@ The SHARP teams require Mellanox's SHARP software library, and the hardware mult
 
 # Publications
 
-This framework is a continuous extension of the advanced research and development on extreme-scale collective communications published in the following scientific papers. The shared memory team is code ported from the HCOLL shared memory BCOL component. The MCCL layer is a "distillate" of the HCOLL framework. The HCOLL framework began its life as the **_Cheetah_** framework:
+This framework is a continuous extension of the advanced research and development on extreme-scale collective communications published in the following scientific papers. The shared memory team is code ported from the HCOLL shared memory BCOL component. The XCCL layer is a "distillate" of the HCOLL framework. The HCOLL framework began its life as the **_Cheetah_** framework:
 
 1. **_Cheetah: A Framework for Scalable Hierarchical Collective Operations_**  
  Date: May 2011  

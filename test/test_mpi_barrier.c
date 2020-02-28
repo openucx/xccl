@@ -10,23 +10,23 @@
 #include <unistd.h>
 
 static inline void
-do_barrier(tccl_team_h team) {
-    tccl_coll_req_h request;
-    tccl_coll_op_args_t coll = {
-        .coll_type = TCCL_BARRIER,
+do_barrier(xccl_team_h team) {
+    xccl_coll_req_h request;
+    xccl_coll_op_args_t coll = {
+        .coll_type = XCCL_BARRIER,
         .alg.set_by_user = 0,
         .tag  = 123, //todo
     };
-    tccl_collective_init(&coll, &request, team);
-    tccl_collective_post(request);
-    tccl_collective_wait(request);
-    tccl_collective_finalize(request);
+    xccl_collective_init(&coll, &request, team);
+    xccl_collective_post(request);
+    xccl_collective_wait(request);
+    xccl_collective_finalize(request);
 }
 
 int main (int argc, char **argv) {
     int rank, size, i, sleep_us;
 
-    tccl_mpi_test_init(argc, argv);
+    xccl_mpi_test_init(argc, argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -39,9 +39,9 @@ int main (int argc, char **argv) {
             fflush(stdout);
             usleep(100);
         }
-        do_barrier(tccl_world_team);
+        do_barrier(xccl_world_team);
     }
 
-    tccl_mpi_test_finalize();
+    xccl_mpi_test_finalize();
     return 0;
 }

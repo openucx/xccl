@@ -9,8 +9,8 @@ int main (int argc, char **argv) {
     const int count =32;
     int rank, size, i, r, status = 0, status_global;
     int buf[count], buf_mpi[count];
-    tccl_coll_req_h request;    
-    tccl_mpi_test_init(argc, argv);
+    xccl_coll_req_h request;    
+    xccl_mpi_test_init(argc, argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -24,8 +24,8 @@ int main (int argc, char **argv) {
             }
         }
 
-        tccl_coll_op_args_t coll = {
-            .coll_type = TCCL_BCAST,
+        xccl_coll_op_args_t coll = {
+            .coll_type = XCCL_BCAST,
             .root = r,
             .buffer_info = {
                 .src_buffer = buf,
@@ -37,10 +37,10 @@ int main (int argc, char **argv) {
             .tag  = 123, //todo
         };
 
-        tccl_collective_init(&coll, &request, tccl_world_team);
-        tccl_collective_post(request);
-        tccl_collective_wait(request);
-        tccl_collective_finalize(request);
+        xccl_collective_init(&coll, &request, xccl_world_team);
+        xccl_collective_post(request);
+        xccl_collective_wait(request);
+        xccl_collective_finalize(request);
 
         MPI_Bcast(buf_mpi, count, MPI_INT, r, MPI_COMM_WORLD);
         if (0 != memcmp(buf, buf_mpi, count*sizeof(int))) {
@@ -57,6 +57,6 @@ int main (int argc, char **argv) {
         printf("Correctness check: %s\n", status_global == 0 ? "PASS" : "FAIL");
     }
 
-    tccl_mpi_test_finalize();
+    xccl_mpi_test_finalize();
     return 0;
 }
