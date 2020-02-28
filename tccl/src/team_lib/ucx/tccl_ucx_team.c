@@ -20,7 +20,7 @@ tccl_status_t tccl_ucx_team_create_post(tccl_context_t *context, tccl_team_confi
     //TODO need to make this non blocking + team_ucx_wait
     tccl_status_t status      = TCCL_OK;
     tccl_team_lib_ucx_context_t *ctx =
-        tccl_derived_of(context, tccl_team_lib_ucx_context_t);
+        ucs_derived_of(context, tccl_team_lib_ucx_context_t);
     int max_cid = 0, max_addrlen = 0, size = oob.size,
         rank = oob.rank;
     tccl_ucx_team_t *ucx_team;
@@ -70,8 +70,8 @@ cleanup:
 
 tccl_status_t tccl_ucx_team_destroy(tccl_team_t *team)
 {
-    tccl_ucx_team_t             *ucx_team = tccl_derived_of(team, tccl_ucx_team_t);
-    tccl_team_lib_ucx_context_t *ctx      = tccl_derived_of(team->ctx, tccl_team_lib_ucx_context_t);
+    tccl_ucx_team_t             *ucx_team = ucs_derived_of(team, tccl_ucx_team_t);
+    tccl_team_lib_ucx_context_t *ctx      = ucs_derived_of(team->ctx, tccl_team_lib_ucx_context_t);
     void *tmp;
 
     if (ucx_team->ucp_eps) {

@@ -14,7 +14,7 @@ void tccl_ucx_send_completion_cb(void* request, ucs_status_t status);
 void tccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
                                      ucp_tag_recv_info_t *info);
 
-#define TEAM_UCX_CTX(_team) (tccl_derived_of((_team)->super.ctx, tccl_team_lib_ucx_context_t))
+#define TEAM_UCX_CTX(_team) (ucs_derived_of((_team)->super.ctx, tccl_team_lib_ucx_context_t))
 #define TEAM_UCX_WORKER(_team) TEAM_UCX_CTX(_team)->ucp_worker
 
 #define TEAM_UCX_MAKE_TAG(_tag, _rank, _context_id)                 \

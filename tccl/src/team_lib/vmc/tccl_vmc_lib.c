@@ -48,7 +48,7 @@ static tccl_status_t tccl_vmc_create_context(tccl_team_lib_t *lib,
 
 static tccl_status_t tccl_vmc_destroy_context(tccl_context_h context)
 {
-    tccl_vmc_context_t *team_vmc_ctx = tccl_derived_of(context, tccl_vmc_context_t);
+    tccl_vmc_context_t *team_vmc_ctx = ucs_derived_of(context, tccl_vmc_context_t);
     if (team_vmc_ctx->vmc_ctx != NULL) {
         vmc_finalize(team_vmc_ctx->vmc_ctx);
     }
@@ -67,7 +67,7 @@ static tccl_status_t tccl_vmc_team_create_post(tccl_context_h context,
                                                tccl_oob_collectives_t oob,
                                                tccl_team_h *team)
 {
-    tccl_vmc_context_t *team_vmc_ctx = tccl_derived_of(context, tccl_vmc_context_t);
+    tccl_vmc_context_t *team_vmc_ctx = ucs_derived_of(context, tccl_vmc_context_t);
     tccl_vmc_team_t    *team_vmc     = malloc(sizeof(*team_vmc));
     vmc_comm_params_t   vmc_params;
     vmc_status_t        st;
@@ -99,7 +99,7 @@ static tccl_status_t tccl_vmc_team_create_post(tccl_context_h context,
 
 static tccl_status_t tccl_vmc_team_destroy(tccl_team_h team)
 {
-    tccl_vmc_team_t *team_vmc = tccl_derived_of(team, tccl_vmc_team_t);
+    tccl_vmc_team_t *team_vmc = ucs_derived_of(team, tccl_vmc_team_t);
     if (team_vmc->vmc_comm != NULL) {
         vmc_comm_destroy(team_vmc->vmc_comm);
     }
@@ -111,7 +111,7 @@ static tccl_status_t tccl_vmc_collective_init(tccl_coll_op_args_t *coll_args,
                                               tccl_coll_req_h *request,
                                               tccl_team_h team)
 {
-    tccl_vmc_team_t     *team_vmc = tccl_derived_of(team, tccl_vmc_team_t);
+    tccl_vmc_team_t     *team_vmc = ucs_derived_of(team, tccl_vmc_team_t);
     tccl_vmc_coll_req_t *req      = malloc(sizeof(*req));
     vmc_status_t              st;
     if (coll_args->coll_type != TCCL_BCAST) {
@@ -130,14 +130,14 @@ static tccl_status_t tccl_vmc_collective_init(tccl_coll_op_args_t *coll_args,
 
 static tccl_status_t tccl_vmc_collective_post(tccl_coll_req_h request)
 {
-    tccl_vmc_coll_req_t *req = tccl_derived_of(request, tccl_vmc_coll_req_t);
+    tccl_vmc_coll_req_t *req = ucs_derived_of(request, tccl_vmc_coll_req_t);
     vmc_ibcast(req->buf, req->len, req->root, NULL, req->team->vmc_comm, &req->handle);
     return TCCL_OK;
 }
 
 static tccl_status_t tccl_vmc_collective_test(tccl_coll_req_h request)
 {
-    tccl_vmc_coll_req_t *req = tccl_derived_of(request, tccl_vmc_coll_req_t);
+    tccl_vmc_coll_req_t *req = ucs_derived_of(request, tccl_vmc_coll_req_t);
     vmc_status_t st;
     st = vmc_test(req->handle);
     if (VMC_ERROR == st) {
@@ -157,7 +157,7 @@ static tccl_status_t tccl_vmc_collective_wait(tccl_coll_req_h request)
 
 static tccl_status_t tccl_vmc_collective_finalize(tccl_coll_req_h request)
 {
-    tccl_vmc_coll_req_t *req = tccl_derived_of(request, tccl_vmc_coll_req_t);
+    tccl_vmc_coll_req_t *req = ucs_derived_of(request, tccl_vmc_coll_req_t);
     vmc_req_free(req->handle);
     free(request);
     return TCCL_OK;
@@ -165,7 +165,7 @@ static tccl_status_t tccl_vmc_collective_finalize(tccl_coll_req_h request)
 
 tccl_status_t tccl_vmc_context_progress(tccl_context_h context)
 {
-    tccl_vmc_context_t *team_vmc_ctx = tccl_derived_of(context, tccl_vmc_context_t);
+    tccl_vmc_context_t *team_vmc_ctx = ucs_derived_of(context, tccl_vmc_context_t);
     vmc_progress(team_vmc_ctx->vmc_ctx);
     return TCCL_OK;
 }

@@ -39,10 +39,10 @@ tccl_sharp_allreduce_init(tccl_coll_op_args_t* coll_args,
                           tccl_team_h team)
 {
     tccl_sharp_coll_req_t *req            = malloc(sizeof(tccl_sharp_coll_req_t));
-    tccl_sharp_team_t     *team_sharp     = tccl_derived_of(team, tccl_sharp_team_t);
+    tccl_sharp_team_t     *team_sharp     = ucs_derived_of(team, tccl_sharp_team_t);
     enum sharp_datatype    sharp_type     = tccl_to_sharp_dtype[coll_args->reduce_info.dt];
     enum sharp_reduce_op   sharp_op       = tccl_to_sharp_reduce_op[coll_args->reduce_info.op];
-    tccl_sharp_context_t  *team_sharp_ctx = tccl_derived_of(team->ctx, tccl_sharp_context_t);
+    tccl_sharp_context_t  *team_sharp_ctx = ucs_derived_of(team->ctx, tccl_sharp_context_t);
     void *send_mr, *recv_mr;
     tccl_sharp_buf_t *sharp_buf;
     tccl_status_t use_free_buf;
@@ -127,7 +127,7 @@ tccl_sharp_barrier_init(tccl_coll_op_args_t *coll_args,
     tccl_sharp_team_t*     team_sharp;
 
     req             = malloc(sizeof(tccl_sharp_coll_req_t));
-    team_sharp      = tccl_derived_of(team, tccl_sharp_team_t);
+    team_sharp      = ucs_derived_of(team, tccl_sharp_team_t);
     req->sharp_comm = team_sharp->sharp_comm;
     req->super.lib  = team->ctx->lib;
     req->team       = team_sharp;
@@ -156,7 +156,7 @@ tccl_status_t tccl_sharp_collective_init(tccl_coll_op_args_t *coll_args,
 
 tccl_status_t tccl_sharp_collective_post(tccl_coll_req_h request)
 {
-    tccl_sharp_coll_req_t *req = tccl_derived_of(request, tccl_sharp_coll_req_t);
+    tccl_sharp_coll_req_t *req = ucs_derived_of(request, tccl_sharp_coll_req_t);
     return (SHARP_COLL_SUCCESS == req->start(req)) ? TCCL_OK : TCCL_ERR_NO_MESSAGE;
 }
 
@@ -171,7 +171,7 @@ tccl_status_t tccl_sharp_collective_wait(tccl_coll_req_h request)
 
 tccl_status_t tccl_sharp_collective_test(tccl_coll_req_h request)
 {
-    tccl_sharp_coll_req_t *req = tccl_derived_of(request, tccl_sharp_coll_req_t);
+    tccl_sharp_coll_req_t *req = ucs_derived_of(request, tccl_sharp_coll_req_t);
     int completed;
 
     completed = sharp_coll_req_test(req->handle);
@@ -186,9 +186,9 @@ tccl_status_t tccl_sharp_collective_test(tccl_coll_req_h request)
 
 tccl_status_t tccl_sharp_collective_finalize(tccl_coll_req_h request)
 {
-    tccl_sharp_coll_req_t *req  = tccl_derived_of(request, tccl_sharp_coll_req_t);
+    tccl_sharp_coll_req_t *req  = ucs_derived_of(request, tccl_sharp_coll_req_t);
     tccl_sharp_team_t     *team = req->team;
-    tccl_sharp_context_t  *ctx  = tccl_derived_of(team->super.ctx,
+    tccl_sharp_context_t  *ctx  = ucs_derived_of(team->super.ctx,
                                                   tccl_sharp_context_t);
     int rc;
 

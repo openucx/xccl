@@ -127,7 +127,7 @@ static tccl_status_t
 tccl_sharp_destroy_context(tccl_context_h context)
 {
     tccl_sharp_context_t *team_sharp_ctx =
-        tccl_derived_of(context, tccl_sharp_context_t);
+        ucs_derived_of(context, tccl_sharp_context_t);
     if (team_sharp_ctx->sharp_context) {
         sharp_coll_finalize(team_sharp_ctx->sharp_context);
     }
@@ -142,7 +142,7 @@ tccl_sharp_team_create_post(tccl_context_h context,
                             tccl_team_h *team)
 {
     tccl_sharp_context_t *team_sharp_ctx =
-        tccl_derived_of(context, tccl_sharp_context_t);
+        ucs_derived_of(context, tccl_sharp_context_t);
     tccl_sharp_team_t *team_sharp = malloc(sizeof(*team_sharp));
     struct sharp_coll_comm_init_spec comm_spec;
     int i, ret;
@@ -179,9 +179,9 @@ tccl_sharp_team_create_post(tccl_context_h context,
 
 static tccl_status_t tccl_sharp_team_destroy(tccl_team_h team)
 {
-    tccl_sharp_team_t *team_sharp = tccl_derived_of(team, tccl_sharp_team_t);
+    tccl_sharp_team_t *team_sharp = ucs_derived_of(team, tccl_sharp_team_t);
     tccl_sharp_context_t *team_sharp_ctx =
-        tccl_derived_of(team->ctx, tccl_sharp_context_t);
+        ucs_derived_of(team->ctx, tccl_sharp_context_t);
 
     sharp_coll_comm_destroy(team_sharp->sharp_comm);
     for(int i = 0; i < TCCL_SHARP_REG_BUF_NUM; i++) {

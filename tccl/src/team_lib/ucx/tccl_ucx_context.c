@@ -73,7 +73,7 @@ tccl_status_t tccl_ucx_create_context(tccl_team_lib_t *lib, tccl_context_config_
 
 tccl_status_t tccl_ucx_destroy_context(tccl_context_h team_context)
 {
-    tccl_team_lib_ucx_context_t *ctx = tccl_derived_of(team_context, tccl_team_lib_ucx_context_t);
+    tccl_team_lib_ucx_context_t *ctx = ucs_derived_of(team_context, tccl_team_lib_ucx_context_t);
     tccl_oob_collectives_t      *oob = &team_context->cfg.oob;
     void *tmp;
 

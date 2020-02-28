@@ -6,6 +6,7 @@
 #define TCCL_TEAM_LIB_H_
 #include "api/tccl.h"
 #include <ucs/config/types.h>
+#include <ucs/sys/compiler_def.h>
 #include <assert.h>
 #include <string.h>
 
@@ -33,12 +34,12 @@ typedef struct tccl_team_lib {
 } tccl_team_lib_t;
 
 typedef struct tccl_lib {
-    tccl_lib_config_t         config_requested;
+    tccl_lib_config_t          config_requested;
     ucs_log_component_config_t log_config;
-    int                       n_libs_opened;
-    int                       libs_array_size;
-    char                      *lib_path;
-    tccl_team_lib_t           **libs;
+    int                        n_libs_opened;
+    int                        libs_array_size;
+    char                       *lib_path;
+    tccl_team_lib_t            **libs;
 } tccl_lib_t;
 
 typedef struct tccl_context {
@@ -81,31 +82,5 @@ static inline int tccl_team_rank_to_world(tccl_team_config_t *cfg, int rank)
         (_ctx).lib = (_lib);                                            \
         memcpy(&((_ctx).cfg), (_config), sizeof(tccl_context_config_t)); \
     }while(0)
-
-#define TCCL_STATIC_ASSERT(_cond) \
-    switch(0) {case 0:case (_cond):;}
-
-/**
- * @return Offset of _member in _type. _type is a structure type.
- */
-#define tccl_offsetof(_type, _member) \
-    ((unsigned long)&( ((_type*)0)->_member ))
-
-/**
- * Get a pointer to a struct containing a member.
- *
- * @param __ptr   Pointer to the member.
- * @param type    Container type.
- * @param member  Element member inside the container.
- * @return Address of the container structure.
- */
-#define tccl_container_of(_ptr, _type, _member) \
-    ( (_type*)( (char*)(void*)(_ptr) - tccl_offsetof(_type, _member) ) )
-
-#define tccl_derived_of(_ptr, _type) \
-    ({\
-        TCCL_STATIC_ASSERT(offsetof(_type, super) == 0) \
-            tccl_container_of(_ptr, _type, super); \
-    })
 
 #endif
