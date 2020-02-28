@@ -19,7 +19,7 @@ jobs:
     - name: Get UCX
       run: git clone $UCX_LINK /tmp/ucx
     - name: Build UCX
-      run: cd /tmp/ucx && git checkout xccl && ./autogen.sh && ./contrib/configure-release --prefix $PWD/install && make -j install
+      run: cd /tmp/ucx && git checkout xccl && ./autogen.sh && ./contrib/configure-release --disable-numa --prefix $PWD/install && make -j install
     - uses: actions/checkout@v1
     - name: Build
       run: |
