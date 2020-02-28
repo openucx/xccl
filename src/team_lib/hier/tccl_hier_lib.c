@@ -5,7 +5,7 @@
 */
 #include "config.h"
 #include "tccl_hier_lib.h"
-/* #include "tccl_hier_team.h" */
+#include "tccl_hier_team.h"
 #include "tccl_hier_context.h"
 #include <string.h>
 #include <stdlib.h>
@@ -144,8 +144,8 @@ tccl_team_lib_hier_t tccl_team_lib_hier = {
     .super.ctx_create_mode      = TCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.create_team_context  = tccl_hier_create_context,
     .super.destroy_team_context = tccl_hier_destroy_context,
-    /* .super.team_create_post     = tccl_hier_team_create_post, */
-    /* .super.team_destroy         = tccl_hier_team_destroy, */
+    .super.team_create_post     = tccl_hier_team_create_post,
+    .super.team_destroy         = tccl_hier_team_destroy,
     .super.progress             = NULL,
     .super.collective_init      = tccl_hier_collective_init,
     .super.collective_post      = tccl_hier_collective_post,

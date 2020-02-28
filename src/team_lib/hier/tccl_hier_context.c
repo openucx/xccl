@@ -7,6 +7,7 @@
 #include "tccl_hier_context.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
 
 static tccl_status_t init_env_params(tccl_hier_context_t *ctx)
 {
@@ -71,6 +72,59 @@ tccl_hier_init_tl(tccl_hier_context_t *ctx, tccl_tl_id_t tl_id,
     return TCCL_OK;
 }
 
+static int compare_proc_data(const void* a, const void* b) {
+    const tccl_hier_proc_data_t *d1 = (const tccl_hier_proc_data_t*)a;
+    const tccl_hier_proc_data_t *d2 = (const tccl_hier_proc_data_t*)b;
+    if (d1->node_hash != d2->node_hash) {
+        return d1->node_hash > d2->node_hash ? 1 : -1;
+    } else {
+        return d1->socketid - d2->socketid;
+    }
+}
+
+static void compute_layout(tccl_hier_context_t *ctx) {
+    int ctx_size = ctx->super.cfg->oob.size;
+    tccl_hier_proc_data_t *sorted = (tccl_hier_proc_data_t*)
+        malloc(ctx_size*sizeof(tccl_hier_proc_data_t));
+    memcpy(sorted, ctx->procs, ctx_size*sizeof(tccl_hier_proc_data_t));
+    qsort(sorted, ctx_size, sizeof(tccl_hier_proc_data_t), compare_proc_data);
+    unsigned long current_hash = sorted[0].node_hash;
+    int current_ppn = 1;
+    int min_ppn = INT_MAX;
+    int max_ppn = 0;
+    int nnodes = 1;
+    int i, j;
+    for (i=1; i<ctx_size; i++) {
+        unsigned long hash = sorted[i].node_hash;
+        if (hash != current_hash) {
+            for (j=0; j<ctx_size; j++) {
+                if (ctx->procs[j].node_hash == current_hash) {
+                    ctx->procs[j].node_id = nnodes - 1;
+                }
+            }
+            if (current_ppn > max_ppn) max_ppn = current_ppn;
+            if (current_ppn < min_ppn) min_ppn = current_ppn;
+            nnodes++;
+            current_hash = hash;
+            current_ppn = 1;
+        } else {
+            current_ppn++;
+        }
+    }
+    for (j=0; j<ctx_size; j++) {
+        if (ctx->procs[j].node_hash == current_hash) {
+            ctx->procs[j].node_id = nnodes - 1;
+        }
+    }
+
+    if (current_ppn > max_ppn) max_ppn = current_ppn;
+    if (current_ppn < min_ppn) min_ppn = current_ppn;
+    free(sorted);
+    ctx->nnodes = nnodes;
+    ctx->min_ppn = min_ppn;
+    ctx->max_ppn = max_ppn;
+}
+
 tccl_status_t tccl_hier_create_context(tccl_team_lib_t *lib, tccl_context_config_t *config,
                                        tccl_tl_context_t **context)
 {
@@ -96,6 +150,10 @@ tccl_status_t tccl_hier_create_context(tccl_team_lib_t *lib, tccl_context_config
             return TCCL_ERR_NO_MESSAGE;
         }
     }
+
+    tccl_oob_allgather(&ctx->local_proc, ctx->procs,
+                       sizeof(tccl_hier_proc_data_t), &config->oob);
+    compute_layout(ctx);
     *context = &ctx->super;
     return TCCL_OK;
 }
