@@ -6,6 +6,7 @@
 #define TCCL_HIER_TEAM_H_
 #include "tccl_hier_lib.h"
 #include "tccl_hier_sbgp.h"
+#include "tccl_hier_context.h"
 
 typedef struct tccl_hier_pair {
     tccl_team_h team;
@@ -44,6 +45,24 @@ static inline int sbgp_rank2ctx(sbgp_t *sbgp, int rank)
 {
     return tccl_range_to_rank(sbgp->hier_team->super.cfg.range,
                               sbgp_rank2team(sbgp, rank));
+}
+
+static inline int is_rank_on_local_node(int rank, tccl_hier_team_t *team)
+{
+    tccl_hier_context_t *ctx = tccl_derived_of(team->super.ctx, tccl_hier_context_t);
+    return ctx->procs[tccl_hier_team_rank2ctx(team, rank)].node_hash
+        == ctx->local_proc.node_hash;
+}
+
+static inline int is_rank_on_local_socket(int rank, tccl_hier_team_t *team)
+{
+    tccl_hier_context_t *ctx = tccl_derived_of(team->super.ctx, tccl_hier_context_t);
+    if (ctx->local_proc.socketid < 0) {
+        return 0;
+    }
+    tccl_hier_proc_data_t *proc = &ctx->procs[tccl_hier_team_rank2ctx(team, rank)];
+    return proc->node_hash == ctx->local_proc.node_hash &&
+        proc->socketid == ctx->local_proc.socketid;
 }
 
 #endif

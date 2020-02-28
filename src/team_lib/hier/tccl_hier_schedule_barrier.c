@@ -12,10 +12,9 @@
 #include "tccl_hier_schedule.h"
 #include "tccl_hier_team.h"
 
-tccl_status_t build_allreduce_schedule_3lvl(tccl_hier_team_t *team, coll_schedule_t **sched,
-                                            tccl_coll_op_args_t coll,
-                                            int socket_pair, int socket_leaders_pair,
-                                            int node_leaders_pair)
+tccl_status_t build_barrier_schedule_3lvl(tccl_hier_team_t *team, coll_schedule_t **sched,
+                                          int socket_pair, int socket_leaders_pair,
+                                          int node_leaders_pair)
 {
     int have_node_leaders_group = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
     int have_socket_group = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
@@ -31,52 +30,53 @@ tccl_status_t build_allreduce_schedule_3lvl(tccl_hier_team_t *team, coll_schedul
     schedule->super.hier_team = team;
     schedule->super.type = TCCL_COLL_SCHED_SEQ;
     int c = 0;
-    coll.root = 0;
-    coll.alg.set_by_user = 0;
+
+    tccl_coll_op_args_t coll = {
+        .coll_type       = TCCL_BARRIER,
+        .alg.set_by_user = 0,
+    };
 
     if (have_socket_group) {
         if (top_sbgp == SBGP_SOCKET) {
-            coll.coll_type = TCCL_ALLREDUCE;
+            coll.coll_type = TCCL_BARRIER;
             schedule->super.args[c].tccl_coll = coll;
         } else {
-            coll.coll_type = TCCL_REDUCE;
+            coll.coll_type = TCCL_FANIN;
             schedule->super.args[c].tccl_coll = coll;
         }
         schedule->super.args[c].pair = team->pairs[socket_pair];
         c++;
-        coll.buffer_info.src_buffer = coll.buffer_info.dst_buffer;
     }
 
     if (have_socket_leaders_group) {
         if (top_sbgp == SBGP_SOCKET_LEADERS) {
-            coll.coll_type = TCCL_ALLREDUCE;
+            coll.coll_type = TCCL_BARRIER;
             schedule->super.args[c].tccl_coll = coll;
         } else {
-            coll.coll_type = TCCL_REDUCE;
+            coll.coll_type = TCCL_FANIN;
             schedule->super.args[c].tccl_coll = coll;
         }
         schedule->super.args[c].pair = team->pairs[socket_leaders_pair];
         c++;
-        coll.buffer_info.src_buffer = coll.buffer_info.dst_buffer;
     }
 
     if (have_node_leaders_group) {
         assert(top_sbgp == SBGP_NODE_LEADERS);
-        coll.coll_type = TCCL_ALLREDUCE;
+        coll.coll_type = TCCL_BARRIER;
         schedule->super.args[c].tccl_coll = coll;
         schedule->super.args[c].pair = team->pairs[node_leaders_pair];
         c++;
     }
 
     if (have_socket_leaders_group && top_sbgp != SBGP_SOCKET_LEADERS) {
-        coll.coll_type = TCCL_BCAST;
+        coll.coll_type = TCCL_FANOUT;
         schedule->super.args[c].tccl_coll = coll;
         schedule->super.args[c].pair = team->pairs[socket_leaders_pair];
         c++;
     }
 
     if (have_socket_group  && top_sbgp != SBGP_SOCKET) {
-        coll.coll_type = TCCL_BCAST;
+        coll.coll_type = TCCL_FANOUT;
         schedule->super.args[c].tccl_coll = coll;
         schedule->super.args[c].pair = team->pairs[socket_pair];
         c++;
@@ -84,6 +84,7 @@ tccl_status_t build_allreduce_schedule_3lvl(tccl_hier_team_t *team, coll_schedul
     schedule->super.n_colls = c;
     schedule->super.n_completed_colls = 0;
     schedule->req = NULL;
+
     (*sched) = &schedule->super;
     return TCCL_OK;
 }

@@ -48,14 +48,11 @@ tccl_status_t build_allreduce_schedule_3lvl(tccl_hier_team_t *team, coll_schedul
                                             tccl_coll_op_args_t coll,
                                             int socket_pair, int socket_leaders_pair,
                                             int node_leaders_pair);
-
-/* tccl_status_t build_barrier_schedule_3lvl(tccl_comm_t *comm, coll_schedule_t **schedule, */
-/*                                           coll_schedule_type_t sched_type, */
-/*                                           int socket_teamtype, int socket_leaders_teamtype, */
-/*                                           int node_leaders_teamtype); */
-/* tccl_status_t build_bcast_schedule_3lvl(tccl_comm_t *comm, coll_schedule_t **sched, */
-/*                                         void *buf, int count, tccl_dt_t dtype, int root, */
-/*                                         int node_leaders_teamtype); */
+tccl_status_t build_barrier_schedule_3lvl(tccl_hier_team_t *team, coll_schedule_t **schedule,
+                                          int socket_pair, int socket_leaders_pair,
+                                          int node_leaders_pair);
+tccl_status_t build_bcast_schedule_3lvl(tccl_hier_team_t *comm, coll_schedule_t **sched,
+                                        tccl_coll_op_args_t coll, int node_leaders_pair);
 
 tccl_status_t coll_schedule_progress(coll_schedule_t *schedule);
 

@@ -18,7 +18,9 @@ sources = \
 	tccl_hier_sbgp.c \
 	tccl_hier_schedule.h \
 	tccl_hier_schedule.c \
-	tccl_hier_schedule_allreduce.c
+	tccl_hier_schedule_allreduce.c \
+	tccl_hier_schedule_barrier.c \
+	tccl_hier_schedule_bcast.c
 
 component_noinst =
 component_install = tccl_team_lib_hier.la

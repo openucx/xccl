@@ -47,44 +47,42 @@ static inline tccl_status_t
 tccl_hier_bcast_init(tccl_coll_op_args_t *coll_args,
                      tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
+    coll_schedule_t *schedule;
+    tccl_hier_context_t *ctx = tccl_derived_of(team->ctx, tccl_hier_context_t);
+    int top_lvl_pair = TCCL_HIER_PAIR_NODE_LEADERS_UCX;
 
-    //TODO alg selection for allreduce shoud happen here
-    tccl_status_t status = TCCL_OK;
-#if 0
-    tccl_hier_coll_base_init(coll_args, team, &req);
-    if (!coll_args->alg.set_by_user) {
-        /* Automatic algorithm selection - take knomial */
-        /* req->start = tccl_hier_bcast_knomial_start; */
-    } else {
-        switch (coll_args->alg.id) {
-        case 0:
-            /* req->start = tccl_hier_bcast_linear_start; */
-            break;
-        case 1:
-            /* req->start = tccl_hier_bcast_knomial_start; */
-            break;
-        default:
-            free(req);
-            req = NULL;
-            status = TCCL_ERR_INVALID_PARAM;
-        }
+    if (ctx->tls[TCCL_TL_VMC].enabled) {
+        top_lvl_pair = TCCL_HIER_PAIR_NODE_LEADERS_VMC;
     }
-    (*request) = (tccl_coll_req_h)req;
-#endif
-    return status;
+    build_bcast_schedule_3lvl(tccl_derived_of(team, tccl_hier_team_t),
+                              &schedule, (*coll_args), top_lvl_pair);
+
+    schedule->super.lib = &tccl_team_lib_hier.super;
+    (*request) = &schedule->super;
+    return TCCL_OK;
 }
 
 static inline tccl_status_t
 tccl_hier_barrier_init(tccl_coll_op_args_t *coll_args,
                       tccl_coll_req_h *request, tccl_tl_team_t *team)
 {
-#if 0
-    //TODO alg selection for allreduce shoud happen here
-    tccl_hier_collreq_t *req;
-    tccl_hier_coll_base_init(coll_args, team, &req);
-    /* req->start = tccl_hier_barrier_knomial_start; */
-    (*request) = (tccl_coll_req_h)req;
-#endif
+    coll_schedule_t *schedule;
+    tccl_hier_context_t *ctx = tccl_derived_of(team->ctx, tccl_hier_context_t);
+    int top_lvl_pair = TCCL_HIER_PAIR_NODE_LEADERS_UCX;
+    int sock_pair = TCCL_HIER_PAIR_SOCKET_SHMSEG;
+    int sock_lead_pair = TCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG;
+
+    if (ctx->tls[TCCL_TL_SHARP].enabled) {
+        top_lvl_pair = TCCL_HIER_PAIR_NODE_LEADERS_SHARP;
+    }
+    if (!ctx->tls[TCCL_TL_SHMSEG].enabled) {
+        sock_pair = TCCL_HIER_PAIR_SOCKET_UCX;
+        sock_lead_pair = TCCL_HIER_PAIR_SOCKET_LEADERS_UCX;
+    }
+    build_barrier_schedule_3lvl(tccl_derived_of(team, tccl_hier_team_t), &schedule,
+                                sock_pair, sock_lead_pair, top_lvl_pair);
+    schedule->super.lib = &tccl_team_lib_hier.super;
+    (*request) = &schedule->super;
     return TCCL_OK;
 }
 

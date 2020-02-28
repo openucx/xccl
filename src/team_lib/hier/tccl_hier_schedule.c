@@ -13,7 +13,8 @@
 #include "tccl_hier_team.h"
 
 static inline tccl_status_t
-coll_schedule_progress_sequential(coll_schedule_sequential_t *schedule) {
+coll_schedule_progress_sequential(coll_schedule_sequential_t *schedule)
+{
     int i;
     int curr_idx;
     tccl_coll_args_t *curr_op;
@@ -38,7 +39,8 @@ coll_schedule_progress_sequential(coll_schedule_sequential_t *schedule) {
 }
 
 static inline tccl_status_t
-coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule) {
+coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule)
+{
     int i, p;
     int curr_idx;
     tccl_coll_args_t *curr_op;
@@ -105,7 +107,8 @@ coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule) {
     return TCCL_OK;
 }
 
-tccl_status_t coll_schedule_progress(coll_schedule_t *schedule) {
+tccl_status_t coll_schedule_progress(coll_schedule_t *schedule)
+{
     switch(schedule->type) {
     case TCCL_COLL_SCHED_SEQ:
         return coll_schedule_progress_sequential((coll_schedule_sequential_t*)schedule);
@@ -116,33 +119,3 @@ tccl_status_t coll_schedule_progress(coll_schedule_t *schedule) {
     }
     return TCCL_ERR_NO_MESSAGE;
 }
-
-#if 0
-tccl_status_t tccl_start(tccl_request_h req) {
-    coll_schedule_t *schedule = (coll_schedule_t*)req;
-    coll_schedule_progress(schedule);
-    return TCCL_SUCCESS;
-}
-
-tccl_status_t tccl_test(tccl_request_h req) {
-    coll_schedule_t *schedule = (coll_schedule_t*)req;
-    coll_schedule_progress(schedule);
-    return schedule->n_completed_colls == schedule->n_colls ?
-        TCCL_SUCCESS : TCCL_IN_PROGRESS;
-}
-
-tccl_status_t tccl_wait(tccl_request_h req) {
-    int ret = tccl_test(req);
-    while (TCCL_SUCCESS != ret) {
-        ret = tccl_test(req);
-    }
-    return TCCL_SUCCESS;
-}
-
-tccl_status_t tccl_request_free(tccl_request_h req) {
-    coll_schedule_t *schedule = (coll_schedule_t*)req;
-    free(schedule);//todo mpool
-    return TCCL_SUCCESS;
-}
-
-#endif
