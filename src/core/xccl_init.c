@@ -183,7 +183,8 @@ static void xccl_constructor(void)
     /* printf("LIB PATH:%s\n", lib->lib_path); */
     load_team_lib_plugins(lib);
     if (lib->n_libs_opened == 0) {
-        xccl_error("XCCL init: couldn't find any xccl_team_lib_<name>.so plugins.\n");
+        xccl_error("XCCL init: couldn't find any xccl_team_lib_<name>.so plugins"
+                " in %s\n", lib->lib_path);
         return;
     }
     /* xccl_print_libs(&xccl_static_lib); */
