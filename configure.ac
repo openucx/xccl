@@ -74,8 +74,10 @@ AS_HELP_STRING([--enable-debug], [Enable extra debugging code (default is NO).])
 
 if test $enable_debug = yes; then
 	AC_DEFINE([ENABLE_DEBUG], [1], [Enable debugging code])
-    CFLAGS="$CFLAGS -O0 -g3"
+	CFLAGS="$CFLAGS -O0 -g3"
+	AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_TRACE_POLL], [Highest log level])],
 else
+	AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_INFO], [Highest log level])]
 	CFLAGS="$CFLAGS -O3 -DNDEBUG"
 fi
 
@@ -99,7 +101,8 @@ AC_MSG_RESULT([VMC support: $vmc_happy])
 
 
 includes="-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core"
-CPPFLAGS="$CPPFLAGS $includes -std=gnu11"
+CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes -std=gnu11"
+LDFLAGS="$LDFLAGS $UCS_LDFLAGS"
 AC_CONFIG_FILES([
                  Makefile
                  src/Makefile
