@@ -30,5 +30,5 @@ typedef struct xccl_hier_context {
 xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib, xccl_context_config_t *config,
                                        xccl_tl_context_t **context);
 xccl_status_t xccl_hier_destroy_context(xccl_tl_context_t *context);
-
+xccl_status_t xccl_hier_context_progress(xccl_tl_context_t *team_ctx);
 #endif

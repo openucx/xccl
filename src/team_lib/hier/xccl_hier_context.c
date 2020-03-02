@@ -174,3 +174,18 @@ xccl_status_t xccl_hier_destroy_context(xccl_tl_context_t *team_context)
     free(ctx);
     return XCCL_OK;
 }
+
+xccl_status_t xccl_hier_context_progress(xccl_tl_context_t *team_context)
+{
+    xccl_hier_context_t *ctx = xccl_derived_of(team_context, xccl_hier_context_t);
+    int i;
+    xccl_context_t *tl_ctx;
+    for (i=0; i<XCCL_TL_LAST; i++) {
+        if (ctx->tls[i].enabled) {
+            tl_ctx = ctx->tls[i].xccl_ctx;
+            assert(tl_ctx);
+            xccl_context_progress(tl_ctx);
+        }
+    }
+    return XCCL_OK;
+}

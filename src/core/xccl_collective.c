@@ -37,10 +37,15 @@ xccl_status_t xccl_collective_finalize(xccl_coll_req_h request)
     return request->lib->collective_finalize(request);
 }
 
-xccl_status_t xccl_context_progress(xccl_context_h team_ctx)
+xccl_status_t xccl_context_progress(xccl_context_h context)
 {
-    /* if (team_ctx->lib->progress) { */
-        /* return team_ctx->lib->progress(team_ctx); */
-    /* } */
+    int i;
+    xccl_tl_context_t *tl_ctx;
+    for (i=0; i<context->n_tl_ctx; i++) {
+        tl_ctx = context->tl_ctx[i];
+        if (tl_ctx->lib->progress) {
+            tl_ctx->lib->progress(tl_ctx);
+        }
+    }
     return XCCL_OK;
 }
