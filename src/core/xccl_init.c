@@ -23,6 +23,11 @@
 xccl_lib_t xccl_static_lib;
 xccl_local_proc_info_t xccl_local_proc_info;
 
+xccl_local_proc_info_t* xccl_local_process_info()
+{
+    return &xccl_local_proc_info;
+}
+
 static int
 callback(struct dl_phdr_info *info, size_t size, void *data)
 {

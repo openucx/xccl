@@ -134,8 +134,8 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib, xccl_context_config
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, config);
     ctx->procs = (xccl_hier_proc_data_t*)malloc(
         config->oob.size*sizeof(xccl_hier_proc_data_t));
-    ctx->local_proc.socketid = xccl_local_proc_info.socketid;
-    ctx->local_proc.node_hash = xccl_local_proc_info.node_hash;
+    ctx->local_proc.socketid = xccl_local_process_info()->socketid;
+    ctx->local_proc.node_hash = xccl_local_process_info()->node_hash;
     memset(ctx->tls, 0, sizeof(ctx->tls));
     *context = NULL;
 

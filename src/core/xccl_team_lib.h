@@ -82,7 +82,8 @@ typedef struct xccl_local_proc_info {
     unsigned long node_hash;
     int socketid; //if process is bound to a socket
 } xccl_local_proc_info_t;
-extern xccl_local_proc_info_t xccl_local_proc_info;
+
+xccl_local_proc_info_t* xccl_local_process_info();
 
 #define XCCL_TEAM_SUPER_INIT(_team, _ctx, _config, _oob) do {           \
         (_team).oob = (_oob);                                           \
