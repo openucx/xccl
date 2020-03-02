@@ -1,0 +1,1075 @@
+From 1b969299a8ae1d4d289cd4bcc6b124ed30943e39 Mon Sep 17 00:00:00 2001
+From: Valentin Petrov <valentinp@mellanox.com>
+Date: Mon, 2 Mar 2020 13:26:33 +0200
+Subject: [PATCH] ompi/coll/xccl
+
+    eXperimental openucx collective communication library (XCCL)
+    integration layer
+
+Signed-off-by: Valentin Petrov <valentinp@mellanox.com>
+---
+ config/ompi_check_xccl.m4                |  75 ++++++++
+ ompi/mca/coll/base/coll_tags.h           |   4 +-
+ ompi/mca/coll/xccl/Makefile.am           |  45 +++++
+ ompi/mca/coll/xccl/coll_xccl.h           |  97 ++++++++++
+ ompi/mca/coll/xccl/coll_xccl_component.c | 172 ++++++++++++++++++
+ ompi/mca/coll/xccl/coll_xccl_debug.h     |  30 ++++
+ ompi/mca/coll/xccl/coll_xccl_dtypes.h    |  86 +++++++++
+ ompi/mca/coll/xccl/coll_xccl_module.c    | 300 +++++++++++++++++++++++++++++++
+ ompi/mca/coll/xccl/coll_xccl_ops.c       | 130 ++++++++++++++
+ ompi/mca/coll/xccl/configure.m4          |  37 ++++
+ 10 files changed, 975 insertions(+), 1 deletion(-)
+ create mode 100644 config/ompi_check_xccl.m4
+ create mode 100644 ompi/mca/coll/xccl/Makefile.am
+ create mode 100644 ompi/mca/coll/xccl/coll_xccl.h
+ create mode 100644 ompi/mca/coll/xccl/coll_xccl_component.c
+ create mode 100644 ompi/mca/coll/xccl/coll_xccl_debug.h
+ create mode 100644 ompi/mca/coll/xccl/coll_xccl_dtypes.h
+ create mode 100644 ompi/mca/coll/xccl/coll_xccl_module.c
+ create mode 100644 ompi/mca/coll/xccl/coll_xccl_ops.c
+ create mode 100644 ompi/mca/coll/xccl/configure.m4
+
+diff --git a/config/ompi_check_xccl.m4 b/config/ompi_check_xccl.m4
+new file mode 100644
+index 0000000..d18df9e
+--- /dev/null
++++ b/config/ompi_check_xccl.m4
+@@ -0,0 +1,75 @@
++dnl -*- shell-script -*-
++dnl
++dnl Copyright (c) 2020      Mellanox Technologies. All rights reserved.
++dnl Copyright (c) 2013      Cisco Systems, Inc.  All rights reserved.
++dnl Copyright (c) 2015      Research Organization for Information Science
++dnl                         and Technology (RIST). All rights reserved.
++dnl $COPYRIGHT$
++dnl
++dnl Additional copyrights may follow
++dnl
++dnl $HEADER$
++dnl
++
++# OMPI_CHECK_XCCL(prefix, [action-if-found], [action-if-not-found])
++# --------------------------------------------------------
++# check if xccl support can be found.  sets prefix_{CPPFLAGS,
++# LDFLAGS, LIBS} as needed and runs action-if-found if there is
++# support, otherwise executes action-if-not-found
++AC_DEFUN([OMPI_CHECK_XCCL],[
++    OPAL_VAR_SCOPE_PUSH([ompi_check_xccl_dir ompi_check_xccl_libs ompi_check_xccl_happy CPPFLAGS_save LDFLAGS_save LIBS_save])
++
++    AC_ARG_WITH([xccl],
++        [AC_HELP_STRING([--with-xccl(=DIR)],
++             [Build xccl (Mellanox Collective Communication library) support, optionally adding
++              DIR/include and DIR/lib or DIR/lib64 to the search path for headers and libraries])])
++
++    AS_IF([test "$with_xccl" != "no"],
++          [ompi_check_xccl_libs=xccl
++           AS_IF([test ! -z "$with_xccl" && test "$with_xccl" != "yes"],
++                 [ompi_check_xccl_dir=$with_xccl])
++
++           CPPFLAGS_save=$CPPFLAGS
++           LDFLAGS_save=$LDFLAGS
++           LIBS_save=$LIBS
++
++           OPAL_LOG_MSG([$1_CPPFLAGS : $$1_CPPFLAGS], 1)
++           OPAL_LOG_MSG([$1_LDFLAGS  : $$1_LDFLAGS], 1)
++           OPAL_LOG_MSG([$1_LIBS     : $$1_LIBS], 1)
++
++           OPAL_CHECK_PACKAGE([$1],
++                              [api/xccl.h],
++                              [$ompi_check_xccl_libs],
++                              [xccl_init],
++                              [],
++                              [$ompi_check_xccl_dir],
++                              [],
++                              [ompi_check_xccl_happy="yes"],
++                              [ompi_check_xccl_happy="no"])
++
++           AS_IF([test "$ompi_check_xccl_happy" = "yes"],
++                 [
++                     CPPFLAGS=$coll_xccl_CPPFLAGS
++                     LDFLAGS=$coll_xccl_LDFLAGS
++                     LIBS=$coll_xccl_LIBS
++                     AC_CHECK_FUNCS(xccl_comm_free, [], [])
++                 ],
++                 [])
++
++           CPPFLAGS=$CPPFLAGS_save
++           LDFLAGS=$LDFLAGS_save
++           LIBS=$LIBS_save],
++          [ompi_check_xccl_happy=no])
++
++    AS_IF([test "$ompi_check_xccl_happy" = "yes" && test "$enable_progress_threads" = "yes"],
++          [AC_MSG_WARN([xccl driver does not currently support progress threads.  Disabling XCCL.])
++           ompi_check_xccl_happy="no"])
++
++    AS_IF([test "$ompi_check_xccl_happy" = "yes"],
++          [$2],
++          [AS_IF([test ! -z "$with_xccl" && test "$with_xccl" != "no"],
++                 [AC_MSG_ERROR([XCCL support requested but not found.  Aborting])])
++           $3])
++
++    OPAL_VAR_SCOPE_POP
++])
+diff --git a/ompi/mca/coll/base/coll_tags.h b/ompi/mca/coll/base/coll_tags.h
+index 2bcf2a6..3d22f01 100644
+--- a/ompi/mca/coll/base/coll_tags.h
++++ b/ompi/mca/coll/base/coll_tags.h
+@@ -41,7 +41,9 @@
+ #define MCA_COLL_BASE_TAG_SCAN -24
+ #define MCA_COLL_BASE_TAG_SCATTER -25
+ #define MCA_COLL_BASE_TAG_SCATTERV -26
+-#define MCA_COLL_BASE_TAG_NONBLOCKING_BASE -27
++#define MCA_COLL_BASE_TAG_XCCL -27
++
++#define MCA_COLL_BASE_TAG_NONBLOCKING_BASE -28
+ #define MCA_COLL_BASE_TAG_NONBLOCKING_END ((-1 * INT_MAX/2) + 1)
+ #define MCA_COLL_BASE_TAG_NEIGHBOR_BASE  (MCA_COLL_BASE_TAG_NONBLOCKING_END - 1)
+ #define MCA_COLL_BASE_TAG_NEIGHBOR_END   (MCA_COLL_BASE_TAG_NEIGHBOR_BASE - 1024)
+diff --git a/ompi/mca/coll/xccl/Makefile.am b/ompi/mca/coll/xccl/Makefile.am
+new file mode 100644
+index 0000000..9db768e
+--- /dev/null
++++ b/ompi/mca/coll/xccl/Makefile.am
+@@ -0,0 +1,45 @@
++# -*- shell-script -*-
++#
++#
++# Copyright (c) 2020 Mellanox Technologies. All rights reserved.
++# $COPYRIGHT$
++#
++# Additional copyrights may follow
++#
++# $HEADER$
++#
++#
++
++AM_CPPFLAGS = $(coll_xccl_CPPFLAGS)
++
++coll_xccl_sources = \
++		coll_xccl.h \
++		coll_xccl_debug.h \
++		coll_xccl_dtypes.h \
++		coll_xccl_module.c \
++		coll_xccl_component.c \
++		coll_xccl_ops.c
++
++# Make the output library in this directory, and name it either
++# mca_<type>_<name>.la (for DSO builds) or libmca_<type>_<name>.la
++# (for static builds).
++
++if MCA_BUILD_ompi_coll_xccl_DSO
++component_noinst =
++component_install = mca_coll_xccl.la
++else
++component_noinst = libmca_coll_xccl.la
++component_install =
++endif
++
++mcacomponentdir = $(ompilibdir)
++mcacomponent_LTLIBRARIES  = $(component_install)
++mca_coll_xccl_la_SOURCES = $(coll_xccl_sources)
++mca_coll_xccl_la_LIBADD = $(top_builddir)/ompi/lib@OMPI_LIBMPI_NAME@.la \
++	$(coll_xccl_LIBS)
++mca_coll_xccl_la_LDFLAGS = -module -avoid-version $(coll_xccl_LDFLAGS)
++
++noinst_LTLIBRARIES           = $(component_noinst)
++libmca_coll_xccl_la_SOURCES = $(coll_xccl_sources)
++libmca_coll_xccl_la_LIBADD  = $(coll_xccl_LIBS)
++libmca_coll_xccl_la_LDFLAGS = -module -avoid-version $(coll_xccl_LDFLAGS)
+diff --git a/ompi/mca/coll/xccl/coll_xccl.h b/ompi/mca/coll/xccl/coll_xccl.h
+new file mode 100644
+index 0000000..9fda6d7
+--- /dev/null
++++ b/ompi/mca/coll/xccl/coll_xccl.h
+@@ -0,0 +1,97 @@
++/**
++  Copyright (c) 2020      Mellanox Technologies. All rights reserved.
++  $COPYRIGHT$
++
++  Additional copyrights may follow
++
++  $HEADER$
++ */
++
++#ifndef MCA_COLL_XCCL_H
++#define MCA_COLL_XCCL_H
++
++#include "ompi_config.h"
++
++#include "mpi.h"
++#include "ompi/mca/mca.h"
++#include "opal/memoryhooks/memory.h"
++#include "opal/mca/memory/base/base.h"
++#include "ompi/mca/coll/coll.h"
++#include "ompi/request/request.h"
++#include "ompi/mca/pml/pml.h"
++#include "ompi/mca/coll/base/coll_tags.h"
++#include "ompi/communicator/communicator.h"
++#include "ompi/attribute/attribute.h"
++#include "ompi/op/op.h"
++#include "api/xccl.h"
++#include "coll_xccl_debug.h"
++#ifndef XCCL_VERSION
++#define XCCL_VERSION(major, minor) (((major)<<XCCL_MAJOR_BIT)|((minor)<<XCCL_MINOR_BIT))
++#endif
++BEGIN_C_DECLS
++
++struct mca_coll_xccl_component_t {
++    /** Base coll component */
++    mca_coll_base_component_2_0_0_t super;
++
++    /** MCA parameter: Priority of this component */
++    int xccl_priority;
++
++    /** MCA parameter: Verbose level of this component */
++    int xccl_verbose;
++
++    /** MCA parameter: Enable XCCL */
++    int   xccl_enable;
++
++    /** r/o MCA parameter: libxccl compiletime version */
++    char* compiletime_version;
++
++    /** r/o MCA parameter: libxccl runtime version */
++    const char* runtime_version;
++
++    /** MCA parameter: Minimal number of processes in the communicator
++        for the corresponding xccl context to be created */
++    int xccl_np;
++
++    /** Whether or not xccl_init was ever called */
++    bool libxccl_initialized;
++    xccl_context_h xccl_context;
++    opal_free_list_t requests;
++    char *tls;
++};
++typedef struct mca_coll_xccl_component_t mca_coll_xccl_component_t;
++
++OMPI_MODULE_DECLSPEC extern mca_coll_xccl_component_t mca_coll_xccl_component;
++
++/**
++ * XCCL enabled communicator
++ */
++struct mca_coll_xccl_module_t {
++    mca_coll_base_module_t              super;
++    ompi_communicator_t*                comm;
++    int                                 rank;
++    xccl_team_h                         xccl_team;
++    mca_coll_base_module_allreduce_fn_t previous_allreduce;
++    mca_coll_base_module_t*             previous_allreduce_module;
++    mca_coll_base_module_barrier_fn_t   previous_barrier;
++    mca_coll_base_module_t*             previous_barrier_module;
++    mca_coll_base_module_bcast_fn_t     previous_bcast;
++    mca_coll_base_module_t*             previous_bcast_module;
++};
++typedef struct mca_coll_xccl_module_t mca_coll_xccl_module_t;
++OBJ_CLASS_DECLARATION(mca_coll_xccl_module_t);
++
++int mca_coll_xccl_init_query(bool enable_progress_threads, bool enable_mpi_threads);
++mca_coll_base_module_t *mca_coll_xccl_comm_query(struct ompi_communicator_t *comm, int *priority);
++
++int mca_coll_xccl_allreduce(const void *sbuf, void *rbuf, int count, struct ompi_datatype_t *dtype,
++                            struct ompi_op_t *op, struct ompi_communicator_t *comm,
++                            mca_coll_base_module_t *module);
++int mca_coll_xccl_barrier(struct ompi_communicator_t *comm,
++                          mca_coll_base_module_t *module);
++int mca_coll_xccl_bcast(void *buf, int count, struct ompi_datatype_t *dtype,
++                        int root, struct ompi_communicator_t *comm,
++                        mca_coll_base_module_t *module);
++
++END_C_DECLS
++#endif
+diff --git a/ompi/mca/coll/xccl/coll_xccl_component.c b/ompi/mca/coll/xccl/coll_xccl_component.c
+new file mode 100644
+index 0000000..4cc2910
+--- /dev/null
++++ b/ompi/mca/coll/xccl/coll_xccl_component.c
+@@ -0,0 +1,172 @@
++/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
++/*
++ * Copyright (c) 2020 Mellanox Technologies. All rights reserved.
++ * $COPYRIGHT$
++ *
++ * Additional copyrights may follow
++ *
++ * $HEADER$
++ */
++#include "ompi_config.h"
++#include <stdio.h>
++
++#include <dlfcn.h>
++#include <libgen.h>
++
++#include "coll_xccl.h"
++#include "opal/mca/installdirs/installdirs.h"
++#include "coll_xccl_dtypes.h"
++
++/*
++ * Public string showing the coll ompi_xccl component version number
++ */
++const char *mca_coll_xccl_component_version_string =
++  "Open MPI XCCL collective MCA component version " OMPI_VERSION;
++
++
++static int xccl_open(void);
++static int xccl_close(void);
++static int xccl_register(void);
++int mca_coll_xccl_output = -1;
++mca_coll_xccl_component_t mca_coll_xccl_component = {
++    /* First, the mca_component_t struct containing meta information
++       about the component  */
++    {
++        .collm_version = {
++            MCA_COLL_BASE_VERSION_2_0_0,
++
++            /* Component name and version */
++            .mca_component_name = "xccl",
++            MCA_BASE_MAKE_VERSION(component, OMPI_MAJOR_VERSION, OMPI_MINOR_VERSION,
++                                  OMPI_RELEASE_VERSION),
++
++            /* Component open and close functions */
++            .mca_open_component = xccl_open,
++            .mca_close_component = xccl_close,
++            .mca_register_component_params = xccl_register,
++        },
++        .collm_data = {
++            /* The component is not checkpoint ready */
++            MCA_BASE_METADATA_PARAM_NONE
++        },
++
++        /* Initialization / querying functions */
++        .collm_init_query = mca_coll_xccl_init_query,
++        .collm_comm_query = mca_coll_xccl_comm_query,
++    },
++    120, /* priority */
++    0,  /* verbose level */
++    0,   /* xccl_enable */
++    NULL /*xccl version */
++};
++
++enum {
++    REGINT_NEG_ONE_OK = 0x01,
++    REGINT_GE_ZERO = 0x02,
++    REGINT_GE_ONE = 0x04,
++    REGINT_NONZERO = 0x08,
++    REGINT_MAX = 0x88
++};
++
++enum {
++    REGSTR_EMPTY_OK = 0x01,
++    REGSTR_MAX = 0x88
++};
++
++
++/*
++ * Utility routine for integer parameter registration
++ */
++static int reg_int(const char* param_name, const char* deprecated_param_name,
++                   const char* param_desc, int default_value, int *storage, int flags)
++{
++    int index;
++    *storage = default_value;
++    index = mca_base_component_var_register(&mca_coll_xccl_component.super.collm_version,
++                                            param_name, param_desc, MCA_BASE_VAR_TYPE_INT,
++                                            NULL, 0, 0,OPAL_INFO_LVL_9,
++                                            MCA_BASE_VAR_SCOPE_READONLY, storage);
++    if (NULL != deprecated_param_name) {
++        (void) mca_base_var_register_synonym(index, "ompi", "coll", "xccl", deprecated_param_name,
++                                             MCA_BASE_VAR_SYN_FLAG_DEPRECATED);
++    }
++
++    if (0 != (flags & REGINT_NEG_ONE_OK) && -1 == *storage) {
++        return OMPI_SUCCESS;
++    }
++
++    if ((0 != (flags & REGINT_GE_ZERO) && *storage < 0) ||
++        (0 != (flags & REGINT_GE_ONE) && *storage < 1) ||
++        (0 != (flags & REGINT_NONZERO) && 0 == *storage)) {
++        opal_output(0, "Bad parameter value for parameter \"%s\"", param_name);
++        return OMPI_ERR_BAD_PARAM;
++    }
++    return OMPI_SUCCESS;
++}
++
++
++static int xccl_register(void)
++{
++    int ret, tmp;
++    ret = OMPI_SUCCESS;
++
++#define CHECK(expr) do {                        \
++        tmp = (expr);                           \
++        if (OMPI_SUCCESS != tmp) ret = tmp;     \
++    } while (0)
++
++
++    CHECK(reg_int("priority", NULL, "Priority of the xccl coll component",
++                  120, &mca_coll_xccl_component.xccl_priority, 0));
++
++    CHECK(reg_int("verbose", NULL, "Verbose level of the xccl coll component",
++                  0, &mca_coll_xccl_component.xccl_verbose, 0));
++
++    CHECK(reg_int("enable", NULL, "[1|0|] Enable/Disable XCCL",
++                  1, &mca_coll_xccl_component.xccl_enable, 0));
++
++    CHECK(reg_int("np", NULL, "Minimal number of processes in the communicator"
++                  " for the corresponding xccl context to be created (default: 32)",
++                  2, &mca_coll_xccl_component.xccl_np, 0));
++
++    /* mca_coll_xccl_component.compiletime_version = XCCL_VERNO_STRING; */
++
++    mca_base_component_var_register(&mca_coll_xccl_component.super.collm_version,
++                                    MCA_COMPILETIME_VER,
++                                    "Version of the libxccl library with which Open MPI was compiled",
++                                    MCA_BASE_VAR_TYPE_VERSION_STRING, NULL, 0, 0,
++                                    OPAL_INFO_LVL_3, MCA_BASE_VAR_SCOPE_READONLY,
++                                    &mca_coll_xccl_component.compiletime_version);
++    /* mca_coll_xccl_component.runtime_version = xccl_get_version(); */
++    mca_base_component_var_register(&mca_coll_xccl_component.super.collm_version,
++                                    MCA_RUNTIME_VER,
++                                    "Version of the libxccl library with which Open MPI is running",
++                                    MCA_BASE_VAR_TYPE_VERSION_STRING, NULL, 0, 0,
++                                    OPAL_INFO_LVL_3, MCA_BASE_VAR_SCOPE_READONLY,
++                                    &mca_coll_xccl_component.runtime_version);
++
++    mca_coll_xccl_component.tls = "hier";
++    mca_base_component_var_register(&mca_coll_xccl_component.super.collm_version,
++                                    "tls",
++                                    "Comma separated list of XCCL TLS to be used for team creation",
++                                    MCA_BASE_VAR_TYPE_STRING, NULL, 0, 0,
++                                    OPAL_INFO_LVL_6,
++                                    MCA_BASE_VAR_SCOPE_READONLY,
++                                    &mca_coll_xccl_component.tls);
++    return ret;
++}
++
++static int xccl_open(void)
++{
++    mca_coll_xccl_component_t *cm;
++    cm  = &mca_coll_xccl_component;
++    mca_coll_xccl_output = opal_output_open(NULL);
++    opal_output_set_verbosity(mca_coll_xccl_output, cm->xccl_verbose);
++    cm->libxccl_initialized = false;
++    return OMPI_SUCCESS;
++}
++
++static int xccl_close(void)
++{
++    return OMPI_SUCCESS;
++}
+diff --git a/ompi/mca/coll/xccl/coll_xccl_debug.h b/ompi/mca/coll/xccl/coll_xccl_debug.h
+new file mode 100644
+index 0000000..ee9bdab
+--- /dev/null
++++ b/ompi/mca/coll/xccl/coll_xccl_debug.h
+@@ -0,0 +1,30 @@
++/**
++  Copyright (c) 2020 Mellanox Technologies. All rights reserved.
++  $COPYRIGHT$
++
++  Additional copyrights may follow
++
++  $HEADER$
++ */
++
++#ifndef COLL_XCCL_DEBUG_H
++#define COLL_XCCL_DEBUG_H
++#include "ompi_config.h"
++#pragma GCC system_header
++
++#ifdef __BASE_FILE__
++#define __XCCL_FILE__ __BASE_FILE__
++#else
++#define __XCCL_FILE__ __FILE__
++#endif
++
++#define XCCL_VERBOSE(level, format, ...) \
++    opal_output_verbose(level, mca_coll_xccl_output, "%s:%d - %s() " format, \
++                        __XCCL_FILE__, __LINE__, __FUNCTION__, ## __VA_ARGS__)
++
++#define XCCL_ERROR(format, ... ) \
++    opal_output_verbose(0, mca_coll_xccl_output, "Error: %s:%d - %s() " format, \
++                        __XCCL_FILE__, __LINE__, __FUNCTION__, ## __VA_ARGS__)
++
++extern int mca_coll_xccl_output;
++#endif
+diff --git a/ompi/mca/coll/xccl/coll_xccl_dtypes.h b/ompi/mca/coll/xccl/coll_xccl_dtypes.h
+new file mode 100644
+index 0000000..52ce6c6
+--- /dev/null
++++ b/ompi/mca/coll/xccl/coll_xccl_dtypes.h
+@@ -0,0 +1,86 @@
++/*
++ * Copyright (c) 2020 Mellanox Technologies. All rights reserved.
++ * $COPYRIGHT$
++ *
++ * Additional copyrights may follow
++ *
++ * $HEADER$
++ */
++#ifndef COLL_XCCL_DTYPES_H
++#define COLL_XCCL_DTYPES_H
++#include "ompi/datatype/ompi_datatype.h"
++#include "ompi/datatype/ompi_datatype_internal.h"
++#include "ompi/mca/op/op.h"
++#include "api/xccl.h"
++
++
++static xccl_dt_t ompi_datatype_2_xccl_dt[OMPI_DATATYPE_MAX_PREDEFINED] = {
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_LOOP           0 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_END_LOOP       1 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_LB             2 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_UB             3 */
++    XCCL_DT_INT8,                  /*OPAL_DATATYPE_INT1           4 */
++    XCCL_DT_INT16,                 /*OPAL_DATATYPE_INT2           5 */
++    XCCL_DT_INT32,                 /*OPAL_DATATYPE_INT4           6 */
++    XCCL_DT_INT64,                 /*OPAL_DATATYPE_INT8           7 */
++    XCCL_DT_INT128,                /*OPAL_DATATYPE_INT16          8 */
++    XCCL_DT_UINT8,                 /*OPAL_DATATYPE_UINT1          9 */
++    XCCL_DT_UINT16,                /*OPAL_DATATYPE_UINT2          10 */
++    XCCL_DT_UINT32,                /*OPAL_DATATYPE_UINT4          11 */
++    XCCL_DT_UINT64,                /*OPAL_DATATYPE_UINT8          12 */
++    XCCL_DT_UINT128,               /*OPAL_DATATYPE_UINT16         13 */
++    XCCL_DT_FLOAT16,               /*OPAL_DATATYPE_FLOAT2         14 */
++    XCCL_DT_FLOAT32,               /*OPAL_DATATYPE_FLOAT4         15 */
++    XCCL_DT_FLOAT64,               /*OPAL_DATATYPE_FLOAT8         16 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_FLOAT12        17 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_FLOAT16        18 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_SHORT_FLOAT_COMPLEX 19 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_FLOAT_COMPLEX  20 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_DOUBLE_COMPLEX 21 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_LONG_DOUBLE_COMPLEX 22 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_BOOL           23 */
++    XCCL_DT_UNSUPPORTED,           /*OPAL_DATATYPE_WCHAR          24 */
++    XCCL_DT_UNSUPPORTED            /*OPAL_DATATYPE_UNAVAILABLE    25 */
++};
++
++static inline xccl_dt_t ompi_dtype_to_xccl_dtype(ompi_datatype_t *dtype)
++{
++    int ompi_type_id = dtype->id;
++    int opal_type_id = dtype->super.id;
++
++    if (ompi_type_id < OMPI_DATATYPE_MPI_MAX_PREDEFINED &&
++        dtype->super.flags & OMPI_DATATYPE_FLAG_PREDEFINED) {
++        if (opal_type_id > 0 && opal_type_id < OPAL_DATATYPE_MAX_PREDEFINED) {
++            return  ompi_datatype_2_xccl_dt[opal_type_id];
++        }
++    }
++    return XCCL_DT_UNSUPPORTED;
++}
++
++static xccl_op_t ompi_op_to_xccl_op_map[OMPI_OP_BASE_FORTRAN_OP_MAX + 1] = {
++   XCCL_OP_UNSUPPORTED,          /* OMPI_OP_BASE_FORTRAN_NULL = 0 */
++   XCCL_OP_MAX,                  /* OMPI_OP_BASE_FORTRAN_MAX */
++   XCCL_OP_MIN,                  /* OMPI_OP_BASE_FORTRAN_MIN */
++   XCCL_OP_SUM,                  /* OMPI_OP_BASE_FORTRAN_SUM */
++   XCCL_OP_PROD,                 /* OMPI_OP_BASE_FORTRAN_PROD */
++   XCCL_OP_LAND,                 /* OMPI_OP_BASE_FORTRAN_LAND */
++   XCCL_OP_BAND,                 /* OMPI_OP_BASE_FORTRAN_BAND */
++   XCCL_OP_LOR,                  /* OMPI_OP_BASE_FORTRAN_LOR */
++   XCCL_OP_BOR,                  /* OMPI_OP_BASE_FORTRAN_BOR */
++   XCCL_OP_LXOR,                 /* OMPI_OP_BASE_FORTRAN_LXOR */
++   XCCL_OP_BXOR,                 /* OMPI_OP_BASE_FORTRAN_BXOR */
++   XCCL_OP_UNSUPPORTED,          /* OMPI_OP_BASE_FORTRAN_MAXLOC */
++   XCCL_OP_UNSUPPORTED,          /* OMPI_OP_BASE_FORTRAN_MINLOC */
++   XCCL_OP_UNSUPPORTED,          /* OMPI_OP_BASE_FORTRAN_REPLACE */
++   XCCL_OP_UNSUPPORTED,          /* OMPI_OP_BASE_FORTRAN_NO_OP */
++   XCCL_OP_UNSUPPORTED           /* OMPI_OP_BASE_FORTRAN_OP_MAX */
++};
++
++static inline xccl_op_t ompi_op_to_xccl_op(ompi_op_t *op) {
++    if (op->o_f_to_c_index > OMPI_OP_BASE_FORTRAN_OP_MAX) {
++        return XCCL_OP_UNSUPPORTED;
++    }
++    return ompi_op_to_xccl_op_map[op->o_f_to_c_index];
++}
++
++#endif /* COLL_XCCL_DTYPES_H */
+diff --git a/ompi/mca/coll/xccl/coll_xccl_module.c b/ompi/mca/coll/xccl/coll_xccl_module.c
+new file mode 100644
+index 0000000..9dc07e2
+--- /dev/null
++++ b/ompi/mca/coll/xccl/coll_xccl_module.c
+@@ -0,0 +1,300 @@
++/**
++ * Copyright (c) 2020 Mellanox Technologies. All rights reserved.
++ * $COPYRIGHT$
++ *
++ * Additional copyrights may follow
++ *
++ * $HEADER$
++ */
++
++#include "ompi_config.h"
++#include "coll_xccl.h"
++#include "coll_xccl_dtypes.h"
++
++int xccl_comm_attr_keyval;
++/*
++ * Initial query function that is invoked during MPI_INIT, allowing
++ * this module to indicate what level of thread support it provides.
++ */
++int mca_coll_xccl_init_query(bool enable_progress_threads, bool enable_mpi_threads)
++{
++    return OMPI_SUCCESS;
++}
++
++static void mca_coll_xccl_module_clear(mca_coll_xccl_module_t *xccl_module)
++{
++    xccl_module->xccl_team          = NULL;
++    xccl_module->previous_allreduce = NULL;
++    xccl_module->previous_barrier   = NULL;
++    xccl_module->previous_bcast     = NULL;
++}
++
++static void mca_coll_xccl_module_construct(mca_coll_xccl_module_t *xccl_module)
++{
++    mca_coll_xccl_module_clear(xccl_module);
++}
++
++#define OBJ_RELEASE_IF_NOT_NULL( obj ) if( NULL != (obj) ) OBJ_RELEASE( obj );
++
++int mca_coll_xccl_progress(void)
++{
++    xccl_context_progress(mca_coll_xccl_component.xccl_context);
++    return OPAL_SUCCESS;
++}
++
++static void mca_coll_xccl_module_destruct(mca_coll_xccl_module_t *xccl_module)
++{
++    int context_destroyed;
++    if (xccl_module->comm == &ompi_mpi_comm_world.comm){
++        if (OMPI_SUCCESS != ompi_attr_free_keyval(COMM_ATTR, &xccl_comm_attr_keyval, 0)) {
++            XCCL_VERBOSE(1,"xccl ompi_attr_free_keyval failed");
++        }
++    }
++
++    /* If the xccl_context is null then we are destroying the xccl_module
++       that didn't initialized fallback colls/modules.
++       Then just clear and return. Otherwise release module pointers and
++       destroy xccl context*/
++
++    if (xccl_module->xccl_team != NULL){
++        OBJ_RELEASE_IF_NOT_NULL(xccl_module->previous_allreduce_module);
++        OBJ_RELEASE_IF_NOT_NULL(xccl_module->previous_barrier_module);
++        OBJ_RELEASE_IF_NOT_NULL(xccl_module->previous_bcast_module);
++    }
++    mca_coll_xccl_module_clear(xccl_module);
++}
++
++#define SAVE_PREV_COLL_API(__api) do {                                  \
++        xccl_module->previous_ ## __api            = comm->c_coll->coll_ ## __api; \
++        xccl_module->previous_ ## __api ## _module = comm->c_coll->coll_ ## __api ## _module; \
++        if (!comm->c_coll->coll_ ## __api || !comm->c_coll->coll_ ## __api ## _module) { \
++            return OMPI_ERROR;                                          \
++        }                                                               \
++        OBJ_RETAIN(xccl_module->previous_ ## __api ## _module);          \
++    } while(0)
++
++static int mca_coll_xccl_save_coll_handlers(mca_coll_xccl_module_t *xccl_module)
++{
++    ompi_communicator_t *comm;
++    comm = xccl_module->comm;
++    SAVE_PREV_COLL_API(allreduce);
++    SAVE_PREV_COLL_API(barrier);
++    SAVE_PREV_COLL_API(bcast);
++    return OMPI_SUCCESS;
++}
++
++
++
++/*
++** Communicator free callback
++*/
++static int xccl_comm_attr_del_fn(MPI_Comm comm, int keyval, void *attr_val, void *extra)
++{
++
++    mca_coll_xccl_module_t *xccl_module;
++    xccl_module = (mca_coll_xccl_module_t*) attr_val;
++    xccl_team_destroy(xccl_module->xccl_team);
++    if (xccl_module->comm == &ompi_mpi_comm_world.comm) {
++        if (mca_coll_xccl_component.libxccl_initialized) {
++            XCCL_VERBOSE(5,"XCCL FINALIZE");
++            if (XCCL_OK != xccl_cleanup(mca_coll_xccl_component.xccl_context)) {
++                XCCL_VERBOSE(1,"XCCL library finalize failed");
++            }
++            opal_progress_unregister(mca_coll_xccl_progress);
++        }
++    }
++    return OMPI_SUCCESS;
++}
++
++
++static int oob_allgather(void *sbuf, void *rbuf, size_t msglen,
++                          int my_rank, xccl_ep_range_t range,  void *oob_coll_ctx) {
++    ompi_communicator_t *comm = (ompi_communicator_t *)oob_coll_ctx;
++    if (!comm) comm = &ompi_mpi_comm_world.comm;
++    if (XCCL_EP_RANGE_UNDEFINED == range.type) {
++        comm->c_coll->coll_allgather(sbuf, msglen, MPI_BYTE,
++                                     rbuf, msglen, MPI_BYTE, comm,
++                                     comm->c_coll->coll_allgather_module);
++    } else {
++        int root = xccl_range_to_rank(range, 0);
++        if (my_rank == root) {
++            int i;
++            memcpy(rbuf, sbuf, msglen);
++            for (i=1; i<range.ep_num; i++) {
++                MCA_PML_CALL(recv((void*)((char*)rbuf + msglen*i), msglen,
++                                  MPI_BYTE, xccl_range_to_rank(range, i),
++                                  MCA_COLL_BASE_TAG_XCCL,
++                                  comm, MPI_STATUS_IGNORE));
++            }
++            for (i=1; i<range.ep_num; i++) {
++                MCA_PML_CALL(send(rbuf, msglen*range.ep_num, MPI_BYTE,
++                                  xccl_range_to_rank(range, i),
++                                  MCA_COLL_BASE_TAG_XCCL,
++                                  MCA_PML_BASE_SEND_STANDARD, comm));
++            }
++        } else {
++            MCA_PML_CALL(send(sbuf, msglen, MPI_BYTE, root,
++                              MCA_COLL_BASE_TAG_XCCL,
++                              MCA_PML_BASE_SEND_STANDARD, comm));
++            MCA_PML_CALL(recv(rbuf, msglen*range.ep_num, MPI_BYTE, root,
++                              MCA_COLL_BASE_TAG_XCCL,
++                              comm, MPI_STATUS_IGNORE));
++        }
++    }
++    return 0;
++}
++
++/*
++ * Initialize module on the communicator
++ */
++static int mca_coll_xccl_module_enable(mca_coll_base_module_t *module,
++                                      struct ompi_communicator_t *comm)
++{
++    int rc;
++    mca_coll_xccl_module_t *xccl_module;
++    ompi_attribute_fn_ptr_union_t del_fn;
++    ompi_attribute_fn_ptr_union_t copy_fn;
++    mca_coll_xccl_component_t *cm =
++        &mca_coll_xccl_component;
++    if (!cm->libxccl_initialized)
++    {
++        XCCL_VERBOSE(10,"Calling xccl_init();");
++        xccl_params_t params = {
++            .field_mask = XCCL_LIB_CONFIG_FIELD_TEAM_USAGE,
++            .team_usage = XCCL_USAGE_SW_COLLECTIVES |
++            XCCL_USAGE_HW_COLLECTIVES,
++        };
++
++        /* Init xccl context for a specified XCCL_TEST_TLS */
++        xccl_config_t config = {
++            .ctx_config = {
++                .field_mask = XCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE |
++                XCCL_CONTEXT_CONFIG_FIELD_OOB |
++                XCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE,
++                .thread_mode     = XCCL_LIB_THREAD_SINGLE,
++                .completion_type = XCCL_TEAM_COMPLETION_BLOCKING,
++                .oob = {
++                    .allgather    = oob_allgather,
++                    .coll_context = (void*)MPI_COMM_WORLD,
++                    .rank         = ompi_comm_rank(&ompi_mpi_comm_world.comm),
++                    .size         = ompi_comm_size(&ompi_mpi_comm_world.comm)
++                },
++            },
++            .tls = cm->tls,
++        };
++
++        rc = xccl_init(&params, &config, &cm->xccl_context);
++        if (XCCL_OK != rc){
++            cm->xccl_enable = 0;
++            /* opal_progress_unregister(xccl_progress_fn); */
++            XCCL_ERROR("XCCL library init failed");
++            return OMPI_ERROR;
++        }
++        copy_fn.attr_communicator_copy_fn = (MPI_Comm_internal_copy_attr_function*) MPI_COMM_NULL_COPY_FN;
++        del_fn.attr_communicator_delete_fn = xccl_comm_attr_del_fn;
++        rc = ompi_attr_create_keyval(COMM_ATTR, copy_fn, del_fn, &xccl_comm_attr_keyval, NULL ,0, NULL);
++        if (OMPI_SUCCESS != rc) {
++            cm->xccl_enable = 0;
++            /* opal_progress_unregister(xccl_progress_fn); */
++            /* xccl_finalize(); */
++            XCCL_ERROR("XCCL comm keyval create failed");
++            return OMPI_ERROR;
++        }
++        opal_progress_register(mca_coll_xccl_progress);
++        cm->libxccl_initialized = true;
++    }
++
++    XCCL_VERBOSE(10,"Creating xccl_context for comm %p, comm_id %d, comm_size %d",
++                 (void*)comm,comm->c_contextid,ompi_comm_size(comm));
++
++    xccl_team_config_t team_config = {
++        .range     = {
++            .type           = XCCL_EP_RANGE_STRIDED,
++            .strided.start  = 0,
++            .strided.stride = 1
++        }
++    };
++
++    xccl_oob_collectives_t oob = {
++        .allgather  = oob_allgather,
++        .coll_context = (void*)comm,
++        .rank = ompi_comm_rank(comm),
++        .size = ompi_comm_size(comm)
++    };
++
++    xccl_module = (mca_coll_xccl_module_t *)module;
++    if (XCCL_OK != xccl_team_create_post(cm->xccl_context,
++                                         &team_config, oob, &xccl_module->xccl_team)) {
++        XCCL_VERBOSE(1,"xccl_create_context returned NULL");
++        OBJ_RELEASE(xccl_module);
++        if (!cm->libxccl_initialized) {
++            cm->xccl_enable = 0;
++            /* xccl_finalize(); */
++            /* opal_progress_unregister(xccl_progress_fn); */
++        }
++        return OMPI_ERROR;
++    }
++
++    if (OMPI_SUCCESS != mca_coll_xccl_save_coll_handlers((mca_coll_xccl_module_t *)module)){
++        XCCL_ERROR("coll_xccl: mca_coll_xccl_save_coll_handlers failed");
++        return OMPI_ERROR;
++    }
++
++    rc = ompi_attr_set_c(COMM_ATTR, comm, &comm->c_keyhash, xccl_comm_attr_keyval, (void *)module, false);
++    if (OMPI_SUCCESS != rc) {
++        XCCL_VERBOSE(1,"xccl ompi_attr_set_c failed");
++        return OMPI_ERROR;
++    }
++
++    return OMPI_SUCCESS;
++}
++
++
++/*
++ * Invoked when there's a new communicator that has been created.
++ * Look at the communicator and decide which set of functions and
++ * priority we want to return.
++ */
++mca_coll_base_module_t *
++mca_coll_xccl_comm_query(struct ompi_communicator_t *comm, int *priority)
++{
++    int err;
++    int rc;
++    mca_coll_xccl_module_t *xccl_module;
++    mca_coll_xccl_component_t *cm =
++        &mca_coll_xccl_component;
++    *priority = 0;
++
++    if (!cm->xccl_enable){
++        return NULL;
++    }
++
++    if (OMPI_COMM_IS_INTER(comm) || ompi_comm_size(comm) < cm->xccl_np
++        || ompi_comm_size(comm) < 2){
++        return NULL;
++    }
++
++    xccl_module = OBJ_NEW(mca_coll_xccl_module_t);
++    if (!xccl_module){
++        if (!cm->libxccl_initialized) {
++            cm->xccl_enable = 0;
++            /* xccl_finalize(); */
++            /* opal_progress_unregister(xccl_progress_fn); */
++        }
++        return NULL;
++    }
++
++    xccl_module->comm = comm;
++    xccl_module->super.coll_module_enable = mca_coll_xccl_module_enable;
++    xccl_module->super.coll_allreduce     = mca_coll_xccl_allreduce;
++    xccl_module->super.coll_barrier       = mca_coll_xccl_barrier;
++    xccl_module->super.coll_bcast         = mca_coll_xccl_bcast;
++    *priority = cm->xccl_priority;
++    return &xccl_module->super;
++}
++
++
++OBJ_CLASS_INSTANCE(mca_coll_xccl_module_t,
++        mca_coll_base_module_t,
++        mca_coll_xccl_module_construct,
++        mca_coll_xccl_module_destruct);
+diff --git a/ompi/mca/coll/xccl/coll_xccl_ops.c b/ompi/mca/coll/xccl/coll_xccl_ops.c
+new file mode 100644
+index 0000000..cebd8cf
+--- /dev/null
++++ b/ompi/mca/coll/xccl/coll_xccl_ops.c
+@@ -0,0 +1,130 @@
++/**
++  Copyright (c) 2020      Mellanox Technologies. All rights reserved.
++  $COPYRIGHT$
++
++  Additional copyrights may follow
++
++  $HEADER$
++ */
++
++#include "ompi_config.h"
++#include "ompi/constants.h"
++#include "coll_xccl.h"
++#include "coll_xccl_dtypes.h"
++
++#define COLL_XCCL_CHECK(_call) do {              \
++        if (XCCL_OK != (_call)) {                \
++            goto fallback;                      \
++        }                                       \
++    } while(0)
++
++static inline int coll_xccl_req_wait(xccl_coll_req_h req) {
++    while (XCCL_INPROGRESS == xccl_collective_test(req)) {
++       opal_progress();
++    }
++    return xccl_collective_finalize(req);
++}
++
++int mca_coll_xccl_allreduce(const void *sbuf, void *rbuf, int count, struct ompi_datatype_t *dtype,
++                            struct ompi_op_t *op, struct ompi_communicator_t *comm,
++                            mca_coll_base_module_t *module)
++{
++    xccl_coll_req_h req;
++    xccl_dt_t xccl_dt;
++    xccl_op_t xccl_op;
++    size_t dt_size;
++    mca_coll_xccl_module_t *xccl_module = (mca_coll_xccl_module_t*)module;
++
++    XCCL_VERBOSE(20,"RUNNING XCCL ALLREDUCE");
++    xccl_dt = ompi_dtype_to_xccl_dtype(dtype);
++        xccl_op = ompi_op_to_xccl_op(op);
++    if (OPAL_UNLIKELY(XCCL_DT_UNSUPPORTED == xccl_dt || XCCL_OP_UNSUPPORTED == xccl_op)) {
++        XCCL_VERBOSE(20,"Ompi_datatype is not supported: dtype = %s; calling fallback allreduce;",
++                     dtype->super.name);
++        goto fallback;
++    }
++    opal_datatype_type_size(&dtype->super, &dt_size);
++    xccl_coll_op_args_t coll = {
++        .coll_type = XCCL_ALLREDUCE,
++        .buffer_info = {
++            .src_buffer = sbuf,
++            .dst_buffer = rbuf,
++            .len        = count*dt_size,
++        },
++        .reduce_info = {
++            .dt = xccl_dt,
++            .op = xccl_op,
++            .count = count,
++        },
++        .alg.set_by_user = 0,
++    };
++
++    COLL_XCCL_CHECK(xccl_collective_init(&coll, &req, xccl_module->xccl_team));
++    COLL_XCCL_CHECK(xccl_collective_post(req));
++    COLL_XCCL_CHECK(coll_xccl_req_wait(req));
++    return OMPI_SUCCESS;
++fallback:
++    XCCL_VERBOSE(20,"RUNNING FALLBACK ALLREDUCE");
++    return xccl_module->previous_allreduce(sbuf, rbuf, count, dtype, op,
++                                          comm, xccl_module->previous_allreduce_module);
++}
++
++int mca_coll_xccl_barrier(struct ompi_communicator_t *comm,
++                         mca_coll_base_module_t *module)
++{
++    xccl_coll_req_h req;
++    mca_coll_xccl_module_t *xccl_module = (mca_coll_xccl_module_t*)module;
++    XCCL_VERBOSE(20,"RUNNING XCCL BARRIER");
++    xccl_coll_op_args_t coll = {
++        .coll_type = XCCL_BARRIER,
++        .alg.set_by_user = 0,
++    };
++
++    COLL_XCCL_CHECK(xccl_collective_init(&coll, &req, xccl_module->xccl_team));
++    COLL_XCCL_CHECK(xccl_collective_post(req));
++    COLL_XCCL_CHECK(coll_xccl_req_wait(req));
++    return OMPI_SUCCESS;
++fallback:
++    XCCL_VERBOSE(20,"RUNNING FALLBACK BARRIER");
++    return xccl_module->previous_barrier(comm, xccl_module->previous_barrier_module);
++}
++
++int mca_coll_xccl_bcast(void *buf, int count, struct ompi_datatype_t *dtype,
++                       int root, struct ompi_communicator_t *comm,
++                       mca_coll_base_module_t *module)
++{
++    xccl_coll_req_h req;
++    xccl_dt_t xccl_dt;
++    mca_coll_xccl_module_t *xccl_module = (mca_coll_xccl_module_t*)module;
++
++    XCCL_VERBOSE(20,"RUNNING XCCL BCAST");
++    xccl_dt = ompi_dtype_to_xccl_dtype(dtype);
++    if (OPAL_UNLIKELY(XCCL_DT_UNSUPPORTED == xccl_dt)) {
++        XCCL_VERBOSE(20,"Ompi_datatype is not supported: dtype = %s; calling fallback bcast;",
++                     dtype->super.name);
++        goto fallback;
++    }
++
++    size_t dt_size;
++    opal_datatype_type_size(&dtype->super, &dt_size);
++
++    xccl_coll_op_args_t coll = {
++        .coll_type = XCCL_BCAST,
++        .root = root,
++        .buffer_info = {
++            .src_buffer = buf,
++            .dst_buffer = buf,
++            .len        = count*dt_size,
++        },
++        .alg.set_by_user = 0,
++    };
++
++    COLL_XCCL_CHECK(xccl_collective_init(&coll, &req, xccl_module->xccl_team));
++    COLL_XCCL_CHECK(xccl_collective_post(req));
++    COLL_XCCL_CHECK(coll_xccl_req_wait(req));
++    return OMPI_SUCCESS;
++fallback:
++    XCCL_VERBOSE(20,"RUNNING FALLBACK BCAST");
++    return xccl_module->previous_bcast(buf, count, dtype, root,
++                                       comm, xccl_module->previous_bcast_module);
++}
+diff --git a/ompi/mca/coll/xccl/configure.m4 b/ompi/mca/coll/xccl/configure.m4
+new file mode 100644
+index 0000000..cdf5a1e
+--- /dev/null
++++ b/ompi/mca/coll/xccl/configure.m4
+@@ -0,0 +1,37 @@
++# -*- shell-script -*-
++#
++#
++# Copyright (c) 2020      Mellanox Technologies. All rights reserved.
++# Copyright (c) 2015      Research Organization for Information Science
++#                         and Technology (RIST). All rights reserved.
++# $COPYRIGHT$
++#
++# Additional copyrights may follow
++#
++# $HEADER$
++#
++
++
++# MCA_coll_xccl_CONFIG([action-if-can-compile],
++#                      [action-if-cant-compile])
++# ------------------------------------------------
++AC_DEFUN([MCA_ompi_coll_xccl_CONFIG],[
++    AC_CONFIG_FILES([ompi/mca/coll/xccl/Makefile])
++
++    OMPI_CHECK_XCCL([coll_xccl],
++                     [coll_xccl_happy="yes"],
++                     [coll_xccl_happy="no"])
++
++    AS_IF([test "$coll_xccl_happy" = "yes"],
++          [coll_xccl_WRAPPER_EXTRA_LDFLAGS="$coll_xccl_LDFLAGS"
++           coll_xccl_CPPFLAGS="$coll_xccl_CPPFLAGS"
++           coll_xccl_WRAPPER_EXTRA_LIBS="$coll_xccl_LIBS"
++           $1],
++          [$2])
++
++    # substitute in the things needed to build xccl
++    AC_SUBST([coll_xccl_CFLAGS])
++    AC_SUBST([coll_xccl_CPPFLAGS])
++    AC_SUBST([coll_xccl_LDFLAGS])
++    AC_SUBST([coll_xccl_LIBS])
++])dnl
+-- 
+2.6.2
+
