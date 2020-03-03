@@ -12,12 +12,12 @@
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_team.h"
 
-static inline xccl_status_t
-coll_schedule_progress_sequential(coll_schedule_sequential_t *schedule)
+xccl_status_t coll_schedule_progress_sequential(coll_schedule_t *sched)
 {
     int i;
     int curr_idx;
     xccl_coll_args_t *curr_op;
+    coll_schedule_sequential_t *schedule = xccl_derived_of(sched, coll_schedule_sequential_t);
     int n_colls = schedule->super.n_colls;
     const int n_polls = 10;
     for (i=0; i<n_polls && n_colls != schedule->super.n_completed_colls; i++) {
@@ -33,17 +33,21 @@ coll_schedule_progress_sequential(coll_schedule_sequential_t *schedule)
             xccl_collective_finalize(schedule->req);
             schedule->req = NULL;
             i = 0;
+            if (schedule->super.n_completed_colls == n_colls) {
+                schedule->super.super.status = XCCL_OK;
+            }
         }
     }
+
     return XCCL_OK;
 }
 
-static inline xccl_status_t
-coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule)
+xccl_status_t coll_schedule_progress_single_dep(coll_schedule_t *sched)
 {
     int i, p;
     int curr_idx;
     xccl_coll_args_t *curr_op;
+    coll_schedule_single_dep_t *schedule = xccl_derived_of(sched, coll_schedule_single_dep_t);
     int n_colls = schedule->super.n_colls;
     const int n_polls = 10;
     if (schedule->dep_id >= 0) {
@@ -65,6 +69,10 @@ coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule)
                 /* fprintf(stderr, "completed first dep, starting all others: %d\n", */
                 /*         n_colls-1); */
                 schedule->super.n_completed_colls++;
+                if (schedule->super.n_completed_colls == n_colls) {
+                    schedule->super.super.status = XCCL_OK;
+                }
+
                 xccl_collective_finalize(schedule->reqs[curr_idx]);
                 schedule->reqs[curr_idx] = NULL;
                 for (i=0; i<n_colls; i++) {
@@ -99,23 +107,13 @@ coll_schedule_progress_single_dep(coll_schedule_single_dep_t *schedule)
                         xccl_collective_finalize(schedule->reqs[i]);
                         schedule->reqs[i] = NULL;
                         p = 0;
+                        if (schedule->super.n_completed_colls == n_colls) {
+                            schedule->super.super.status = XCCL_OK;
+                        }
                     }
                 }
             }
         }
     }
     return XCCL_OK;
-}
-
-xccl_status_t coll_schedule_progress(coll_schedule_t *schedule)
-{
-    switch(schedule->type) {
-    case XCCL_COLL_SCHED_SEQ:
-        return coll_schedule_progress_sequential((coll_schedule_sequential_t*)schedule);
-    case XCCL_COLL_SCHED_SINGLE_DEP:
-        return coll_schedule_progress_single_dep((coll_schedule_single_dep_t*)schedule);
-    default:
-        break;
-    }
-    return XCCL_ERR_NO_MESSAGE;
 }

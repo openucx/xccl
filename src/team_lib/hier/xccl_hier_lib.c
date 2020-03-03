@@ -111,8 +111,7 @@ static xccl_status_t xccl_hier_collective_test(xccl_coll_req_h request)
 {
     coll_schedule_t *schedule = xccl_derived_of(request, coll_schedule_t);
     coll_schedule_progress(schedule);
-    return schedule->n_completed_colls == schedule->n_colls ?
-        XCCL_OK : XCCL_INPROGRESS;
+    return schedule->status;
 }
 
 static xccl_status_t xccl_hier_collective_wait(xccl_coll_req_h request)

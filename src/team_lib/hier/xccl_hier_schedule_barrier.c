@@ -27,8 +27,10 @@ xccl_status_t build_barrier_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_
         (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
 
     coll_schedule_sequential_t *schedule = (coll_schedule_sequential_t *)malloc(sizeof(*schedule));
-    schedule->super.hier_team = team;
-    schedule->super.type = XCCL_COLL_SCHED_SEQ;
+    schedule->super.super.hier_team = team;
+    schedule->super.super.type = XCCL_COLL_SCHED_SEQ;
+    schedule->super.super.progress = coll_schedule_progress_sequential;
+    schedule->super.super.status = XCCL_INPROGRESS;
     int c = 0;
 
     xccl_coll_op_args_t coll = {
@@ -85,6 +87,6 @@ xccl_status_t build_barrier_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_
     schedule->super.n_completed_colls = 0;
     schedule->req = NULL;
 
-    (*sched) = &schedule->super;
+    (*sched) = &schedule->super.super;
     return XCCL_OK;
 }

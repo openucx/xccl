@@ -45,8 +45,10 @@ xccl_status_t build_bcast_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_t 
         is_rank_on_local_socket(root, team);
     xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx, xccl_hier_context_t);
     coll_schedule_single_dep_t *schedule = (coll_schedule_single_dep_t *)malloc(sizeof(*schedule));
-    schedule->super.hier_team = team;
-    schedule->super.type = XCCL_COLL_SCHED_SINGLE_DEP;
+    schedule->super.super.hier_team = team;
+    schedule->super.super.type = XCCL_COLL_SCHED_SINGLE_DEP;
+    schedule->super.super.progress = coll_schedule_progress_single_dep;
+    schedule->super.super.status = XCCL_INPROGRESS;
     int c = 0;
 
     int sock_leaders_pair = XCCL_HIER_PAIR_SOCKET_LEADERS_UCX;
@@ -103,6 +105,6 @@ xccl_status_t build_bcast_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_t 
     schedule->super.n_colls = c;
     schedule->super.n_completed_colls = 0;
     memset(schedule->reqs, 0, sizeof(schedule->reqs));
-    (*sched) = &schedule->super;
+    (*sched) = &schedule->super.super;
     return XCCL_OK;
 }
