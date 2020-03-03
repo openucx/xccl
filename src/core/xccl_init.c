@@ -8,6 +8,7 @@
 #include "config.h"
 #define _GNU_SOURCE
 #include "xccl_team_lib.h"
+#include <ucs/debug/log.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -63,7 +64,7 @@ static xccl_status_t xccl_team_lib_init(const char *so_path,
     team_lib_struct[strlen(so_path) - pos - 3] = '\0';
     handle = dlopen(so_path, RTLD_LAZY);
     if (!handle) {
-        fprintf(stderr, "Failed to load XCCL Team library: %s\n. "
+        xccl_error("Failed to load XCCL Team library: %s\n. "
                 "Check XCCL_TEAM_LIB_PATH or LD_LIBRARY_PATH\n", so_path);
         *team_lib = NULL;
         return XCCL_ERR_NO_MESSAGE;
@@ -137,6 +138,19 @@ static void xccl_print_libs(xccl_lib_t *lib) {
     printf("%s\n", str);
 }
 
+extern const char *ucs_log_level_names[];
+static int __find_string_in_list(const char *str, const char **list)
+{
+    int i;
+
+    for (i = 0; *list; ++list, ++i) {
+        if (strcasecmp(*list, str) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 __attribute__((constructor))
 static void xccl_constructor(void)
 {
@@ -147,20 +161,35 @@ static void xccl_constructor(void)
     lib->n_libs_opened = 0;
     lib->libs_array_size = 0;
     lib->lib_path = NULL;
+    var = getenv("XCCL_LOG_LEVEL");
+    if (var) {
+        int level;
+        level = __find_string_in_list(var, ucs_log_level_names);
+        if (level < 0) {
+            lib->log_config.log_level = UCS_LOG_LEVEL_TRACE;
+        } else {
+            lib->log_config.log_level = level;
+        }
+    } else {
+        lib->log_config.log_level = UCS_LOG_LEVEL_WARN;
+    }
+
     var = getenv("XCCL_TEAM_LIB_PATH");
     if (var) {
         lib->lib_path = strdup(var);
     } else {
         get_default_lib_path(lib);
     }
+    xccl_info("XCCL team lib path: %s", lib->lib_path);
     if (!lib->lib_path) {
-        fprintf(stderr, "Failed to get xccl library path. set XCCL_TEAM_LIB_PATH.\n");
+        xccl_error("Failed to get xccl library path. set XCCL_TEAM_LIB_PATH.\n");
         return;
     }
     /* printf("LIB PATH:%s\n", lib->lib_path); */
     load_team_lib_plugins(lib);
     if (lib->n_libs_opened == 0) {
-        fprintf(stderr, "XCCL init: couldn't find any xccl_team_lib_<name>.so plugins.\n");
+        xccl_error("XCCL init: couldn't find any xccl_team_lib_<name>.so plugins"
+                " in %s\n", lib->lib_path);
         return;
     }
     /* xccl_print_libs(&xccl_static_lib); */
@@ -181,7 +210,7 @@ xccl_status_t xccl_lib_init(const xccl_params_t *params,
     lib->lib_path = NULL;
     xccl_lib_filter(params, lib);
     if (lib->n_libs_opened == 0) {
-        fprintf(stderr, "XCCL lib init: no plugins left after filtering by params\n");
+        xccl_error("XCCL lib init: no plugins left after filtering by params\n");
         return XCCL_ERR_NO_MESSAGE;
     }
     /* xccl_print_libs(lib); */
