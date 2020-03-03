@@ -31,6 +31,7 @@ xccl_status_t build_barrier_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_
     schedule->super.super.type = XCCL_COLL_SCHED_SEQ;
     schedule->super.super.progress = coll_schedule_progress_sequential;
     schedule->super.super.status = XCCL_INPROGRESS;
+    schedule->super.fs = NULL;
     int c = 0;
 
     xccl_coll_op_args_t coll = {

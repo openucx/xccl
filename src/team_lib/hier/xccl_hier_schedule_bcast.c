@@ -36,7 +36,6 @@ xccl_status_t build_bcast_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_t 
     int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
     sbgp_type_t top_sbgp = node_leaders_group_exists ? SBGP_NODE_LEADERS :
         (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
-
     int root = coll.root;
     int rank = team->super.oob.rank;
     int wroot = xccl_hier_team_rank2ctx(team, root);
@@ -45,16 +44,17 @@ xccl_status_t build_bcast_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_t 
         is_rank_on_local_socket(root, team);
     xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx, xccl_hier_context_t);
     coll_schedule_single_dep_t *schedule = (coll_schedule_single_dep_t *)malloc(sizeof(*schedule));
+    size_t pipeline_thresh = ctx->bcast_pipeline_thresh;
     schedule->super.super.hier_team = team;
     schedule->super.super.type = XCCL_COLL_SCHED_SINGLE_DEP;
     schedule->super.super.progress = coll_schedule_progress_single_dep;
     schedule->super.super.status = XCCL_INPROGRESS;
+    schedule->super.fs = NULL;
     int c = 0;
-
     int sock_leaders_pair = XCCL_HIER_PAIR_SOCKET_LEADERS_UCX;
     int sock_pair = XCCL_HIER_PAIR_SOCKET_UCX;
 
-    if (coll.buffer_info.len <= 2048 && ctx->tls[XCCL_TL_SHMSEG].enabled) {
+    if (ctx->tls[XCCL_TL_SHMSEG].enabled) {
         sock_leaders_pair = XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG;
         sock_pair = XCCL_HIER_PAIR_SOCKET_SHMSEG;
     }
@@ -102,9 +102,15 @@ xccl_status_t build_bcast_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_t 
     }
 
     assert(schedule->dep_id >= 0);
+    schedule->dep_satisfied = 0;
     schedule->super.n_colls = c;
     schedule->super.n_completed_colls = 0;
     memset(schedule->reqs, 0, sizeof(schedule->reqs));
     (*sched) = &schedule->super.super;
+
+    if (coll.buffer_info.len > pipeline_thresh) {
+        make_fragmented_schedule(&schedule->super.super, sched, coll.buffer_info,
+                                 pipeline_thresh, 1, ctx->bcast_pipeline_depth);
+    }
     return XCCL_OK;
 }

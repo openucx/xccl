@@ -32,6 +32,7 @@ xccl_status_t build_allreduce_schedule_3lvl(xccl_hier_team_t *team, coll_schedul
     schedule->super.super.type = XCCL_COLL_SCHED_SEQ;
     schedule->super.super.progress = coll_schedule_progress_sequential;
     schedule->super.super.status = XCCL_INPROGRESS;
+    schedule->super.fs = NULL;
     int c = 0;
     coll.root = 0;
     coll.alg.set_by_user = 0;
