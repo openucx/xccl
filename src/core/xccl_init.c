@@ -26,6 +26,27 @@
 xccl_lib_t xccl_static_lib;
 xccl_local_proc_info_t xccl_local_proc_info;
 
+xccl_lib_config_t xccl_lib_global_config = {
+    .log_component = {UCS_LOG_LEVEL_WARN, "XCCL"},
+    .team_lib_path = ""
+};
+
+ucs_config_field_t xccl_lib_global_config_table[] = {
+  {"LOG_LEVEL", "warn",
+  "XCCL logging level. Messages with a level higher or equal to the selected "
+  "will be printed.\n"
+  "Possible values are: fatal, error, warn, info, debug, trace, data, func, poll.",
+  ucs_offsetof(xccl_lib_config_t, log_component),
+  UCS_CONFIG_TYPE_COMP},
+
+  {"TEAM_LIB_PATH", "",
+  "Specifies team libraries location",
+  ucs_offsetof(xccl_lib_config_t, team_lib_path),
+  UCS_CONFIG_TYPE_STRING},
+
+  NULL
+};
+
 xccl_local_proc_info_t* xccl_local_process_info()
 {
     return &xccl_local_proc_info;
@@ -35,20 +56,20 @@ static int
 callback(struct dl_phdr_info *info, size_t size, void *data)
 {
     char *str;
-    xccl_lib_t *lib = (xccl_lib_t*)data;
     if (NULL != (str = strstr(info->dlpi_name, "libxccl.so"))) {
         int pos = (int)(str - info->dlpi_name);
-        lib->lib_path = (char*)malloc(pos+8);
-        strncpy(lib->lib_path, info->dlpi_name, pos);
-        lib->lib_path[pos] = '\0';
-        strcat(lib->lib_path, "xccl");
+        free(xccl_lib_global_config.team_lib_path);
+        xccl_lib_global_config.team_lib_path = (char*)malloc(pos+8);
+        strncpy(xccl_lib_global_config.team_lib_path, info->dlpi_name, pos);
+        xccl_lib_global_config.team_lib_path[pos] = '\0';
+        strcat(xccl_lib_global_config.team_lib_path, "xccl");
     }
     return 0;
 }
 
-static void get_default_lib_path(xccl_lib_t *lib)
+static void get_default_lib_path()
 {
-    dl_iterate_phdr(callback, (void*)lib);
+    dl_iterate_phdr(callback, NULL);
 }
 
 static xccl_status_t xccl_team_lib_init(const char *so_path,
@@ -82,9 +103,10 @@ static void load_team_lib_plugins(xccl_lib_t *lib)
     const char *tl_pattern = "/xccl_team_lib_*.so";
     glob_t globbuf;
     int i;
-    char *pattern = (char*)malloc(strlen(lib->lib_path) + strlen(tl_pattern) + 1);
+    char *pattern = (char*)malloc(strlen(xccl_lib_global_config.team_lib_path) +
+                                  strlen(tl_pattern) + 1);
 
-    strcpy(pattern, lib->lib_path);
+    strcpy(pattern, xccl_lib_global_config.team_lib_path);
     strcat(pattern, tl_pattern);
     glob(pattern, 0, NULL, &globbuf);
     free(pattern);
@@ -140,58 +162,35 @@ static void xccl_print_libs(xccl_lib_t *lib) {
     printf("%s\n", str);
 }
 
-extern const char *ucs_log_level_names[];
-static int __find_string_in_list(const char *str, const char **list)
-{
-    int i;
-
-    for (i = 0; *list; ++list, ++i) {
-        if (strcasecmp(*list, str) == 0) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 __attribute__((constructor))
 static void xccl_constructor(void)
 {
     char *var;
     char hostname[256];
+    ucs_status_t status;
+
     xccl_lib_t *lib = &xccl_static_lib;
     lib->libs = NULL;
     lib->n_libs_opened = 0;
     lib->libs_array_size = 0;
-    lib->lib_path = NULL;
-    var = getenv("XCCL_LOG_LEVEL");
-    if (var) {
-        int level;
-        level = __find_string_in_list(var, ucs_log_level_names);
-        if (level < 0) {
-            lib->log_config.log_level = UCS_LOG_LEVEL_TRACE;
-        } else {
-            lib->log_config.log_level = level;
-        }
-    } else {
-        lib->log_config.log_level = UCS_LOG_LEVEL_WARN;
-    }
 
-    var = getenv("XCCL_TEAM_LIB_PATH");
-    if (var) {
-        lib->lib_path = strdup(var);
-    } else {
-        get_default_lib_path(lib);
+    status = ucs_config_parser_fill_opts(&xccl_lib_global_config, xccl_lib_global_config_table,
+                                         "XCCL_", NULL, 1);
+    
+    if (strlen(xccl_lib_global_config.team_lib_path) == 0) {
+        get_default_lib_path();
     }
-    xccl_info("XCCL team lib path: %s", lib->lib_path);
-    if (!lib->lib_path) {
+    xccl_info("XCCL team lib path: %s", xccl_lib_global_config.team_lib_path);
+
+    if (!xccl_lib_global_config.team_lib_path) {
         xccl_error("Failed to get xccl library path. set XCCL_TEAM_LIB_PATH.\n");
         return;
     }
-    /* printf("LIB PATH:%s\n", lib->lib_path); */
+
     load_team_lib_plugins(lib);
     if (lib->n_libs_opened == 0) {
         xccl_error("XCCL init: couldn't find any xccl_team_lib_<name>.so plugins"
-                " in %s\n", lib->lib_path);
+                " in %s\n", xccl_lib_global_config.team_lib_path);
         return;
     }
     /* xccl_print_libs(&xccl_static_lib); */
@@ -209,7 +208,6 @@ xccl_status_t xccl_lib_init(const xccl_params_t *params,
     }
 
     lib = malloc(sizeof(*lib));
-    lib->lib_path = NULL;
     xccl_lib_filter(params, lib);
     if (lib->n_libs_opened == 0) {
         xccl_error("XCCL lib init: no plugins left after filtering by params\n");
