@@ -9,6 +9,8 @@
 #include <api/xccl_def.h>
 #include <api/xccl_version.h>
 #include <api/xccl_status.h>
+#include <ucs/config/types.h>
+#include <stdio.h>
 
 /**
  * @defgroup XCCL_API Unified Communication Collectives (XCCL) API
@@ -334,8 +336,67 @@ typedef struct xccl_params {
 
 typedef struct xccl_config {
     xccl_context_config_t ctx_config;
+    ucs_config_names_array_t teams;
     const char *tls;
 } xccl_config_t;
+
+/**
+ * @ingroup XCCL_CONFIG
+ * @brief Read XCCL configuration descriptor
+ *
+ * The routine fetches the information about XCCL configuration from
+ * the run-time environment. Then, the fetched descriptor is used for
+ * XCCL @ref xccl_init "initialization". In addition
+ * the application is responsible for @ref xccl_config_release "releasing" the
+ * descriptor back to the XCCL.
+ *
+ * @param [in]  env_prefix    If non-NULL, the routine searches for the
+ *                            environment variables that start with
+ *                            @e XCCL_<env_prefix>_ prefix.
+ *                            Otherwise, the routine searches for the
+ *                            environment variables that start with
+ *                            @e XCCL_ prefix.
+ * @param [in]  filename      If non-NULL, read configuration from the file
+ *                            defined by @e filename. If the file does not
+ *                            exist, it will be ignored and no error reported
+ *                            to the application.
+ * @param [out] config_p      Pointer to configuration descriptor as defined by
+ *                            @ref xccl_config_t "xccl_config_t".
+ *
+ * @return Error code as defined by @ref xccl_status_t
+ */
+
+xccl_status_t xccl_config_read(const char *env_prefix, const char *filename,
+                               xccl_config_t **config_p);
+
+/**
+ * @ingroup XCCL_CONFIG
+ * @brief Release configuration descriptor
+ *
+ * The routine releases the configuration descriptor that was allocated through
+ * @ref xccl_config_read "xccl_config_read()" routine.
+ *
+ * @param [in] config        Configuration descriptor as defined by
+ *                            @ref xccl_config_t "xccl_config_t".
+ */
+
+void xccl_config_release(xccl_config_t *config);
+
+/**
+ * @ingroup XCCL_CONFIG
+ * @brief Print configuration information
+ *
+ * The routine prints the configuration information that is stored in
+ * @ref xccl_config_t "configuration" descriptor.
+ *
+ * @param [in]  config        @ref xccl_config_t "Configuration descriptor"
+ *                            to print.
+ * @param [in]  stream        Output stream to print the configuration to.
+ * @param [in]  title         Configuration title to print.
+ * @param [in]  print_flags   Flags that control various printing options.
+ */
+void xccl_config_print(const xccl_config_t *config, FILE *stream,
+                       const char *title, ucs_config_print_flags_t print_flags);
 
 /**
  * @ingroup UCP_TEAM_LIB

@@ -9,6 +9,8 @@
 #define _GNU_SOURCE
 #include "xccl_team_lib.h"
 #include <ucs/debug/log.h>
+#include <ucs/config/parser.h>
+#include <ucs/sys/compiler.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -229,5 +231,63 @@ xccl_status_t xccl_init(const xccl_params_t *params,
     if (XCCL_OK != (status = xccl_lib_init(params, &lib))) {
         return status;
     }
+    ucs_config_parser_warn_unused_env_vars_once("XCCL_");
     return xccl_create_context(lib, config, context_p);
+}
+
+static ucs_config_field_t xccl_config_table[] = {
+  {"TEAMS", "all",
+   "Comma-separated list of teams to use. The order is not meaningful.\n"
+   " - all    : use all the avalable teams.\n"
+   " - ucx    : team ucx"
+   " - sharp  : team sharp"
+   " - vmc    : team vmc"
+   " - shmseg : team shmseg",
+   ucs_offsetof(xccl_config_t, teams), UCS_CONFIG_TYPE_STRING_ARRAY},
+
+   {NULL}
+};
+UCS_CONFIG_REGISTER_TABLE(xccl_config_table, "XCCL", NULL, xccl_config_t)
+
+xccl_status_t xccl_config_read(const char *env_prefix, const char *filename,
+                               xccl_config_t **config_p){
+    xccl_config_t *config;
+    xccl_status_t status;
+    char full_prefix[128] = "XCCL_";
+
+    config = malloc(sizeof(*config));
+    if (config == NULL) {
+        status = XCCL_ERR_NO_MEMORY;
+        goto err;
+    }
+
+    if ((env_prefix != NULL) && (strlen(env_prefix) > 0)) {
+        snprintf(full_prefix, sizeof(full_prefix), "%s%s", "XCCL_", env_prefix);
+    }
+
+    status = ucs_config_parser_fill_opts(config, xccl_config_table, full_prefix,
+                                         NULL, 0);
+    if (status != UCS_OK) {
+        goto err_free;
+    }
+
+    *config_p = config;
+    return XCCL_OK;
+
+err_free:
+    free(config);
+err:
+    return status;
+}
+
+void xccl_config_release(xccl_config_t *config)
+{
+    free(config);
+}
+
+void xccl_config_print(const xccl_config_t *config, FILE *stream,
+                       const char *title, ucs_config_print_flags_t print_flags)
+{
+    ucs_config_parser_print_opts(stream, title, config, xccl_config_table, NULL,
+                                 "XCCL_", print_flags);
 }
