@@ -46,6 +46,8 @@ ucs_config_field_t xccl_lib_global_config_table[] = {
 
   NULL
 };
+UCS_CONFIG_REGISTER_TABLE(xccl_lib_global_config_table, "XCCL global", NULL,
+                          xccl_lib_global_config)
 
 xccl_local_proc_info_t* xccl_local_process_info()
 {
