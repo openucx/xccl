@@ -242,7 +242,8 @@ static ucs_config_field_t xccl_config_table[] = {
    " - ucx    : team ucx"
    " - sharp  : team sharp"
    " - vmc    : team vmc"
-   " - shmseg : team shmseg",
+   " - shmseg : team shmseg"
+   " - hier   : hierarchical",
    ucs_offsetof(xccl_config_t, teams), UCS_CONFIG_TYPE_STRING_ARRAY},
 
    {NULL}
