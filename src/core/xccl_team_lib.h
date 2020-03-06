@@ -34,11 +34,17 @@ typedef struct xccl_team_lib {
     xccl_status_t                       (*collective_finalize)(xccl_coll_req_h request);
 } xccl_team_lib_t;
 
+typedef struct xccl_lib_config {
+    /* Log level above which log messages will be printed*/
+    ucs_log_component_config_t log_component;
+
+    /* Team libraries path */
+    char                       *team_lib_path;
+} xccl_lib_config_t;
+
 typedef struct xccl_lib {
     int                        n_libs_opened;
     int                        libs_array_size;
-    ucs_log_component_config_t log_config;
-    char                       *lib_path;
     xccl_team_lib_t            **libs;
 } xccl_lib_t;
 
@@ -128,7 +134,7 @@ xccl_local_proc_info_t* xccl_local_process_info();
 
 #define xccl_log_component(_level, _fmt, ...) \
     do { \
-        ucs_log_component(_level, &xccl_static_lib.log_config, _fmt, ## __VA_ARGS__); \
+        ucs_log_component(_level, &xccl_lib_global_config.log_component, _fmt, ## __VA_ARGS__); \
     } while (0)
 
 #define xccl_error(_fmt, ...)        xccl_log_component(UCS_LOG_LEVEL_ERROR, _fmt, ## __VA_ARGS__)
