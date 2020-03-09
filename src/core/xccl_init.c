@@ -96,6 +96,13 @@ static xccl_status_t xccl_team_lib_init(const char *so_path,
     }
     lib = (xccl_team_lib_t*)dlsym(handle, team_lib_struct);
     lib->dl_handle = handle;
+    if (lib->team_lib_open != NULL) {
+        xccl_team_lib_config_t *tl_config = malloc(lib->team_lib_config.size);
+        ucs_config_parser_fill_opts(tl_config, lib->team_lib_config.table, "XCCL_", lib->team_lib_config.prefix, 0);
+        lib->team_lib_open(lib, tl_config);
+        ucs_config_parser_release_opts(tl_config, lib->team_lib_config.table);
+        free(tl_config);
+    }
     (*team_lib) = lib;
     return XCCL_OK;
 }

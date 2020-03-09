@@ -10,6 +10,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+ucs_config_field_t xccl_team_lib_config_table[] = {
+  {"LOG_LEVEL", "warn",
+  "XCCL logging level. Messages with a level higher or equal to the selected "
+  "will be printed.\n"
+  "Possible values are: fatal, error, warn, info, debug, trace, data, func, poll.",
+  ucs_offsetof(xccl_lib_config_t, log_component),
+  UCS_CONFIG_TYPE_COMP},
+
+  {NULL}
+};
+
 static int compare_teams_by_priority(const void* t1, const void* t2)
 {
     const xccl_tl_team_t** team1 = (const xccl_tl_team_t**)t1;
