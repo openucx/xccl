@@ -224,6 +224,20 @@ static xccl_status_t coll_schedule_progress_bcast_sm_get(coll_schedule_t *sched)
     return XCCL_OK;
 }
 
+/* Broadcast schedule that utilizes the FANOUT_GET capability of a socket/socket_leaders teams.
+
+   Algorithm:
+   - If some rank serves as a root at eithe SOCKET or SOCKET_LEADERS levels it will broadcast its data
+   using FANOUT_GET. In order to achieve that the root memory is "mapped" using xccl_global_mem_map
+   (with root field specified). When the corresponding operation is completed all the ranks in the
+   group may GET the data from the root rank each time it signals fanout.
+   - The progress fn will wait for the completion of schedule->step=0. This will indicate the memory handles
+   have been broadcasted. At this point we build the schedule for bcast.
+   - Step=1: initialize the broadcast schedule. FANOUT_GET is worth using together with fragmentation. The
+   memory is mapped once in the beginning of the whole collective. The fragmented message is being progressed
+   untill all the data is broadcasted. Upon completion SOCKET and SOCKET_LEADERS teams perform FANIN to the
+   team root - this will guarantee safe src buffer re-use at root.
+   - Step=2. Wait for FANIN completion. Unmap memory. Done. */
 xccl_status_t build_bcast_schedule_sm_get(xccl_hier_team_t *team, coll_schedule_t **sched,
                                           xccl_coll_op_args_t coll)
 {
