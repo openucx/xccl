@@ -199,6 +199,12 @@ static xccl_status_t xccl_ucx_lib_open(xccl_team_lib_h self,
     tl->log_component.log_level = cfg->super.log_component.log_level;
     sprintf(tl->log_component.name, "%s", "TEAM_UCX");
     xccl_ucx_debug("Team UCX opened");
+    if (cfg->super.priority == -1) {
+        tl->super.priority = 10;
+    } else {
+        tl->super.priority = cfg->super.priority;
+    }
+
     return XCCL_OK;
 }
 

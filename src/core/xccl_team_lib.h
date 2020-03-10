@@ -14,8 +14,11 @@
 typedef struct xccl_tl_context xccl_tl_context_t;
 typedef struct xccl_tl_team    xccl_tl_team_t;
 typedef struct xccl_team_lib_config {
-    /* Log level above which log messages will be printed*/
+    /* Log level above which log messages will be printed */
     ucs_log_component_config_t log_component;
+    
+    /* Team library priority */
+    int                        priority;
 } xccl_team_lib_config_t;
 extern ucs_config_field_t xccl_team_lib_config_table[];
 
