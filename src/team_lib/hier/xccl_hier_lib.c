@@ -131,6 +131,7 @@ static xccl_status_t xccl_hier_collective_finalize(xccl_coll_req_h request)
 
 xccl_team_lib_hier_t xccl_team_lib_hier = {
     .super.name                 = "hier",
+    .super.id                   = XCCL_TL_HIER,
     .super.priority             = 150,
     .super.params.reproducible  = XCCL_LIB_NON_REPRODUCIBLE,
     .super.params.thread_mode   = XCCL_LIB_THREAD_SINGLE | XCCL_LIB_THREAD_MULTIPLE,
@@ -147,5 +148,8 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
     .super.collective_post      = xccl_hier_collective_post,
     .super.collective_wait      = xccl_hier_collective_wait,
     .super.collective_test      = xccl_hier_collective_test,
-    .super.collective_finalize  = xccl_hier_collective_finalize
+    .super.collective_finalize  = xccl_hier_collective_finalize,
+    .super.global_mem_map_start = NULL,
+    .super.global_mem_map_test  = NULL,
+    .super.global_mem_unmap     = NULL,
 };

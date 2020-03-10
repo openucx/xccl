@@ -200,6 +200,7 @@ static xccl_status_t xccl_sharp_team_destroy(xccl_tl_team_t *team)
 
 xccl_team_lib_sharp_t xccl_team_lib_sharp = {
     .super.name                 = "sharp",
+    .super.id                   = XCCL_TL_SHARP,
     .super.priority             = 90,
     .super.params.reproducible  = XCCL_LIB_NON_REPRODUCIBLE,
     .super.params.thread_mode   = XCCL_LIB_THREAD_SINGLE | XCCL_LIB_THREAD_MULTIPLE,
@@ -215,5 +216,8 @@ xccl_team_lib_sharp_t xccl_team_lib_sharp = {
     .super.collective_post      = xccl_sharp_collective_post,
     .super.collective_wait      = xccl_sharp_collective_wait,
     .super.collective_test      = xccl_sharp_collective_test,
-    .super.collective_finalize  = xccl_sharp_collective_finalize
+    .super.collective_finalize  = xccl_sharp_collective_finalize,
+    .super.global_mem_map_start = NULL,
+    .super.global_mem_map_test  = NULL,
+    .super.global_mem_unmap     = NULL,
 };

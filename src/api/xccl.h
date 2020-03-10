@@ -154,7 +154,7 @@ typedef struct xccl_context_config {
 typedef enum {
     XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL  = 0,
     XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_GLOBAL = 1
-} xccl_team_lib_context_create_mode_t;
+} xccl_context_create_mode_t;
 
 /**
  * @ingroup XCCL_TEAM_LIB
@@ -188,7 +188,7 @@ typedef struct xccl_team_lib_attr {
      * is global operation and requires oob context. Otherwise team context is
      * local operation and oob context may be omitted.
      */
-    xccl_team_lib_context_create_mode_t context_create_mode;
+    xccl_context_create_mode_t context_create_mode;
 } xccl_team_lib_attr_t;
 
 /**
@@ -224,6 +224,7 @@ typedef enum {
     XCCL_REDUCE,
     XCCL_FANIN,
     XCCL_FANOUT,
+    XCCL_FANOUT_GET,
     XCCL_COLL_LAST
 } xccl_collective_type_t;
 
@@ -234,6 +235,7 @@ typedef enum {
     XCCL_COLL_CAP_REDUCE      = XCCL_BIT(XCCL_REDUCE),
     XCCL_COLL_CAP_FANIN       = XCCL_BIT(XCCL_FANIN),
     XCCL_COLL_CAP_FANOUT      = XCCL_BIT(XCCL_FANOUT),
+    XCCL_COLL_CAP_FANOUT_GET  = XCCL_BIT(XCCL_FANOUT_GET),
     XCCL_COLL_CAP_ALL         = XCCL_MASK(XCCL_COLL_LAST)
 } xccl_collective_cap_t;
 
@@ -284,18 +286,28 @@ typedef struct xccl_reduce_info {
 typedef struct xccl_coll_buffer_info {
     void   *src_buffer;
     void   *dst_buffer;
-    size_t len;
-    int    flags;
+    size_t  len;
 } xccl_coll_buffer_info_t;
 
+typedef struct xccl_coll_get_info {
+    xccl_mem_h memh;
+    ptrdiff_t  offset;
+    void      *local_buffer;
+    size_t len;
+} xccl_coll_get_info_t;
+
 typedef struct xccl_coll_algorithm {
-    uint16_t set_by_user : 1;
-    uint16_t id : 15;
+    uint8_t set_by_user : 1;
+    uint8_t id : 7;
 } xccl_coll_algorithm_t;
+
 
 typedef struct xccl_coll_op_args {
     xccl_collective_type_t  coll_type;
-    xccl_coll_buffer_info_t buffer_info;
+    union {
+        xccl_coll_buffer_info_t buffer_info;
+        xccl_coll_get_info_t    get_info;
+    };
     xccl_reduce_info_t      reduce_info;
     int                     root;
     xccl_coll_algorithm_t   alg;
@@ -439,4 +451,33 @@ static inline size_t xccl_dt_size(xccl_dt_t dt) {
     }
     return 0;
 }
+
+typedef enum xccl_mem_map_params_field_mask {
+    XCCL_MEM_MAP_PARAM_FIELD_ADDRESS      = XCCL_BIT(0),
+    XCCL_MEM_MAP_PARAM_FIELD_LENGTH       = XCCL_BIT(1),
+    XCCL_MEM_MAP_PARAM_FIELD_ROOT        = XCCL_BIT(2)
+} xccl_mem_map_params_field_mask_t;
+
+typedef struct xccl_mem_map_params {
+    uint64_t field_mask;
+    /**
+     * If the address is not NULL, the routine maps (registers) the memory segment
+     * pointed to by this address.
+     * If the pointer is NULL, the library allocates mapped (registered) memory
+     * segment.
+     * Therefore, this value is optional.
+     * If it's not set (along with its corresponding bit in the field_mask -
+     * @ref XCCL_MEM_MAP_PARAM_FIELD_ADDRESS), the @ref xccl_global_mem_map_start routine will consider
+     * address as set to NULL and will allocate memory.
+     */
+    void *address;
+    size_t length;
+    int root;
+} xccl_mem_map_params_t;
+
+xccl_status_t xccl_global_mem_map_start(xccl_team_h team, xccl_mem_map_params_t params,
+                                        xccl_mem_h *memh_p);
+xccl_status_t xccl_global_mem_map_test(xccl_mem_h memh_p);
+xccl_status_t xccl_global_mem_unmap(xccl_mem_h memh_p);
+
 #endif

@@ -173,6 +173,7 @@ xccl_status_t xccl_vmc_context_progress(xccl_tl_context_t *context)
 
 xccl_team_lib_vmc_t xccl_team_lib_vmc = {
     .super.name                 = "vmc",
+    .super.id                   = XCCL_TL_VMC,
     .super.priority             = 100,
     .super.params.reproducible  = XCCL_LIB_NON_REPRODUCIBLE,
     .super.params.thread_mode   = XCCL_LIB_THREAD_SINGLE | XCCL_LIB_THREAD_MULTIPLE,
@@ -188,5 +189,8 @@ xccl_team_lib_vmc_t xccl_team_lib_vmc = {
     .super.collective_post      = xccl_vmc_collective_post,
     .super.collective_wait      = xccl_vmc_collective_wait,
     .super.collective_test      = xccl_vmc_collective_test,
-    .super.collective_finalize  = xccl_vmc_collective_finalize
+    .super.collective_finalize  = xccl_vmc_collective_finalize,
+    .super.global_mem_map_start = NULL,
+    .super.global_mem_map_test  = NULL,
+    .super.global_mem_unmap     = NULL,
 };

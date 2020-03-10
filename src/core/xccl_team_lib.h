@@ -7,6 +7,7 @@
 #define XCCL_TEAM_LIB_H_
 
 #include "api/xccl.h"
+#include "api/xccl_tls.h"
 #include <assert.h>
 #include <string.h>
 #include <ucs/config/types.h>
@@ -15,6 +16,7 @@
 
 typedef struct xccl_tl_context xccl_tl_context_t;
 typedef struct xccl_tl_team    xccl_tl_team_t;
+
 typedef struct xccl_team_lib_config {
     /* Log level above which log messages will be printed */
     ucs_log_component_config_t log_component;
@@ -24,30 +26,36 @@ typedef struct xccl_team_lib_config {
 } xccl_team_lib_config_t;
 extern ucs_config_field_t xccl_team_lib_config_table[];
 
+typedef struct xccl_tl_mem_handle*   xccl_tl_mem_h;
 typedef struct xccl_team_lib {
-    char*                               name;
-    int                                 priority;
-    xccl_params_t                       params;
-    xccl_team_lib_context_create_mode_t ctx_create_mode;
-    void*                               dl_handle;
-    ucs_config_global_list_entry_t      team_lib_config;
-    xccl_status_t                       (*team_lib_open)(xccl_team_lib_h self,
+    char*                          name;
+    xccl_tl_id_t                   id;
+    int                            priority;
+    xccl_params_t                  params;
+    xccl_context_create_mode_t     ctx_create_mode;
+    void*                          dl_handle;
+    ucs_config_global_list_entry_t team_lib_config;
+    xccl_status_t                  (*team_lib_open)(xccl_team_lib_h self,
                                                          xccl_team_lib_config_t *config);
-    xccl_status_t                       (*create_team_context)(xccl_team_lib_h lib,
-                                                               xccl_context_config_t *config,
-                                                               xccl_tl_context_t **team_context);
-    xccl_status_t                       (*destroy_team_context)(xccl_tl_context_t *team_context);
-    xccl_status_t                       (*progress)(xccl_tl_context_t *team_context);
-    xccl_status_t                       (*team_create_post)(xccl_tl_context_t *team_ctx,
-                                                            xccl_team_config_h config,
-                                                            xccl_oob_collectives_t oob, xccl_tl_team_t **team);
-    xccl_status_t                       (*team_destroy)(xccl_tl_team_t *team);
-    xccl_status_t                       (*collective_init)(xccl_coll_op_args_t *coll_args,
-                                                          xccl_coll_req_h *request, xccl_tl_team_t *team);
-    xccl_status_t                       (*collective_post)(xccl_coll_req_h request);
-    xccl_status_t                       (*collective_wait)(xccl_coll_req_h request);
-    xccl_status_t                       (*collective_test)(xccl_coll_req_h request);
-    xccl_status_t                       (*collective_finalize)(xccl_coll_req_h request);
+    xccl_status_t              (*create_team_context)(xccl_team_lib_h lib,
+                                                      xccl_context_config_t *config,
+                                                      xccl_tl_context_t **team_context);
+    xccl_status_t              (*destroy_team_context)(xccl_tl_context_t *team_context);
+    xccl_status_t              (*progress)(xccl_tl_context_t *team_context);
+    xccl_status_t              (*team_create_post)(xccl_tl_context_t *team_ctx,
+                                                   xccl_team_config_h config,
+                                                   xccl_oob_collectives_t oob, xccl_tl_team_t **team);
+    xccl_status_t              (*team_destroy)(xccl_tl_team_t *team);
+    xccl_status_t              (*collective_init)(xccl_coll_op_args_t *coll_args,
+                                                 xccl_coll_req_h *request, xccl_tl_team_t *team);
+    xccl_status_t              (*collective_post)(xccl_coll_req_h request);
+    xccl_status_t              (*collective_wait)(xccl_coll_req_h request);
+    xccl_status_t              (*collective_test)(xccl_coll_req_h request);
+    xccl_status_t              (*collective_finalize)(xccl_coll_req_h request);
+    xccl_status_t              (*global_mem_map_start)(xccl_tl_team_t *team, xccl_mem_map_params_t params,
+                                                       xccl_tl_mem_h *memh_p);
+    xccl_status_t              (*global_mem_map_test)(xccl_tl_mem_h memh_p);
+    xccl_status_t              (*global_mem_unmap)(xccl_tl_mem_h memh_p);
 } xccl_team_lib_t;
 
 typedef struct xccl_lib_config {
@@ -122,6 +130,26 @@ xccl_local_proc_info_t* xccl_local_process_info();
 
 #define XCCL_STATIC_ASSERT(_cond) \
     switch(0) {case 0:case (_cond):;}
+
+typedef struct xccl_tl_mem_handle {
+    xccl_tl_id_t id;
+} xccl_tl_mem_handle_t;
+
+typedef struct xccl_mem_handle {
+    xccl_team_t *team;
+    xccl_tl_mem_h handles[1];
+} xccl_mem_handle_t;
+
+static inline xccl_tl_mem_h xccl_mem_handle_by_tl_id(xccl_mem_h memh, xccl_tl_id_t id)
+{
+    int i;
+    for (i=0; i<memh->team->n_teams; i++) {
+        if (memh->handles[i]->id == id) {
+            return memh->handles[i];
+        }
+    }
+    return NULL;
+}
 
 /**
  * @return Offset of _member in _type. _type is a structure type.
