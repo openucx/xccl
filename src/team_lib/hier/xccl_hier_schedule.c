@@ -204,11 +204,16 @@ static inline void init_frag(coll_schedule_fragmented_t *fs, int frag_pipeline_n
     /* fprintf(stderr, "init frag %d, total_frags %d, total_len %zd, frag_len %zd, offset %zd\n", */
     /*         frag_num, fs->n_frags, fs->binfo.len, frag_size, offset); */
     for (i=0; i<frag_sched->n_colls; i++) {
-        frag_sched->args[i].xccl_coll.buffer_info.src_buffer =
-            (void*)((ptrdiff_t)fs->binfo.src_buffer + offset);
-        frag_sched->args[i].xccl_coll.buffer_info.dst_buffer =
-            (void*)((ptrdiff_t)fs->binfo.dst_buffer + offset);
-        frag_sched->args[i].xccl_coll.buffer_info.len = frag_size;
+        xccl_coll_op_args_t *coll = &frag_sched->args[i].xccl_coll;
+        if (coll->coll_type == XCCL_FANOUT_GET) {
+            coll->get_info.offset = offset;
+            coll->get_info.local_buffer = (void*)((ptrdiff_t)fs->binfo.dst_buffer + offset);
+            coll->get_info.len = frag_size;
+        } else {
+            coll->buffer_info.src_buffer = (void*)((ptrdiff_t)fs->binfo.src_buffer + offset);
+            coll->buffer_info.dst_buffer = (void*)((ptrdiff_t)fs->binfo.dst_buffer + offset);
+            coll->buffer_info.len = frag_size;
+        }
     }
     fs->n_frags_launched++;
 }

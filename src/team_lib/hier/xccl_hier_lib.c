@@ -23,20 +23,21 @@ xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
     //TODO alg selection for allreduce shoud happen here
     coll_schedule_t *schedule;
     xccl_hier_context_t *ctx = xccl_derived_of(team->ctx, xccl_hier_context_t);
-    int top_lvl_pair = XCCL_HIER_PAIR_NODE_LEADERS_UCX;
-    int sock_pair = XCCL_HIER_PAIR_SOCKET_SHMSEG;
-    int sock_lead_pair = XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG;
-
-    if (ctx->tls[XCCL_TL_SHARP].enabled) {
-        top_lvl_pair = XCCL_HIER_PAIR_NODE_LEADERS_SHARP;
-    }
-    if (!ctx->tls[XCCL_TL_SHMSEG].enabled) {
-        sock_pair = XCCL_HIER_PAIR_SOCKET_UCX;
-        sock_lead_pair = XCCL_HIER_PAIR_SOCKET_LEADERS_UCX;
-    }
-    build_allreduce_schedule_3lvl(xccl_derived_of(team, xccl_hier_team_t),
-                                  &schedule, (*coll_args),
-                                  sock_pair, sock_lead_pair, top_lvl_pair);
+    xccl_hier_allreduce_spec_t spec = {
+        .pairs              = {
+            .node_leaders   = ctx->tls[XCCL_TL_SHARP].enabled ?
+                              XCCL_HIER_PAIR_NODE_LEADERS_SHARP :
+                              XCCL_HIER_PAIR_NODE_LEADERS_UCX,
+            .socket         = ctx->tls[XCCL_TL_SHMSEG].enabled ?
+                              XCCL_HIER_PAIR_SOCKET_SHMSEG :
+                              XCCL_HIER_PAIR_SOCKET_UCX,
+            .socket_leaders = ctx->tls[XCCL_TL_SHMSEG].enabled ?
+                              XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
+                              XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+        },
+    };
+    build_allreduce_schedule(xccl_derived_of(team, xccl_hier_team_t), (*coll_args),
+                             spec, &schedule);
     schedule->super.lib = &xccl_team_lib_hier.super;
     (*request) = &schedule->super;
     return XCCL_OK;
@@ -49,14 +50,28 @@ xccl_hier_bcast_init(xccl_coll_op_args_t *coll_args,
 {
     coll_schedule_t *schedule;
     xccl_hier_context_t *ctx = xccl_derived_of(team->ctx, xccl_hier_context_t);
-    int top_lvl_pair = XCCL_HIER_PAIR_NODE_LEADERS_UCX;
-
-    if (ctx->tls[XCCL_TL_VMC].enabled) {
-        top_lvl_pair = XCCL_HIER_PAIR_NODE_LEADERS_VMC;
+    if (!ctx->use_sm_get_bcast ||
+        coll_args->buffer_info.len < ctx->bcast_sm_get_thresh) {
+        xccl_hier_bcast_spec_t spec = {
+            .use_sm_fanout_get  = 0,
+            .pairs              = {
+                .node_leaders   = ctx->tls[XCCL_TL_VMC].enabled ?
+                                  XCCL_HIER_PAIR_NODE_LEADERS_VMC :
+                                  XCCL_HIER_PAIR_NODE_LEADERS_UCX,
+                .socket         = ctx->tls[XCCL_TL_SHMSEG].enabled ?
+                                  XCCL_HIER_PAIR_SOCKET_SHMSEG :
+                                  XCCL_HIER_PAIR_SOCKET_UCX,
+                .socket_leaders = ctx->tls[XCCL_TL_SHMSEG].enabled ?
+                                  XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
+                                  XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+            },
+        };
+        build_bcast_schedule(xccl_derived_of(team, xccl_hier_team_t), (*coll_args),
+                             spec, &schedule);
+    } else {
+        build_bcast_schedule_sm_get(xccl_derived_of(team, xccl_hier_team_t),
+                                    &schedule, (*coll_args));
     }
-    build_bcast_schedule_3lvl(xccl_derived_of(team, xccl_hier_team_t),
-                              &schedule, (*coll_args), top_lvl_pair);
-
     schedule->super.lib = &xccl_team_lib_hier.super;
     (*request) = &schedule->super;
     return XCCL_OK;
@@ -68,19 +83,21 @@ xccl_hier_barrier_init(xccl_coll_op_args_t *coll_args,
 {
     coll_schedule_t *schedule;
     xccl_hier_context_t *ctx = xccl_derived_of(team->ctx, xccl_hier_context_t);
-    int top_lvl_pair = XCCL_HIER_PAIR_NODE_LEADERS_UCX;
-    int sock_pair = XCCL_HIER_PAIR_SOCKET_SHMSEG;
-    int sock_lead_pair = XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG;
-
-    if (ctx->tls[XCCL_TL_SHARP].enabled) {
-        top_lvl_pair = XCCL_HIER_PAIR_NODE_LEADERS_SHARP;
-    }
-    if (!ctx->tls[XCCL_TL_SHMSEG].enabled) {
-        sock_pair = XCCL_HIER_PAIR_SOCKET_UCX;
-        sock_lead_pair = XCCL_HIER_PAIR_SOCKET_LEADERS_UCX;
-    }
-    build_barrier_schedule_3lvl(xccl_derived_of(team, xccl_hier_team_t), &schedule,
-                                sock_pair, sock_lead_pair, top_lvl_pair);
+    xccl_hier_barrier_spec_t spec = {
+        .pairs              = {
+            .node_leaders   = ctx->tls[XCCL_TL_SHARP].enabled ?
+                              XCCL_HIER_PAIR_NODE_LEADERS_SHARP :
+                              XCCL_HIER_PAIR_NODE_LEADERS_UCX,
+            .socket         = ctx->tls[XCCL_TL_SHMSEG].enabled ?
+                              XCCL_HIER_PAIR_SOCKET_SHMSEG :
+                              XCCL_HIER_PAIR_SOCKET_UCX,
+            .socket_leaders = ctx->tls[XCCL_TL_SHMSEG].enabled ?
+                              XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
+                              XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+        },
+    };
+    build_barrier_schedule(xccl_derived_of(team, xccl_hier_team_t),
+                           spec, &schedule);
     schedule->super.lib = &xccl_team_lib_hier.super;
     (*request) = &schedule->super;
     return XCCL_OK;
@@ -123,7 +140,7 @@ static xccl_status_t xccl_hier_collective_wait(xccl_coll_req_h request)
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_hier_collective_finalize(xccl_coll_req_h request)
+xccl_status_t xccl_hier_collective_finalize(xccl_coll_req_h request)
 {
     free(request);
     return XCCL_OK;

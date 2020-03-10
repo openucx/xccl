@@ -25,6 +25,8 @@ typedef struct xccl_hier_context {
     int                       nnodes;
     int                       max_ppn;
     int                       min_ppn;
+    int                       use_sm_get_bcast;
+    size_t                    bcast_sm_get_thresh;
     int                       bcast_pipeline_depth;
     size_t                    bcast_pipeline_thresh;
 } xccl_hier_context_t;

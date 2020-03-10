@@ -12,9 +12,8 @@
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_team.h"
 
-xccl_status_t build_barrier_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_t **sched,
-                                          int socket_pair, int socket_leaders_pair,
-                                          int node_leaders_pair)
+xccl_status_t build_barrier_schedule(xccl_hier_team_t *team,
+                                     xccl_hier_barrier_spec_t spec, coll_schedule_t **sched)
 {
     int have_node_leaders_group = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
     int have_socket_group = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
@@ -47,7 +46,7 @@ xccl_status_t build_barrier_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_
             coll.coll_type = XCCL_FANIN;
             schedule->super.args[c].xccl_coll = coll;
         }
-        schedule->super.args[c].pair = team->pairs[socket_pair];
+        schedule->super.args[c].pair = team->pairs[spec.pairs.socket];
         c++;
     }
 
@@ -59,7 +58,7 @@ xccl_status_t build_barrier_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_
             coll.coll_type = XCCL_FANIN;
             schedule->super.args[c].xccl_coll = coll;
         }
-        schedule->super.args[c].pair = team->pairs[socket_leaders_pair];
+        schedule->super.args[c].pair = team->pairs[spec.pairs.socket_leaders];
         c++;
     }
 
@@ -67,21 +66,21 @@ xccl_status_t build_barrier_schedule_3lvl(xccl_hier_team_t *team, coll_schedule_
         assert(top_sbgp == SBGP_NODE_LEADERS);
         coll.coll_type = XCCL_BARRIER;
         schedule->super.args[c].xccl_coll = coll;
-        schedule->super.args[c].pair = team->pairs[node_leaders_pair];
+        schedule->super.args[c].pair = team->pairs[spec.pairs.node_leaders];
         c++;
     }
 
     if (have_socket_leaders_group && top_sbgp != SBGP_SOCKET_LEADERS) {
         coll.coll_type = XCCL_FANOUT;
         schedule->super.args[c].xccl_coll = coll;
-        schedule->super.args[c].pair = team->pairs[socket_leaders_pair];
+        schedule->super.args[c].pair = team->pairs[spec.pairs.socket_leaders];
         c++;
     }
 
     if (have_socket_group  && top_sbgp != SBGP_SOCKET) {
         coll.coll_type = XCCL_FANOUT;
         schedule->super.args[c].xccl_coll = coll;
-        schedule->super.args[c].pair = team->pairs[socket_pair];
+        schedule->super.args[c].pair = team->pairs[spec.pairs.socket];
         c++;
     }
     schedule->super.n_colls = c;
