@@ -161,6 +161,7 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
     .super.team_create_post     = xccl_hier_team_create_post,
     .super.team_destroy         = xccl_hier_team_destroy,
     .super.progress             = xccl_hier_context_progress,
+    .super.team_lib_open        = NULL,
     .super.collective_init      = xccl_hier_collective_init,
     .super.collective_post      = xccl_hier_collective_post,
     .super.collective_wait      = xccl_hier_collective_wait,

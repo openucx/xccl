@@ -185,6 +185,7 @@ xccl_team_lib_vmc_t xccl_team_lib_vmc = {
     .super.team_create_post     = xccl_vmc_team_create_post,
     .super.team_destroy         = xccl_vmc_team_destroy,
     .super.progress             = xccl_vmc_context_progress,
+    .super.team_lib_open        = NULL,
     .super.collective_init      = xccl_vmc_collective_init,
     .super.collective_post      = xccl_vmc_collective_post,
     .super.collective_wait      = xccl_vmc_collective_wait,

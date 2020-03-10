@@ -212,6 +212,7 @@ xccl_team_lib_sharp_t xccl_team_lib_sharp = {
     .super.team_create_post     = xccl_sharp_team_create_post,
     .super.team_destroy         = xccl_sharp_team_destroy,
     .super.progress             = NULL,
+    .super.team_lib_open        = NULL,
     .super.collective_init      = xccl_sharp_collective_init,
     .super.collective_post      = xccl_sharp_collective_post,
     .super.collective_wait      = xccl_sharp_collective_wait,
