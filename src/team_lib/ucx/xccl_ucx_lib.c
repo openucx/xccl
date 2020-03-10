@@ -20,6 +20,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+static ucs_config_field_t xccl_team_lib_ucx_config_table[] = {
+    {"", "", NULL,
+        ucs_offsetof(xccl_team_lib_ucx_config_t, super),
+        UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
+    },
+
+    {NULL}
+};
+
 static inline xccl_status_t
 xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
                         xccl_ucx_collreq_t **request)
@@ -182,9 +191,33 @@ static xccl_status_t xccl_ucx_collective_finalize(xccl_coll_req_h request)
     return XCCL_OK;
 }
 
+static xccl_status_t xccl_ucx_lib_open(xccl_team_lib_h self,
+                                       xccl_team_lib_config_t *config) {
+    xccl_team_lib_ucx_t        *tl  = xccl_derived_of(self, xccl_team_lib_ucx_t);
+    xccl_team_lib_ucx_config_t *cfg = xccl_derived_of(config, xccl_team_lib_ucx_config_t);
+    
+    tl->log_component.log_level = cfg->super.log_component.log_level;
+    sprintf(tl->log_component.name, "%s", "TEAM_UCX");
+    xccl_ucx_debug("Team UCX opened");
+    if (cfg->super.priority == -1) {
+        tl->super.priority = 10;
+    } else {
+        tl->super.priority = cfg->super.priority;
+    }
+
+    return XCCL_OK;
+}
+
 xccl_team_lib_ucx_t xccl_team_lib_ucx = {
     .super.name                 = "ucx",
     .super.priority             = 10,
+    .super.team_lib_config      = {
+        .name                   = "UCX team library",
+        .prefix                 = "TEAM_UCX_",
+        .table                  = xccl_team_lib_ucx_config_table,
+        .size                   = sizeof(xccl_team_lib_ucx_config_t),
+    },
+    .super.team_lib_open        = xccl_ucx_lib_open,
     .super.params.reproducible  = XCCL_LIB_NON_REPRODUCIBLE,
     .super.params.thread_mode   = XCCL_LIB_THREAD_SINGLE | XCCL_LIB_THREAD_MULTIPLE,
     .super.params.team_usage    = XCCL_USAGE_SW_COLLECTIVES,

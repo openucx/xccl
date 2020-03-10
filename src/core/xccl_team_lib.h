@@ -8,15 +8,29 @@
 #include <assert.h>
 #include <string.h>
 #include <ucs/config/types.h>
+#include <ucs/debug/log.h>
+#include <ucs/config/parser.h>
 
 typedef struct xccl_tl_context xccl_tl_context_t;
 typedef struct xccl_tl_team    xccl_tl_team_t;
+typedef struct xccl_team_lib_config {
+    /* Log level above which log messages will be printed */
+    ucs_log_component_config_t log_component;
+    
+    /* Team library priority */
+    int                        priority;
+} xccl_team_lib_config_t;
+extern ucs_config_field_t xccl_team_lib_config_table[];
+
 typedef struct xccl_team_lib {
     char*                               name;
     int                                 priority;
     xccl_params_t                       params;
     xccl_team_lib_context_create_mode_t ctx_create_mode;
     void*                               dl_handle;
+    ucs_config_global_list_entry_t      team_lib_config;
+    xccl_status_t                       (*team_lib_open)(xccl_team_lib_h self,
+                                                         xccl_team_lib_config_t *config);
     xccl_status_t                       (*create_team_context)(xccl_team_lib_h lib,
                                                                xccl_context_config_t *config,
                                                                xccl_tl_context_t **team_context);
