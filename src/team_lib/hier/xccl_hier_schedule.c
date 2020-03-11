@@ -15,14 +15,14 @@
 static xccl_coll_req_t xccl_hier_complete_req;
 #define REQ_COMPLETE (&xccl_hier_complete_req)
 
-static inline int can_start_level(coll_schedule_1frag_t *sched, int level) {
+static inline int can_start_level(coll_schedule_frag_t *sched, int level) {
     if (sched->fs && sched->fs->ordered) {
         return sched->frag_id == sched->fs->level_started_frag_num[level] + 1 ? 1 : 0;
     }
     return 1;
 }
 
-static inline void update_level_started(coll_schedule_1frag_t *sched, int level) {
+static inline void update_level_started(coll_schedule_frag_t *sched, int level) {
     if (sched->fs && sched->fs->ordered) {
         assert(sched->fs->level_started_frag_num[level] ==
                sched->frag_id - 1);
@@ -36,7 +36,7 @@ static inline void update_level_started(coll_schedule_1frag_t *sched, int level)
    due to possible ordering dependency (if the previous fragment has been launched already
    at the same given hierarchy level).
    - This function also updates the ordering information of the fragmented schedule */
-static inline xccl_status_t launch_coll_op(coll_schedule_1frag_t *schedule,
+static inline xccl_status_t launch_coll_op(coll_schedule_frag_t *schedule,
                                            int level, xccl_coll_req_h *req)
 {
     xccl_coll_args_t *curr_op = &schedule->args[level];
@@ -163,7 +163,7 @@ xccl_status_t coll_schedule_progress_single_dep(coll_schedule_t *sched)
     return XCCL_OK;
 }
 
-static inline coll_schedule_1frag_t *
+static inline coll_schedule_frag_t *
 get_frag(coll_schedule_fragmented_t *fs, int frag_pipeline_num)
 {
     if (fs->pipeline_depth == 1) {
@@ -193,7 +193,7 @@ static inline void coll_schedule_reset(coll_schedule_t *schedule) {
 
 static inline void init_frag(coll_schedule_fragmented_t *fs, int frag_pipeline_num)
 {
-    coll_schedule_1frag_t *frag_sched = get_frag(fs, frag_pipeline_num);
+    coll_schedule_frag_t *frag_sched = get_frag(fs, frag_pipeline_num);
     int frag_num                      = fs->n_frags_launched;
     size_t frag_size                  = fs->binfo.len / fs->n_frags;
     size_t left                       = fs->binfo.len % fs->n_frags;
@@ -241,11 +241,11 @@ xccl_status_t coll_schedule_progress_fragmented(coll_schedule_t *sched) {
     coll_schedule_fragmented_t *fs = (coll_schedule_fragmented_t*)sched;
     int i;
     for (i=0; i<fs->pipeline_depth; i++) {
-        coll_schedule_1frag_t *s = get_frag(fs, i);
+        coll_schedule_frag_t *s = get_frag(fs, i);
         if (XCCL_INPROGRESS == s->super.status) {
             coll_schedule_progress(&s->super);
             if (XCCL_OK == s->super.status) {
-                /* fprintf(stderr, "Completed frag %d\n", ((coll_schedule_1frag_t*)s)->frag_id); */
+                /* fprintf(stderr, "Completed frag %d\n", ((coll_schedule_frag_t*)s)->frag_id); */
                 fs->n_frags_completed++;
                 init_frag(fs, i);
             }
@@ -298,15 +298,15 @@ xccl_status_t make_fragmented_schedule(coll_schedule_t *in_sched, coll_schedule_
            in_sched->type == XCCL_COLL_SCHED_SEQ);
 
     if (pipeline_depth == 1) {
-        fs->frag = (coll_schedule_1frag_t*)in_sched;
+        fs->frag = (coll_schedule_frag_t*)in_sched;
     } else {
         /* Pipeline depth is more than 1. Need to allocate the storage for
            "pipline_depth" number of fragments and duplicate collective schedules.
            The buffer information for those schedules will be set in init_frag */
         fs->frags = malloc(pipeline_depth*sizeof(*fs->frags));
-        fs->frags[0] = (coll_schedule_1frag_t*)in_sched;
+        fs->frags[0] = (coll_schedule_frag_t*)in_sched;
         for (i=1; i<pipeline_depth; i++) {
-            fs->frags[i] = (coll_schedule_1frag_t*)schedule_dup(in_sched);
+            fs->frags[i] = (coll_schedule_frag_t*)schedule_dup(in_sched);
         }
     }
     /* Set the "fs" pointer - it will indicate the schedule is part of fragmented collective */

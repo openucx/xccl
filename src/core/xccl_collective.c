@@ -116,5 +116,6 @@ xccl_status_t xccl_global_mem_unmap(xccl_mem_h memh_p)
             }
         }
     }
+    free(memh);
     return XCCL_OK;
 }

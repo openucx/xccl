@@ -29,7 +29,7 @@ typedef struct xccl_coll_args {
 
 typedef struct coll_schedule_t {
     xccl_coll_req_t             super;
-    int                         type;
+    coll_schedule_type_t        type;
     xccl_status_t               status;
     xccl_hier_team_t           *hier_team;
     coll_schedule_progress_fn_t progress;
@@ -38,7 +38,7 @@ typedef struct coll_schedule_t {
 /* Base schedule representing 1 fragment of the bigger fragmented collective.
    Any collective schedule that needs fragmentation support should be
    derived from this struct. */
-typedef struct coll_schedule_1frag_t {
+typedef struct coll_schedule_frag_t {
     coll_schedule_t             super;
     int                         n_colls; /**< Number of collectives in a schedule,ie number of steps/levels. */
     int                         n_completed_colls; /*<< number of completed colls so far */
@@ -47,12 +47,12 @@ typedef struct coll_schedule_1frag_t {
     int                         frag_id; /**< Fragment ID of the current schedule.
                                             Only used if "fs" is set.*/
     xccl_coll_args_t            args[MAX_COLL_SCHEDULE_LENGTH];
-} coll_schedule_1frag_t;
+} coll_schedule_frag_t;
 
 /* Simple sequential schedule: all the steps at differente levels of hierarchy
    are executed one after another. Only sinlge "req" is required at a time. */
 typedef struct coll_schedule_sequential {
-    coll_schedule_1frag_t super;
+    coll_schedule_frag_t super;
     xccl_coll_req_h       req;
 } coll_schedule_sequential_t;
 
@@ -60,7 +60,7 @@ typedef struct coll_schedule_sequential {
    be completed first and all other steps/levels can be launched/executed concurrently
    w/o additional dependencies between each other. */
 typedef struct coll_schedule_single_dep {
-    coll_schedule_1frag_t super;
+    coll_schedule_frag_t super;
     xccl_coll_req_h       reqs[MAX_COLL_SCHEDULE_LENGTH];
     uint8_t               dep_id; /**< ID of the first step in a schedule that is a main dependency */
     uint8_t               dep_satisfied;
@@ -91,9 +91,9 @@ typedef struct coll_schedule_fragmented {
                                                        at this level. This array is used if "ordered" flag is
                                                        set to guarantee the proper ordering. */
     union {
-        coll_schedule_1frag_t **frags;/**< Array of fragments pointers.
+        coll_schedule_frag_t **frags;/**< Array of fragments pointers.
                                          The size of the array equals "pipeline_depth". */
-        coll_schedule_1frag_t *frag; /**< Short cut for the case of pipeline_depth = 1 -
+        coll_schedule_frag_t *frag; /**< Short cut for the case of pipeline_depth = 1 -
                                         no need for speciala array allocation */
     };
 } coll_schedule_fragmented_t;
