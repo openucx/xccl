@@ -11,7 +11,7 @@ int main (int argc, char **argv) {
     int rank, size, i, status = 0, status_global;
     int sbuf[count], rbuf[count], rbuf_mpi[count];
 
-    xccl_mpi_test_init(argc, argv);
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLREDUCE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -36,10 +36,10 @@ int main (int argc, char **argv) {
         .tag  = 123, //todo
     };
 
-    xccl_collective_init(&coll, &request, xccl_world_team);
-    xccl_collective_post(request);
-    xccl_collective_wait(request);
-    xccl_collective_finalize(request);
+    XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
+    XCCL_CHECK(xccl_collective_post(request));
+    XCCL_CHECK(xccl_collective_wait(request));
+    XCCL_CHECK(xccl_collective_finalize(request));
 
     MPI_Allreduce(sbuf, rbuf_mpi, count, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
@@ -53,6 +53,6 @@ int main (int argc, char **argv) {
         printf("Correctness check: %s\n", status_global == 0 ? "PASS" : "FAIL");
     }
 
-    xccl_mpi_test_finalize();
+    XCCL_CHECK(xccl_mpi_test_finalize());
     return 0;
 }

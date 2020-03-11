@@ -17,16 +17,16 @@ do_barrier(xccl_team_h team) {
         .alg.set_by_user = 0,
         .tag  = 123, //todo
     };
-    xccl_collective_init(&coll, &request, team);
-    xccl_collective_post(request);
-    xccl_collective_wait(request);
-    xccl_collective_finalize(request);
+    XCCL_CHECK(xccl_collective_init(&coll, &request, team));
+    XCCL_CHECK(xccl_collective_post(request));
+    XCCL_CHECK(xccl_collective_wait(request));
+    XCCL_CHECK(xccl_collective_finalize(request));
 }
 
 int main (int argc, char **argv) {
     int rank, size, i, sleep_us;
 
-    xccl_mpi_test_init(argc, argv);
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BARRIER));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -42,6 +42,6 @@ int main (int argc, char **argv) {
         do_barrier(xccl_world_team);
     }
 
-    xccl_mpi_test_finalize();
+    XCCL_CHECK(xccl_mpi_test_finalize());
     return 0;
 }

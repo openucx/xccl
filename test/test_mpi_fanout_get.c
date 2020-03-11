@@ -3,14 +3,16 @@
 *
 * See file LICENSE for terms.
 */
+#define _BSD_SOURCE
 #include "test_mpi.h"
+#include <unistd.h>
 
 int main (int argc, char **argv) {
     int rank, size, i, r, count,
         status = 0, status_global;
     int *buf, *buf_mpi;
     xccl_coll_req_h request;
-    xccl_mpi_test_init(argc, argv);
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_FANOUT_GET));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -30,7 +32,7 @@ int main (int argc, char **argv) {
             .length  = count*sizeof(int),
             .root = r,
         };
-        xccl_global_mem_map_start(xccl_world_team, params, &memh);
+        XCCL_CHECK(xccl_global_mem_map_start(xccl_world_team, params, &memh));
         while (XCCL_OK != xccl_global_mem_map_test(memh)) {;}
         for (iters=0; iters < max_iters; iters++) {
             if (rank != r) {
@@ -47,24 +49,24 @@ int main (int argc, char **argv) {
             xccl_coll_op_args_t coll = {
                 .coll_type = XCCL_FANOUT_GET,
                 .root = r,
-                .buffer_info = {
+                .get_info = {
                     .memh       = memh,
                     .offset     = half,
-                    .dst_buffer = (void*)((ptrdiff_t)&buf[0] + half),
+                    .local_buffer = (void*)((ptrdiff_t)&buf[0] + half),
                     .len        = half,
                 },
             };
-            xccl_collective_init(&coll, &request, xccl_world_team);
-            xccl_collective_post(request);
-            xccl_collective_wait(request);
-            xccl_collective_finalize(request);
+            XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
+            XCCL_CHECK(xccl_collective_post(request));
+            XCCL_CHECK(xccl_collective_wait(request));
+            XCCL_CHECK(xccl_collective_finalize(request));
 
-            coll.buffer_info.offset = 0;
-            coll.buffer_info.dst_buffer = buf;
-            xccl_collective_init(&coll, &request, xccl_world_team);
-            xccl_collective_post(request);
-            xccl_collective_wait(request);
-            xccl_collective_finalize(request);
+            coll.get_info.offset = 0;
+            coll.get_info.local_buffer = buf;
+            XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
+            XCCL_CHECK(xccl_collective_post(request));
+            XCCL_CHECK(xccl_collective_wait(request));
+            XCCL_CHECK(xccl_collective_finalize(request));
 
             MPI_Bcast(buf_mpi, count, MPI_INT, r, MPI_COMM_WORLD);
             if (0 != memcmp(buf, buf_mpi, count*sizeof(int))) {
@@ -77,7 +79,7 @@ int main (int argc, char **argv) {
                 break;
             }
         }
-        xccl_global_mem_unmap(memh);
+        XCCL_CHECK(xccl_global_mem_unmap(memh));
     }
 
     if (0 == rank) {
@@ -85,6 +87,6 @@ int main (int argc, char **argv) {
     }
     free(buf);
     free(buf_mpi);
-    xccl_mpi_test_finalize();
+    XCCL_CHECK(xccl_mpi_test_finalize());
     return 0;
 }

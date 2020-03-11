@@ -10,7 +10,7 @@ int main (int argc, char **argv) {
         status = 0, status_global;
     int *buf, *buf_mpi;
     xccl_coll_req_h request;    
-    xccl_mpi_test_init(argc, argv);
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BCAST));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -41,10 +41,10 @@ int main (int argc, char **argv) {
             .tag  = 123, //todo
         };
 
-        xccl_collective_init(&coll, &request, xccl_world_team);
-        xccl_collective_post(request);
-        xccl_collective_wait(request);
-        xccl_collective_finalize(request);
+        XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
+        XCCL_CHECK(xccl_collective_post(request));
+        XCCL_CHECK(xccl_collective_wait(request));
+        XCCL_CHECK(xccl_collective_finalize(request));
 
         MPI_Bcast(buf_mpi, count, MPI_INT, r, MPI_COMM_WORLD);
         if (0 != memcmp(buf, buf_mpi, count*sizeof(int))) {
@@ -62,6 +62,6 @@ int main (int argc, char **argv) {
     }
     free(buf);
     free(buf_mpi);
-    xccl_mpi_test_finalize();
+    XCCL_CHECK(xccl_mpi_test_finalize());
     return 0;
 }

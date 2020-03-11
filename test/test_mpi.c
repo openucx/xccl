@@ -32,24 +32,22 @@ static int oob_allgather(void *sbuf, void *rbuf, size_t msglen,
     return 0;
 }
 
-int xccl_mpi_test_init(int argc, char **argv) {
+int xccl_mpi_test_init(int argc, char **argv,
+                       xccl_collective_cap_t coll_types) {
     char *var;
     int rank, size;
-    xccl_config_t *test_conf;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-
     /* Init xccl library */
-    xccl_config_read(NULL, NULL, &test_conf);
-    xccl_config_print(test_conf, stdout, NULL, UCS_CONFIG_PRINT_CONFIG);
     var = getenv("XCCL_TEST_TLS");
     xccl_params_t params = {
         .field_mask = XCCL_LIB_CONFIG_FIELD_TEAM_USAGE,
         .team_usage = XCCL_USAGE_SW_COLLECTIVES |
-        XCCL_USAGE_HW_COLLECTIVES,
+                      XCCL_USAGE_HW_COLLECTIVES,
+        .coll_types = coll_types,
     };
 
     /* Init xccl context for a specified XCCL_TEST_TLS */
