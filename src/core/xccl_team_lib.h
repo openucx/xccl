@@ -100,10 +100,13 @@ typedef struct xccl_team {
 static inline void
 xccl_oob_allgather(void *sbuf, void* rbuf, size_t len, xccl_oob_collectives_t *oob)
 {
+    void *req;
     xccl_ep_range_t r = {
         .type = XCCL_EP_RANGE_UNDEFINED,
     };
-    oob->allgather(sbuf, rbuf, len, 0, r, oob->coll_context);
+    oob->allgather(sbuf, rbuf, len, 0, r, oob->coll_context, &req);
+    while (XCCL_INPROGRESS == oob->req_test(req)) {;}
+    oob->req_free(req);
 }
 
 xccl_status_t xccl_create_context(xccl_lib_t *lib,

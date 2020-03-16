@@ -131,7 +131,9 @@ static inline int xccl_range_to_rank(xccl_ep_range_t range, int rank)
 typedef struct xccl_oob_collectives {
     int (*allgather)(void *src_buf, void *recv_buff, size_t size,
                      int my_rank, xccl_ep_range_t range,
-                     void *coll_context);
+                     void *coll_context, void **request);
+    xccl_status_t (*req_test)(void *request);
+    xccl_status_t (*req_free)(void *request);
     void *coll_context;
     int rank;
     int size;

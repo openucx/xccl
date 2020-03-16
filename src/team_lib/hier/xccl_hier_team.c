@@ -26,7 +26,7 @@ static int xccl_sbgp_rank_to_team(int rank, void *rank_mapper_ctx) {
 
 static int
 oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len,
-                   int myrank, xccl_ep_range_t r, void *coll_context) {
+                   int myrank, xccl_ep_range_t r, void *coll_context, void **req) {
     sbgp_t *sbgp = (sbgp_t*)coll_context;
     xccl_hier_team_t *team = sbgp->hier_team;
     assert(r.type == XCCL_EP_RANGE_UNDEFINED);
@@ -36,8 +36,8 @@ oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len,
         .cb.cb     = xccl_sbgp_rank_to_team,
         .cb.cb_ctx = (void*)sbgp,
     };
-    team->super.oob.allgather(sbuf, rbuf, len, team->super.oob.rank,
-                              range, team->super.oob.coll_context);
+    team->super.oob.allgather(sbuf, rbuf, len, sbgp->group_rank,
+                              range, team->super.oob.coll_context, req);
     return 0;
 }
 
