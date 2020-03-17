@@ -35,14 +35,14 @@ static inline xccl_status_t close_eps(ucp_ep_h *eps, int n_eps, ucp_worker_h wor
 
 static inline xccl_status_t
 connect_ep(xccl_team_lib_ucx_context_t *ctx, xccl_ucx_team_t *team,
-           xccl_team_config_t *cfg, char *addr_array, size_t max_addrlen, int rank)
+           char *addr_array, size_t max_addrlen, int rank)
 {
     ucp_address_t *address = (ucp_address_t*)(addr_array + max_addrlen*rank);
     ucp_ep_params_t ep_params;
     ucs_status_t status;
     ucp_ep_h *ep;
     if (ctx->ucp_eps) {
-        ep = &ctx->ucp_eps[xccl_range_to_rank(cfg->range, rank)];
+        ep = &ctx->ucp_eps[xccl_range_to_rank(team->range, rank)];
     } else {
         ep = &team->ucp_eps[rank];
     }

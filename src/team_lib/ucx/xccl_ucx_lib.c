@@ -229,6 +229,7 @@ xccl_team_lib_ucx_t xccl_team_lib_ucx = {
     .super.create_team_context  = xccl_ucx_create_context,
     .super.destroy_team_context = xccl_ucx_destroy_context,
     .super.team_create_post     = xccl_ucx_team_create_post,
+    .super.team_create_test     = xccl_ucx_team_create_test,
     .super.team_destroy         = xccl_ucx_team_destroy,
     .super.progress             = NULL,
     .super.collective_init      = xccl_ucx_collective_init,
