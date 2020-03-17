@@ -56,9 +56,9 @@ static xccl_status_t oob_allgather_test(void *req)
         senddatafrom = (rank - oob_req->iter + size) % size;
         tmprecv = (char*)oob_req->rbuf + (ptrdiff_t)recvdatafrom * (ptrdiff_t)msglen;
         tmpsend = (char*)oob_req->rbuf + (ptrdiff_t)senddatafrom * (ptrdiff_t)msglen;
-        MPI_Isend(tmpsend, msglen, MPI_BYTE, sendto, 123,
+        MPI_Isend(tmpsend, msglen, MPI_BYTE, sendto, 2703,
                   comm, &oob_req->reqs[0]);
-        MPI_Irecv(tmprecv, msglen, MPI_BYTE, recvfrom, 123,
+        MPI_Irecv(tmprecv, msglen, MPI_BYTE, recvfrom, 2703,
                   comm, &oob_req->reqs[1]);
     }
     probe = 0;
@@ -92,6 +92,37 @@ static xccl_status_t oob_allgather(void *sbuf, void *rbuf, size_t msglen,
     oob_req->iter = 0;
     *req = oob_req;
     return oob_allgather_test(*req);
+}
+
+int xccl_mpi_create_comm_nb(MPI_Comm comm, xccl_team_h *team) {
+    int rank, size;
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &size);
+
+    /* Create XCCL TEAM for comm world */
+    xccl_team_config_t team_config = {
+        .range     = {
+            .type           = XCCL_EP_RANGE_STRIDED,
+            .strided.start  = 0,
+            .strided.stride = 1
+        }
+    };
+
+    xccl_oob_collectives_t oob = {
+        .allgather    = oob_allgather,
+        .req_test     = oob_allgather_test,
+        .req_free     = oob_allgather_free,
+        .coll_context = (void*)comm,
+        .rank = rank,
+        .size = size
+    };
+    XCCL_CHECK(xccl_team_create_post(team_ctx, &team_config, oob, team));
+    return 0;
+}
+
+int xccl_mpi_create_comm(MPI_Comm comm, xccl_team_h *team) {
+    xccl_mpi_create_comm_nb(comm, team);
+    while (XCCL_INPROGRESS == xccl_team_create_test(*team)) {;};
 }
 
 int xccl_mpi_test_init(int argc, char **argv,
@@ -148,26 +179,7 @@ int xccl_mpi_test_init(int argc, char **argv,
         team_ctx_config.oob = oob_ctx;
     }
 #endif    
-
-    /* Create XCCL TEAM for comm world */
-    xccl_team_config_t team_config = {
-        .range     = {
-            .type           = XCCL_EP_RANGE_STRIDED,
-            .strided.start  = 0,
-            .strided.stride = 1
-        }
-    };
-
-    xccl_oob_collectives_t oob = {
-        .allgather    = oob_allgather,
-        .req_test     = oob_allgather_test,
-        .req_free     = oob_allgather_free,
-        .coll_context = (void*)MPI_COMM_WORLD,
-        .rank = rank,
-        .size = size
-    };
-
-    XCCL_CHECK(xccl_team_create_post(team_ctx, &team_config, oob, &xccl_world_team));
+    xccl_mpi_create_comm(MPI_COMM_WORLD, &xccl_world_team);
     return 0;
 }
 
