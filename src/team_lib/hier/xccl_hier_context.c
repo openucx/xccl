@@ -23,7 +23,7 @@ static xccl_status_t init_env_params(xccl_hier_context_t *ctx)
         ctx->tls[XCCL_TL_SHARP].enabled = 0;
     }
 
-    var = getenv("XCCL_HIER__ENABLE_SHMSEG");
+    var = getenv("XCCL_HIER_ENABLE_SHMSEG");
     if (var && (0 == strcmp(var, "y") ||
                 0 == strcmp(var, "1"))) {
         ctx->tls[XCCL_TL_SHMSEG].enabled = 1;
@@ -39,6 +39,42 @@ static xccl_status_t init_env_params(xccl_hier_context_t *ctx)
         ctx->tls[XCCL_TL_VMC].enabled = 0;
     }
 
+    var = getenv("XCCL_BCAST_PIPELINE_THRESH");
+    if (var) {
+        if (0 == strcmp("inf", var) || 0 == strcmp("INF", var)) {
+            ctx->bcast_pipeline_thresh = SIZE_MAX;
+        } else {
+            ctx->bcast_pipeline_thresh = (size_t)atoi(var);
+        }
+    } else {
+        ctx->bcast_pipeline_thresh = SIZE_MAX;
+    }
+
+    var = getenv("XCCL_BCAST_PIPELINE_DEPTH");
+    if (var) {
+        ctx->bcast_pipeline_depth = atoi(var);
+    } else {
+        ctx->bcast_pipeline_depth = 1;
+    }
+
+    var = getenv("XCCL_BCAST_SM_GET");
+    if (var && (0 == strcmp(var, "y") ||
+                0 == strcmp(var, "1"))) {
+        ctx->use_sm_get_bcast = 1;
+    } else {
+        ctx->use_sm_get_bcast = 0;
+    }
+
+    var = getenv("XCCL_BCAST_SM_GET_THRESH");
+    if (var) {
+        if (0 == strcmp("inf", var) || 0 == strcmp("INF", var)) {
+            ctx->bcast_sm_get_thresh = SIZE_MAX;
+        } else {
+            ctx->bcast_sm_get_thresh = (size_t)atoi(var);
+        }
+    } else {
+        ctx->bcast_sm_get_thresh = SIZE_MAX;
+    }
     return XCCL_OK;
 }
 

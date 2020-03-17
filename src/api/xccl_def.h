@@ -58,6 +58,7 @@ typedef struct xccl_team_config* xccl_team_config_h;
  */
 
 typedef struct xccl_coll_req* xccl_coll_req_h;
+typedef struct xccl_mem_handle* xccl_mem_h;
 
 #define XCCL_BIT(i)               (1ul << (i))
 #define XCCL_MASK(i)              (XCCL_BIT(i) - 1)

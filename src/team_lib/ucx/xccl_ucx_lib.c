@@ -210,6 +210,7 @@ static xccl_status_t xccl_ucx_lib_open(xccl_team_lib_h self,
 
 xccl_team_lib_ucx_t xccl_team_lib_ucx = {
     .super.name                 = "ucx",
+    .super.id                   = XCCL_TL_UCX,
     .super.priority             = 10,
     .super.team_lib_config      = {
         .name                   = "UCX team library",
@@ -234,7 +235,10 @@ xccl_team_lib_ucx_t xccl_team_lib_ucx = {
     .super.collective_post      = xccl_ucx_collective_post,
     .super.collective_wait      = xccl_ucx_collective_wait,
     .super.collective_test      = xccl_ucx_collective_test,
-    .super.collective_finalize  = xccl_ucx_collective_finalize
+    .super.collective_finalize  = xccl_ucx_collective_finalize,
+    .super.global_mem_map_start = NULL,
+    .super.global_mem_map_test  = NULL,
+    .super.global_mem_unmap     = NULL,
 };
 
 void xccl_ucx_send_completion_cb(void* request, ucs_status_t status)
