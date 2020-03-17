@@ -2,13 +2,15 @@
 * Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
 * See file LICENSE for terms.
 */
+
 #ifndef XCCL_TEAM_LIB_H_
 #define XCCL_TEAM_LIB_H_
+
 #include "api/xccl.h"
 #include <assert.h>
 #include <string.h>
 #include <ucs/config/types.h>
-#include <ucs/debug/log.h>
+#include <ucs/debug/log_def.h>
 #include <ucs/config/parser.h>
 
 typedef struct xccl_tl_context xccl_tl_context_t;

@@ -16,7 +16,7 @@ ucs_config_field_t xccl_team_lib_config_table[] = {
   "will be printed.\n"
   "Possible values are: fatal, error, warn, info, debug, trace, data, func, poll.",
   ucs_offsetof(xccl_team_lib_config_t, log_component),
-  UCS_CONFIG_TYPE_COMP},
+  UCS_CONFIG_TYPE_LOG_COMP},
 
   {"PRIORITY", "-1",
   "XCCL team lib priority.\n"

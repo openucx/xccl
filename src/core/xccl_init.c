@@ -4,11 +4,9 @@
 * See file LICENSE for terms.
 */
 
-
 #include "config.h"
 #define _GNU_SOURCE
 #include "xccl_team_lib.h"
-#include <ucs/debug/log.h>
 #include <ucs/config/parser.h>
 #include <ucs/sys/compiler.h>
 #include <stdlib.h>
@@ -37,7 +35,7 @@ ucs_config_field_t xccl_lib_global_config_table[] = {
   "will be printed.\n"
   "Possible values are: fatal, error, warn, info, debug, trace, data, func, poll.",
   ucs_offsetof(xccl_lib_config_t, log_component),
-  UCS_CONFIG_TYPE_COMP},
+  UCS_CONFIG_TYPE_LOG_COMP},
 
   {"TEAM_LIB_PATH", "",
   "Specifies team libraries location",
@@ -88,6 +86,7 @@ static xccl_status_t xccl_team_lib_init(const char *so_path,
     strncpy(team_lib_struct, so_path+pos, strlen(so_path) - pos - 3);
     team_lib_struct[strlen(so_path) - pos - 3] = '\0';
     handle = dlopen(so_path, RTLD_LAZY);
+    xccl_debug("Loading library %s\n", so_path);
     if (!handle) {
         xccl_error("Failed to load XCCL Team library: %s\n. "
                 "Check XCCL_TEAM_LIB_PATH or LD_LIBRARY_PATH\n", so_path);
