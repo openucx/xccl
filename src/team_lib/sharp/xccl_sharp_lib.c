@@ -178,6 +178,12 @@ xccl_sharp_team_create_post(xccl_tl_context_t *context,
     return XCCL_OK;
 }
 
+static xccl_status_t xccl_sharp_team_create_test(xccl_tl_team_t *team)
+{
+    /*TODO implement true non-blocking */
+    return XCCL_OK;
+}
+
 static xccl_status_t xccl_sharp_team_destroy(xccl_tl_team_t *team)
 {
     xccl_sharp_team_t *team_sharp = xccl_derived_of(team, xccl_sharp_team_t);
@@ -210,6 +216,7 @@ xccl_team_lib_sharp_t xccl_team_lib_sharp = {
     .super.create_team_context  = xccl_sharp_create_context,
     .super.destroy_team_context = xccl_sharp_destroy_context,
     .super.team_create_post     = xccl_sharp_team_create_post,
+    .super.team_create_test     = xccl_sharp_team_create_test,
     .super.team_destroy         = xccl_sharp_team_destroy,
     .super.progress             = NULL,
     .super.team_lib_open        = NULL,

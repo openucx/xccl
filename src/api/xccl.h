@@ -216,7 +216,7 @@ typedef struct xccl_team_config {
 xccl_status_t xccl_team_create_post(xccl_context_h team_ctx,
                                     xccl_team_config_h config,
                                     xccl_oob_collectives_t oob, xccl_team_h *team);
-
+xccl_status_t xccl_team_create_test(xccl_team_h team);
 xccl_status_t xccl_team_destroy(xccl_team_h team);
 
 typedef enum {

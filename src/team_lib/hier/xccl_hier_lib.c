@@ -159,6 +159,7 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
     .super.create_team_context  = xccl_hier_create_context,
     .super.destroy_team_context = xccl_hier_destroy_context,
     .super.team_create_post     = xccl_hier_team_create_post,
+    .super.team_create_test     = xccl_hier_team_create_test,
     .super.team_destroy         = xccl_hier_team_destroy,
     .super.progress             = xccl_hier_context_progress,
     .super.team_lib_open        = NULL,

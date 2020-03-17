@@ -34,7 +34,9 @@ typedef struct xccl_hier_team {
 
 xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context, xccl_team_config_t *config,
                                          xccl_oob_collectives_t oob, xccl_tl_team_t **team);
+xccl_status_t xccl_hier_team_create_test(xccl_tl_team_t *team);
 xccl_status_t xccl_hier_team_destroy(xccl_tl_team_t *team);
+
 
 static inline int xccl_hier_team_rank2ctx(xccl_hier_team_t *team, int rank)
 {

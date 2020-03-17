@@ -117,6 +117,12 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context, xccl_team_c
     return XCCL_OK;
 }
 
+xccl_status_t xccl_hier_team_create_test(xccl_tl_team_t *team)
+{
+    /*TODO implement true non-blocking */
+    return XCCL_OK;
+}
+
 xccl_status_t xccl_hier_team_destroy(xccl_tl_team_t *team)
 {
     xccl_hier_team_t *hier_team = xccl_derived_of(team, xccl_hier_team_t);

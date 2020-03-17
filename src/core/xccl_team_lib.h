@@ -45,6 +45,7 @@ typedef struct xccl_team_lib {
     xccl_status_t              (*team_create_post)(xccl_tl_context_t *team_ctx,
                                                    xccl_team_config_h config,
                                                    xccl_oob_collectives_t oob, xccl_tl_team_t **team);
+    xccl_status_t              (*team_create_test)(xccl_tl_team_t *team_ctx);
     xccl_status_t              (*team_destroy)(xccl_tl_team_t *team);
     xccl_status_t              (*collective_init)(xccl_coll_op_args_t *coll_args,
                                                  xccl_coll_req_h *request, xccl_tl_team_t *team);
@@ -91,20 +92,35 @@ typedef struct xccl_tl_team {
 } xccl_tl_team_t;
 
 typedef struct xccl_team {
-    xccl_context_t *ctx;
-    int coll_team_id[XCCL_COLL_LAST];
-    int n_teams;
-    xccl_tl_team_t *tl_teams[1];
+    xccl_context_t* ctx;
+    int             coll_team_id[XCCL_COLL_LAST];
+    int             n_teams;
+    xccl_status_t   status;
+    xccl_tl_team_t* tl_teams[1];
 } xccl_team_t;
+
+#define XCCL_CHECK_TEAM(_team) do {                                     \
+        if (_team->status != XCCL_OK) {                                 \
+            xccl_error("team %p is used before team_create is completed", _team); \
+            return XCCL_ERR_INVALID_PARAM;                              \
+        }                                                               \
+    } while(0)
+
+static inline void
+xccl_oob_allgather_nb(void *sbuf, void* rbuf, size_t len,
+                      xccl_oob_collectives_t *oob, void **req)
+{
+    xccl_ep_range_t r = {
+        .type = XCCL_EP_RANGE_UNDEFINED,
+    };
+    oob->allgather(sbuf, rbuf, len, 0, r, oob->coll_context, req);
+}
 
 static inline void
 xccl_oob_allgather(void *sbuf, void* rbuf, size_t len, xccl_oob_collectives_t *oob)
 {
     void *req;
-    xccl_ep_range_t r = {
-        .type = XCCL_EP_RANGE_UNDEFINED,
-    };
-    oob->allgather(sbuf, rbuf, len, 0, r, oob->coll_context, &req);
+    xccl_oob_allgather_nb(sbuf, rbuf, len, oob, &req);
     while (XCCL_INPROGRESS == oob->req_test(req)) {;}
     oob->req_free(req);
 }
@@ -179,6 +195,7 @@ static inline xccl_tl_mem_h xccl_mem_handle_by_tl_id(xccl_mem_h memh, xccl_tl_id
 
 #endif
 
+extern xccl_lib_config_t xccl_lib_global_config;
 #define xccl_log_component(_level, _fmt, ...) \
     do { \
         ucs_log_component(_level, &xccl_lib_global_config.log_component, _fmt, ## __VA_ARGS__); \
