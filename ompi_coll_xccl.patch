@@ -1,7 +1,7 @@
 From 1b969299a8ae1d4d289cd4bcc6b124ed30943e39 Mon Sep 17 00:00:00 2001
 From: Valentin Petrov <valentinp@mellanox.com>
 Date: Mon, 2 Mar 2020 13:26:33 +0200
-Subject: [PATCH] ompi/coll/xccl
+Subject: [PATCH 1/3] ompi/coll/xccl
 
     eXperimental openucx collective communication library (XCCL)
     integration layer
@@ -1070,6 +1070,195 @@ index 0000000..cdf5a1e
 +    AC_SUBST([coll_xccl_LDFLAGS])
 +    AC_SUBST([coll_xccl_LIBS])
 +])dnl
+-- 
+2.6.2
+
+
+From 75b19a87b550f5fed52358492da164b3886460b1 Mon Sep 17 00:00:00 2001
+From: Valentin Petrov <valentinp@mellanox.com>
+Date: Tue, 17 Mar 2020 22:18:46 +0200
+Subject: [PATCH 2/3] coll/xccl: non blocking oob allgather interface
+
+---
+ ompi/mca/coll/xccl/coll_xccl_module.c | 121 +++++++++++++++++++++++++---------
+ 1 file changed, 89 insertions(+), 32 deletions(-)
+
+diff --git a/ompi/mca/coll/xccl/coll_xccl_module.c b/ompi/mca/coll/xccl/coll_xccl_module.c
+index 9dc07e2..a71956e 100644
+--- a/ompi/mca/coll/xccl/coll_xccl_module.c
++++ b/ompi/mca/coll/xccl/coll_xccl_module.c
+@@ -106,42 +106,95 @@ static int xccl_comm_attr_del_fn(MPI_Comm comm, int keyval, void *attr_val, void
+     return OMPI_SUCCESS;
+ }
+ 
+-
+-static int oob_allgather(void *sbuf, void *rbuf, size_t msglen,
+-                          int my_rank, xccl_ep_range_t range,  void *oob_coll_ctx) {
+-    ompi_communicator_t *comm = (ompi_communicator_t *)oob_coll_ctx;
++typedef struct oob_allgather_req{
++    xccl_ep_range_t range;
++    void *sbuf;
++    void *rbuf;
++    void *oob_coll_ctx;
++    int my_rank;
++    size_t msglen;
++    int iter;
++    ompi_request_t *reqs[2];
++} oob_allgather_req_t;
++
++static xccl_status_t oob_allgather_test(void *req)
++{
++    oob_allgather_req_t *oob_req = (oob_allgather_req_t*)req;
++    int rank, size, sendto, recvfrom, recvdatafrom, senddatafrom, completed, probe;
++    char *tmpsend = NULL, *tmprecv = NULL;
++    size_t msglen = oob_req->msglen;
++    const int probe_count = 1;
++    ompi_communicator_t *comm = (ompi_communicator_t *)oob_req->oob_coll_ctx;
+     if (!comm) comm = &ompi_mpi_comm_world.comm;
+-    if (XCCL_EP_RANGE_UNDEFINED == range.type) {
+-        comm->c_coll->coll_allgather(sbuf, msglen, MPI_BYTE,
+-                                     rbuf, msglen, MPI_BYTE, comm,
+-                                     comm->c_coll->coll_allgather_module);
++    if (oob_req->range.type == XCCL_EP_RANGE_UNDEFINED) {
++        size = ompi_comm_size(comm);
++        rank = ompi_comm_rank(comm);
+     } else {
+-        int root = xccl_range_to_rank(range, 0);
+-        if (my_rank == root) {
+-            int i;
+-            memcpy(rbuf, sbuf, msglen);
+-            for (i=1; i<range.ep_num; i++) {
+-                MCA_PML_CALL(recv((void*)((char*)rbuf + msglen*i), msglen,
+-                                  MPI_BYTE, xccl_range_to_rank(range, i),
+-                                  MCA_COLL_BASE_TAG_XCCL,
+-                                  comm, MPI_STATUS_IGNORE));
+-            }
+-            for (i=1; i<range.ep_num; i++) {
+-                MCA_PML_CALL(send(rbuf, msglen*range.ep_num, MPI_BYTE,
+-                                  xccl_range_to_rank(range, i),
+-                                  MCA_COLL_BASE_TAG_XCCL,
+-                                  MCA_PML_BASE_SEND_STANDARD, comm));
++        size = oob_req->range.ep_num;
++        rank = oob_req->my_rank;
++    }
++    if (oob_req->iter == 0) {
++        tmprecv = (char*) oob_req->rbuf + (ptrdiff_t)rank * (ptrdiff_t)msglen;
++        memcpy(tmprecv, oob_req->sbuf, msglen);
++    }
++    sendto = (rank + 1) % size;
++    recvfrom  = (rank - 1 + size) % size;
++    if (oob_req->range.type != XCCL_EP_RANGE_UNDEFINED) {
++        sendto = xccl_range_to_rank(oob_req->range, sendto);
++        recvfrom = xccl_range_to_rank(oob_req->range, recvfrom);
++    }
++    for (; oob_req->iter < size - 1; oob_req->iter++) {
++        if (oob_req->iter > 0) {
++            probe = 0;
++            do {
++                ompi_request_test_all(2, oob_req->reqs, &completed, MPI_STATUS_IGNORE);
++                probe++;
++            } while (!completed && probe < probe_count);
++            if (!completed) {
++                return XCCL_INPROGRESS;
+             }
+-        } else {
+-            MCA_PML_CALL(send(sbuf, msglen, MPI_BYTE, root,
+-                              MCA_COLL_BASE_TAG_XCCL,
+-                              MCA_PML_BASE_SEND_STANDARD, comm));
+-            MCA_PML_CALL(recv(rbuf, msglen*range.ep_num, MPI_BYTE, root,
+-                              MCA_COLL_BASE_TAG_XCCL,
+-                              comm, MPI_STATUS_IGNORE));
+         }
++        recvdatafrom = (rank - oob_req->iter - 1 + size) % size;
++        senddatafrom = (rank - oob_req->iter + size) % size;
++        tmprecv = (char*)oob_req->rbuf + (ptrdiff_t)recvdatafrom * (ptrdiff_t)msglen;
++        tmpsend = (char*)oob_req->rbuf + (ptrdiff_t)senddatafrom * (ptrdiff_t)msglen;
++
++        MCA_PML_CALL(isend(tmpsend, msglen, MPI_BYTE, sendto, MCA_COLL_BASE_TAG_XCCL,
++                           MCA_PML_BASE_SEND_STANDARD, comm, &oob_req->reqs[0]));
++        MCA_PML_CALL(irecv(tmprecv, msglen, MPI_BYTE, recvfrom,
++                           MCA_COLL_BASE_TAG_XCCL, comm, &oob_req->reqs[1]));
++    }
++    probe = 0;
++    do {
++        ompi_request_test_all(2, oob_req->reqs, &completed, MPI_STATUS_IGNORE);
++        probe++;
++    } while (!completed && probe < probe_count);
++    if (!completed) {
++        return XCCL_INPROGRESS;
+     }
+-    return 0;
++    return XCCL_OK;
++}
++
++static xccl_status_t oob_allgather_free(void *req)
++{
++    free(req);
++    return XCCL_OK;
++}
++
++static xccl_status_t oob_allgather(void *sbuf, void *rbuf, size_t msglen,
++                                   int my_rank, xccl_ep_range_t range,
++                                   void *oob_coll_ctx, void **req)
++{
++    oob_allgather_req_t *oob_req = malloc(sizeof(*oob_req));
++    oob_req->sbuf = sbuf;
++    oob_req->rbuf = rbuf;
++    oob_req->msglen = msglen;
++    oob_req->range = range;
++    oob_req->oob_coll_ctx = oob_coll_ctx;
++    oob_req->my_rank = my_rank;
++    oob_req->iter = 0;
++    *req = oob_req;
++    return oob_allgather_test(*req);
+ }
+ 
+ /*
+@@ -175,6 +228,8 @@ static int mca_coll_xccl_module_enable(mca_coll_base_module_t *module,
+                 .completion_type = XCCL_TEAM_COMPLETION_BLOCKING,
+                 .oob = {
+                     .allgather    = oob_allgather,
++                    .req_test     = oob_allgather_test,
++                    .req_free     = oob_allgather_free,
+                     .coll_context = (void*)MPI_COMM_WORLD,
+                     .rank         = ompi_comm_rank(&ompi_mpi_comm_world.comm),
+                     .size         = ompi_comm_size(&ompi_mpi_comm_world.comm)
+@@ -216,7 +271,9 @@ static int mca_coll_xccl_module_enable(mca_coll_base_module_t *module,
+     };
+ 
+     xccl_oob_collectives_t oob = {
+-        .allgather  = oob_allgather,
++        .allgather    = oob_allgather,
++        .req_test     = oob_allgather_test,
++        .req_free     = oob_allgather_free,
+         .coll_context = (void*)comm,
+         .rank = ompi_comm_rank(comm),
+         .size = ompi_comm_size(comm)
+-- 
+2.6.2
+
+
+From 7812b664c13a3fc3be7393252677fa4656d8dece Mon Sep 17 00:00:00 2001
+From: Valentin Petrov <valentinp@mellanox.com>
+Date: Wed, 18 Mar 2020 11:27:09 +0200
+Subject: [PATCH 3/3] coll/xccl: wait for team creation completion
+
+---
+ ompi/mca/coll/xccl/coll_xccl_module.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ompi/mca/coll/xccl/coll_xccl_module.c b/ompi/mca/coll/xccl/coll_xccl_module.c
+index a71956e..9d8446e 100644
+--- a/ompi/mca/coll/xccl/coll_xccl_module.c
++++ b/ompi/mca/coll/xccl/coll_xccl_module.c
+@@ -291,6 +291,7 @@ static int mca_coll_xccl_module_enable(mca_coll_base_module_t *module,
+         }
+         return OMPI_ERROR;
+     }
++    while (XCCL_INPROGRESS == xccl_team_create_test(*team)) {;}
+ 
+     if (OMPI_SUCCESS != mca_coll_xccl_save_coll_handlers((mca_coll_xccl_module_t *)module)){
+         XCCL_ERROR("coll_xccl: mca_coll_xccl_save_coll_handlers failed");
 -- 
 2.6.2
 
