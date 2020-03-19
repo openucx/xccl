@@ -1238,7 +1238,7 @@ index 9dc07e2..a71956e 100644
 2.6.2
 
 
-From 7812b664c13a3fc3be7393252677fa4656d8dece Mon Sep 17 00:00:00 2001
+From 6cb8ab420dc8999d03862feee10075fb8320aa07 Mon Sep 17 00:00:00 2001
 From: Valentin Petrov <valentinp@mellanox.com>
 Date: Wed, 18 Mar 2020 11:27:09 +0200
 Subject: [PATCH 3/3] coll/xccl: wait for team creation completion
@@ -1248,14 +1248,14 @@ Subject: [PATCH 3/3] coll/xccl: wait for team creation completion
  1 file changed, 1 insertion(+)
 
 diff --git a/ompi/mca/coll/xccl/coll_xccl_module.c b/ompi/mca/coll/xccl/coll_xccl_module.c
-index a71956e..9d8446e 100644
+index a71956e..8da082c 100644
 --- a/ompi/mca/coll/xccl/coll_xccl_module.c
 +++ b/ompi/mca/coll/xccl/coll_xccl_module.c
 @@ -291,6 +291,7 @@ static int mca_coll_xccl_module_enable(mca_coll_base_module_t *module,
          }
          return OMPI_ERROR;
      }
-+    while (XCCL_INPROGRESS == xccl_team_create_test(*team)) {;}
++    while (XCCL_INPROGRESS == xccl_team_create_test(xccl_module->xccl_team)) {;}
  
      if (OMPI_SUCCESS != mca_coll_xccl_save_coll_handlers((mca_coll_xccl_module_t *)module)){
          XCCL_ERROR("coll_xccl: mca_coll_xccl_save_coll_handlers failed");
