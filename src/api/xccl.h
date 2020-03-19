@@ -131,7 +131,9 @@ static inline int xccl_range_to_rank(xccl_ep_range_t range, int rank)
 typedef struct xccl_oob_collectives {
     int (*allgather)(void *src_buf, void *recv_buff, size_t size,
                      int my_rank, xccl_ep_range_t range,
-                     void *coll_context);
+                     void *coll_context, void **request);
+    xccl_status_t (*req_test)(void *request);
+    xccl_status_t (*req_free)(void *request);
     void *coll_context;
     int rank;
     int size;
@@ -214,7 +216,7 @@ typedef struct xccl_team_config {
 xccl_status_t xccl_team_create_post(xccl_context_h team_ctx,
                                     xccl_team_config_h config,
                                     xccl_oob_collectives_t oob, xccl_team_h *team);
-
+xccl_status_t xccl_team_create_test(xccl_team_h team);
 xccl_status_t xccl_team_destroy(xccl_team_h team);
 
 typedef enum {

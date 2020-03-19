@@ -55,7 +55,6 @@ xccl_status_t xccl_team_create_post(xccl_context_t *context,
                                 sizeof(xccl_tl_team_t*)*(n_ctx-1));
     team->ctx = context;
     team->n_teams = 0;
-
     for (i=0; i<context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
         status = tl_ctx->lib->team_create_post(tl_ctx, config,
@@ -69,6 +68,21 @@ xccl_status_t xccl_team_create_post(xccl_context_t *context,
         free(team);
         return XCCL_ERR_NO_MESSAGE;
     }
+    team->status = XCCL_INPROGRESS;
+    *xccl_team = team;
+    return XCCL_OK;
+}
+
+xccl_status_t xccl_team_create_test(xccl_team_t *team)
+{
+    int i, c;
+    xccl_tl_context_t *tl_ctx;
+    for (i=0; i<team->n_teams; i++) {
+        tl_ctx = team->tl_teams[i]->ctx;
+        if (XCCL_INPROGRESS == tl_ctx->lib->team_create_test(team->tl_teams[i])) {
+            return XCCL_INPROGRESS;
+        }
+    }
     qsort(team->tl_teams, team->n_teams, sizeof(xccl_tl_team_t*),
           compare_teams_by_priority);
     for (c = 0; c < XCCL_COLL_LAST; c++) {
@@ -80,13 +94,13 @@ xccl_status_t xccl_team_create_post(xccl_context_t *context,
             }
         }
     }
+    team->status = XCCL_OK;
     /* TODO: check if some teams are never used after selection and clean them up */
-    *xccl_team = team;
     return XCCL_OK;
 }
-
 xccl_status_t xccl_team_destroy(xccl_team_t *team)
 {
+    XCCL_CHECK_TEAM(team);
     int i;
     xccl_tl_context_t *tl_ctx;
     for (i=0; i<team->n_teams; i++) {

@@ -13,6 +13,7 @@
 xccl_status_t xccl_collective_init(xccl_coll_op_args_t *coll_args,
                                    xccl_coll_req_h *request, xccl_team_h team)
 {
+    XCCL_CHECK_TEAM(team);
     int tl_team_id = team->coll_team_id[coll_args->coll_type];
     xccl_tl_team_t *tl_team = team->tl_teams[tl_team_id];
     xccl_team_lib_t *lib = tl_team->ctx->lib;
@@ -55,6 +56,7 @@ xccl_status_t xccl_context_progress(xccl_context_h context)
 xccl_status_t xccl_global_mem_map_start(xccl_team_h team, xccl_mem_map_params_t params,
                                         xccl_mem_h *memh_p)
 {
+    XCCL_CHECK_TEAM(team);
     xccl_status_t status;
     int i;
     xccl_team_lib_t *tl;
