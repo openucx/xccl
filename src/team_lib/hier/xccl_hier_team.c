@@ -56,6 +56,8 @@ static xccl_status_t xccl_hier_create_pair(sbgp_t *sbgp, xccl_hier_team_t *team,
 
     xccl_oob_collectives_t oob = {
         .allgather  = oob_sbgp_allgather,
+        .req_test   = team->super.oob.req_test,
+        .req_free   = team->super.oob.req_free,
         .coll_context = (void*)sbgp,
         .rank = sbgp->group_rank,
         .size = sbgp->group_size,
@@ -64,6 +66,8 @@ static xccl_status_t xccl_hier_create_pair(sbgp_t *sbgp, xccl_hier_team_t *team,
     team->pairs[pair] = (xccl_hier_pair_t*)malloc(sizeof(xccl_hier_pair_t));
     xccl_team_create_post(ctx->tls[tl_id].xccl_ctx, &team_config,
                          oob, &team->pairs[pair]->team);
+    while (XCCL_INPROGRESS ==
+           xccl_team_create_test(team->pairs[pair]->team)) {;}
     team->pairs[pair]->sbgp = sbgp;
     return XCCL_OK;
 }
