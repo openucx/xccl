@@ -22,7 +22,7 @@ static xccl_status_t xccl_vmc_create_context(xccl_team_lib_t *lib,
                                              xccl_tl_context_t **context)
 {
     xccl_vmc_context_t *ctx = malloc(sizeof(*ctx));
-    vmc_ctx_params_t    vmc_params;
+    vmc_ctx_params_t    vmc_params = vmc_default_ctx_params;;
     vmc_status_t        st;
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, config);
 
@@ -31,7 +31,6 @@ static xccl_status_t xccl_vmc_create_context(xccl_team_lib_t *lib,
     vmc_params.allgather             = xccl_vmc_allgather;
     vmc_params.timeout               = 10000;
     vmc_params.print_nack_stats      = 0;
-    vmc_params.runtime_progress      = xccl_vmc_runtime_progress;
     vmc_params.memtype_cache_enabled = 0;
     if (config->oob.size > 0) {
         vmc_params.world_size        = config->oob.size;
@@ -70,23 +69,13 @@ static xccl_status_t xccl_vmc_team_create_post(xccl_tl_context_t *context,
 {
     xccl_vmc_context_t *team_vmc_ctx = xccl_derived_of(context, xccl_vmc_context_t);
     xccl_vmc_team_t    *team_vmc     = malloc(sizeof(*team_vmc));
-    vmc_comm_params_t   vmc_params;
+    vmc_comm_params_t   vmc_params   = vmc_default_comm_params;
     vmc_status_t        st;
     XCCL_TEAM_SUPER_INIT(team_vmc->super, context, config, oob);
-
-    vmc_params.sx_depth             = 512;
-    vmc_params.rx_depth             = 1024,
-    vmc_params.sx_sge               = 1,
-    vmc_params.rx_sge               = 2,
-    vmc_params.post_recv_thresh     = 64,
-    vmc_params.scq_moderation       = 64,
-    vmc_params.wsize                = 64,
-    vmc_params.cu_stage_thresh      = 4000,
-    vmc_params.max_eager            = 65536,
     vmc_params.comm_size            = oob.size;
     vmc_params.rank                 = oob.rank;
-    vmc_params.runtime_communicator = &team_vmc->super.oob;
-    vmc_params.comm_rank_to_world   = vmc_comm_rank_to_world_mapper;
+    vmc_params.comm_oob_context     = &team_vmc->super.oob;
+    vmc_params.comm_rank_to_ctx     = vmc_comm_rank_to_world_mapper;
     vmc_params.rank_mapper_ctx      = (void*)&team_vmc->super.cfg;
     st = vmc_comm_create(team_vmc_ctx->vmc_ctx, &vmc_params, &team_vmc->vmc_comm);
     if (st != VMC_SUCCESS) {
@@ -146,7 +135,7 @@ static xccl_status_t xccl_vmc_collective_test(xccl_coll_req_h request)
 {
     xccl_vmc_coll_req_t *req = xccl_derived_of(request, xccl_vmc_coll_req_t);
     vmc_status_t st;
-    st = vmc_test(req->handle);
+    st = vmc_req_test(req->handle);
     if (VMC_ERROR == st) {
         return XCCL_ERR_NO_MESSAGE;
     }
