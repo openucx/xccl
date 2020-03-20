@@ -3,27 +3,33 @@
 *
 * See file LICENSE for terms.
 */
+
 #include "xccl_sharp_collective.h"
 #include "xccl_sharp_map.h"
 #include <stdlib.h>
 #include <string.h>
 
-static inline xccl_status_t
-xccl_sharp_get_free_buf(xccl_sharp_team_t *team_sharp,
-                        xccl_sharp_buf_t **buffer)
+static xccl_status_t
+xccl_sharp_mem_rcache_reg(xccl_sharp_context_t *ctx, void *address,
+                          size_t length, xccl_sharp_rcache_region_t **rregion)
 {
-    xccl_sharp_buf_t *buf;
-    int i;
+    ucs_status_t        status;
+    ucs_rcache_region_t *region;
 
-    for(i = 0; i < XCCL_SHARP_REG_BUF_NUM; i++) {
-        buf = team_sharp->bufs + i;
-        if (buf->used == 0) {
-            buf->used = 1;
-            *buffer = buf;
-            return XCCL_OK;
-        }
+    status = ucs_rcache_get(ctx->rcache, address, length, PROT_READ|PROT_WRITE,
+                            NULL, &region);
+    if (status != UCS_OK) {
+        return XCCL_ERR_NO_MESSAGE;
     }
-    return XCCL_ERR_NO_RESOURCE;
+
+    *rregion = (xccl_sharp_rcache_region_t*)region;
+    return UCS_OK;
+}
+
+static void xccl_sharp_mem_rcache_dereg(xccl_sharp_context_t *ctx,
+                                        xccl_sharp_rcache_region_t *rregion)
+{
+    ucs_rcache_region_put(ctx->rcache, &rregion->super);
 }
 
 static int
@@ -40,14 +46,13 @@ xccl_sharp_allreduce_init(xccl_coll_op_args_t* coll_args,
 {
     xccl_sharp_coll_req_t *req            = malloc(sizeof(xccl_sharp_coll_req_t));
     xccl_sharp_team_t     *team_sharp     = xccl_derived_of(team, xccl_sharp_team_t);
-    enum sharp_datatype    sharp_type     = xccl_to_sharp_dtype[coll_args->reduce_info.dt];
-    enum sharp_reduce_op   sharp_op       = xccl_to_sharp_reduce_op[coll_args->reduce_info.op];
+    enum sharp_datatype   sharp_type      = xccl_to_sharp_dtype[coll_args->reduce_info.dt];
+    enum sharp_reduce_op  sharp_op        = xccl_to_sharp_reduce_op[coll_args->reduce_info.op];
     xccl_sharp_context_t  *team_sharp_ctx = xccl_derived_of(team->ctx, xccl_sharp_context_t);
-    void *send_mr, *recv_mr;
-    xccl_sharp_buf_t *sharp_buf;
-    xccl_status_t use_free_buf;
     struct sharp_coll_reduce_spec *reduce_spec;
-    int rc;
+    xccl_status_t                 status;
+    void                          *src_mr, *dst_mr;
+    int                           rc;
 
     if (sharp_type == SHARP_DTYPE_NULL || sharp_op == SHARP_OP_NULL) {
         return XCCL_ERR_NOT_IMPLEMENTED;
@@ -56,57 +61,60 @@ xccl_sharp_allreduce_init(xccl_coll_op_args_t* coll_args,
     req->sharp_comm = team_sharp->sharp_comm;
     req->super.lib  = &xccl_team_lib_sharp.super;
     req->team       = team_sharp;
-
-    if (coll_args->buffer_info.len <= XCCL_SHARP_REG_BUF_SIZE) {
-        use_free_buf = xccl_sharp_get_free_buf(team_sharp, &sharp_buf);
-    } else {
-        use_free_buf = XCCL_ERR_NO_RESOURCE;
-    }
-
-    if (use_free_buf == XCCL_OK) {
-        memcpy(sharp_buf->buf, coll_args->buffer_info.src_buffer,
-               coll_args->buffer_info.len);
-        req->reduce_spec.sbuf_desc.buffer.ptr        = sharp_buf->buf;
-        req->reduce_spec.sbuf_desc.buffer.mem_handle = sharp_buf->mr;
-        req->reduce_spec.rbuf_desc.buffer.ptr        = sharp_buf->buf +
-                                                       XCCL_SHARP_REG_BUF_SIZE;
-        req->reduce_spec.rbuf_desc.buffer.mem_handle = sharp_buf->mr;
-        req->sharp_buf                               = sharp_buf;
-        req->sharp_buf->orig_src_buf                 = coll_args->buffer_info.src_buffer;
-        req->sharp_buf->orig_dst_buf                 = coll_args->buffer_info.dst_buffer;
-    } else {
+    
+    if (team_sharp_ctx == NULL) {
         rc = sharp_coll_reg_mr(team_sharp_ctx->sharp_context,
                                coll_args->buffer_info.src_buffer,
-                               coll_args->buffer_info.len, &send_mr);
+                               coll_args->buffer_info.len, &src_mr);
         if (rc != SHARP_COLL_SUCCESS) {
-            xccl_sharp_error("SHARP regmr failed\n");
+            xccl_sharp_error("SHARP regmr failed for src buffer\n");
         }
         rc = sharp_coll_reg_mr(team_sharp_ctx->sharp_context,
                                coll_args->buffer_info.dst_buffer,
-                               coll_args->buffer_info.len, &recv_mr);
+                               coll_args->buffer_info.len, &dst_mr);
         if (rc != SHARP_COLL_SUCCESS) {
-            xccl_sharp_error("SHARP regmr failed\n");
+            xccl_sharp_error("SHARP regmr failed for dst buffer\n");
         }
-        req->reduce_spec.sbuf_desc.buffer.ptr        = coll_args->buffer_info.src_buffer;
-        req->reduce_spec.sbuf_desc.buffer.mem_handle = send_mr;
-        req->reduce_spec.rbuf_desc.buffer.ptr        = coll_args->buffer_info.dst_buffer;
-        req->reduce_spec.rbuf_desc.buffer.mem_handle = recv_mr;
-        req->sharp_buf                               = NULL;
+    } else {
+        status = xccl_sharp_mem_rcache_reg(team_sharp_ctx,
+                                           coll_args->buffer_info.src_buffer,
+                                           coll_args->buffer_info.len,
+                                           &req->src_rregion);
+        if (status != XCCL_OK) {
+            xccl_sharp_error("SHARP regmr failed for src buffer\n");
+        }
+        src_mr = req->src_rregion->memh;
+
+        status = xccl_sharp_mem_rcache_reg(team_sharp_ctx,
+                                           coll_args->buffer_info.dst_buffer,
+                                           coll_args->buffer_info.len,
+                                           &req->dst_rregion);
+        if (status != XCCL_OK) {
+            xccl_sharp_error("SHARP regmr failed for dst buffer\n");
+        }
+        dst_mr = req->dst_rregion->memh;
     }
 
-    req->reduce_spec.sbuf_desc.buffer.length = coll_args->buffer_info.len;
-    req->reduce_spec.sbuf_desc.type          = SHARP_DATA_BUFFER;
-    req->reduce_spec.sbuf_desc.mem_type      = SHARP_MEM_TYPE_HOST;
-    req->reduce_spec.rbuf_desc.buffer.length = coll_args->buffer_info.len;
-    req->reduce_spec.rbuf_desc.type          = SHARP_DATA_BUFFER;
-    req->reduce_spec.rbuf_desc.mem_type      = SHARP_MEM_TYPE_HOST;
-    req->reduce_spec.length                  = coll_args->reduce_info.count;
-    req->reduce_spec.dtype                   = sharp_type;
-    req->reduce_spec.op                      = sharp_op;
-    req->start                               = xccl_sharp_allreduce_post;
-    req->coll_type                           = XCCL_ALLREDUCE;
+    req->reduce_spec.sbuf_desc.buffer.ptr        = coll_args->buffer_info.src_buffer;
+    req->reduce_spec.sbuf_desc.buffer.mem_handle = src_mr;
+    req->reduce_spec.sbuf_desc.buffer.length     = coll_args->buffer_info.len;
+    req->reduce_spec.sbuf_desc.type              = SHARP_DATA_BUFFER;
+    req->reduce_spec.sbuf_desc.mem_type          = SHARP_MEM_TYPE_HOST;
+ 
+    req->reduce_spec.rbuf_desc.buffer.ptr        = coll_args->buffer_info.dst_buffer;
+    req->reduce_spec.rbuf_desc.buffer.mem_handle = dst_mr;
+    req->reduce_spec.rbuf_desc.buffer.length     = coll_args->buffer_info.len;
+    req->reduce_spec.rbuf_desc.type              = SHARP_DATA_BUFFER;
+    req->reduce_spec.rbuf_desc.mem_type          = SHARP_MEM_TYPE_HOST;
+ 
+    req->reduce_spec.length                      = coll_args->reduce_info.count;
+    req->reduce_spec.dtype                       = sharp_type;
+    req->reduce_spec.op                          = sharp_op;
+ 
+    req->start                                   = xccl_sharp_allreduce_post;
+    req->coll_type                               = XCCL_ALLREDUCE;
 #if HAVE_STRUCT_SHARP_COLL_REDUCE_SPEC_AGGR_MODE
-    req->reduce_spec.aggr_mode               = SHARP_AGGREGATION_NONE;
+    req->reduce_spec.aggr_mode                   = SHARP_AGGREGATION_NONE;
 #endif
     *request = &req->super;
     return XCCL_OK;
@@ -132,7 +140,6 @@ xccl_sharp_barrier_init(xccl_coll_op_args_t *coll_args,
     req->super.lib  = &xccl_team_lib_sharp.super;
     req->team       = team_sharp;
     req->start      = xccl_sharp_barrier_post;
-    req->sharp_buf  = NULL;
     req->coll_type  = XCCL_BARRIER;
 
     *request = &req->super;
@@ -175,12 +182,6 @@ xccl_status_t xccl_sharp_collective_test(xccl_coll_req_h request)
     int completed;
 
     completed = sharp_coll_req_test(req->handle);
-    if ((req->coll_type != XCCL_BARRIER) && (completed == 1) &&
-        (req->sharp_buf != NULL)) {
-        memcpy(req->sharp_buf->orig_dst_buf,
-                req->reduce_spec.rbuf_desc.buffer.ptr,
-                req->reduce_spec.rbuf_desc.buffer.length);
-    }
     return (completed) ? XCCL_OK : XCCL_INPROGRESS;
 }
 
@@ -190,25 +191,25 @@ xccl_status_t xccl_sharp_collective_finalize(xccl_coll_req_h request)
     xccl_sharp_team_t     *team = req->team;
     xccl_sharp_context_t  *ctx  = xccl_derived_of(team->super.ctx,
                                                   xccl_sharp_context_t);
-    int rc;
+    int           rc;
 
     sharp_coll_req_free(req->handle);
     if (req->coll_type != XCCL_BARRIER) {
-        if (req->sharp_buf == NULL) {
+        if (ctx->rcache == NULL) {
             rc = sharp_coll_dereg_mr(ctx->sharp_context,
-                                    req->reduce_spec.sbuf_desc.buffer.mem_handle);
+                                     req->reduce_spec.sbuf_desc.buffer.mem_handle);
             if (rc != SHARP_COLL_SUCCESS) {
                 xccl_sharp_error("SHARP deregmr failed\n");
             }
 
             rc = sharp_coll_dereg_mr(ctx->sharp_context,
-                                    req->reduce_spec.rbuf_desc.buffer.mem_handle);
+                                     req->reduce_spec.rbuf_desc.buffer.mem_handle);
             if (rc != SHARP_COLL_SUCCESS) {
                 xccl_sharp_error("SHARP deregmr failed\n");
             }
-
         } else {
-            req->sharp_buf->used = 0;
+            xccl_sharp_mem_rcache_dereg(ctx, req->src_rregion);
+            xccl_sharp_mem_rcache_dereg(ctx, req->dst_rregion);
         }
     }
     free(request);

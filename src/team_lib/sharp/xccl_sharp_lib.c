@@ -54,6 +54,9 @@ static xccl_status_t xccl_sharp_lib_open(xccl_team_lib_h self,
     }
     setenv("SHARP_COLL_NUM_COLL_GROUP_RESOURCE_ALLOC_THRESHOLD", "0", 0);
     xccl_sharp_global_rand_state_init();
+    map_xccl_to_sharp_dtype();
+    map_xccl_to_sharp_reduce_op_type();
+
     return XCCL_OK;
 }
 
@@ -102,16 +105,66 @@ static int xccl_sharp_oob_bcast(void *context, void *buf, int size, int root)
     return 0;
 }
 
+static ucs_status_t xccl_sharp_rcache_mem_reg_cb(void *context,
+                                                 ucs_rcache_t *rcache,
+                                                 void *arg,
+                                                 ucs_rcache_region_t *rregion,
+                                                 uint16_t rcache_mem_reg_flags)
+{
+    xccl_sharp_context_t       *ctx    = (xccl_sharp_context_t*) context;
+    xccl_sharp_rcache_region_t *region = xccl_derived_of(rregion, xccl_sharp_rcache_region_t);
+    void                       *addr   = (void*)region->super.super.start;
+    size_t                     length  = region->super.super.end - region->super.super.start;
+    int rc;
+
+    rc = sharp_coll_reg_mr(ctx->sharp_context, addr, length, &region->memh);
+    if (rc != SHARP_COLL_SUCCESS) {
+        xccl_sharp_error("SHARP regmr failed\n");
+        return UCS_ERR_NO_MESSAGE;
+    }
+    xccl_sharp_debug("RCACHE, mem_reg, addr %p, len %zd, memh %p\n",
+                     addr, length, region->memh);
+    return UCS_OK;
+}
+
+static void xccl_sharp_rcache_mem_dereg_cb(void *context, ucs_rcache_t *rcache,
+                                           ucs_rcache_region_t *rregion)
+{
+    xccl_sharp_context_t       *ctx    = (xccl_sharp_context_t*) context;
+    xccl_sharp_rcache_region_t *region = xccl_derived_of(rregion, xccl_sharp_rcache_region_t);
+    void                       *addr   = (void*)region->super.super.start;
+    int rc;
+
+    xccl_sharp_debug("RCACHE, mem_dereg, memh %p\n", region->memh);
+
+    rc = sharp_coll_dereg_mr(ctx->sharp_context, region->memh);
+    if (rc != SHARP_COLL_SUCCESS) {
+        xccl_sharp_error("SHARP deregmr failed\n");
+    }
+}
+
+static void xccl_sharp_rcache_dump_region_cb(void *context, ucs_rcache_t *rcache,
+                                             ucs_rcache_region_t *rregion, char *buf,
+                                             size_t max)
+{
+    xccl_sharp_rcache_region_t *region = xccl_derived_of(rregion, xccl_sharp_rcache_region_t);
+
+    snprintf(buf, max, "memh:%p", region->memh);
+}
+
+static ucs_rcache_ops_t xccl_sharp_rcache_ops = {
+    .mem_reg     = xccl_sharp_rcache_mem_reg_cb,
+    .mem_dereg   = xccl_sharp_rcache_mem_dereg_cb,
+    .dump_region = xccl_sharp_rcache_dump_region_cb
+};
+
 static xccl_status_t
 xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
                           xccl_tl_context_t **context)
 {
-    xccl_sharp_context_t *ctx = malloc(sizeof(*ctx));
+    xccl_sharp_context_t        *ctx      = malloc(sizeof(*ctx));
     struct sharp_coll_init_spec init_spec = {0};
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, config);
-
-    map_xccl_to_sharp_dtype();
-    map_xccl_to_sharp_reduce_op_type();
 
     init_spec.progress_func                  = NULL;
     init_spec.world_rank                     = config->oob.rank;
@@ -139,6 +192,25 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
         free(ctx);
         return XCCL_ERR_NO_MESSAGE;
     }
+
+    ucs_rcache_params_t rcache_params;
+    ucs_status_t status;
+
+    rcache_params.region_struct_size = sizeof(xccl_sharp_rcache_region_t);
+    rcache_params.alignment          = 64;
+    rcache_params.max_alignment      = (size_t)sysconf(_SC_PAGE_SIZE);
+    rcache_params.ucm_events         = XCCL_BIT(17) /*TODO: UCM_EVENT_VM_UNMAPPED */;
+    rcache_params.ucm_event_priority = 1000;
+    rcache_params.context            = (void*)ctx;
+    rcache_params.ops                = &xccl_sharp_rcache_ops;
+
+    status = ucs_rcache_create(&rcache_params, "team_sharp", NULL, &ctx->rcache);
+    if (status != UCS_OK) {
+        sharp_coll_finalize(ctx->sharp_context);
+        free(ctx);
+        return XCCL_ERR_NO_MESSAGE;
+    }
+
     *context = &ctx->super;
     return XCCL_OK;
 }
@@ -148,9 +220,15 @@ xccl_sharp_destroy_context(xccl_tl_context_t *context)
 {
     xccl_sharp_context_t *team_sharp_ctx =
         xccl_derived_of(context, xccl_sharp_context_t);
+
+    if (team_sharp_ctx->rcache) {
+        ucs_rcache_destroy(team_sharp_ctx->rcache);
+    }
+
     if (team_sharp_ctx->sharp_context) {
         sharp_coll_finalize(team_sharp_ctx->sharp_context);
     }
+
     free(team_sharp_ctx);
     return XCCL_OK;
 }
@@ -182,17 +260,6 @@ xccl_sharp_team_create_post(xccl_tl_context_t *context,
         free(team_sharp);
         return XCCL_ERR_NO_MESSAGE;
     }
-    for(i = 0; i < XCCL_SHARP_REG_BUF_NUM; i++) {
-        team_sharp->bufs[i].buf = malloc(2*XCCL_SHARP_REG_BUF_SIZE);
-        ret = sharp_coll_reg_mr(team_sharp_ctx->sharp_context,
-                               team_sharp->bufs[i].buf,
-                               2*XCCL_SHARP_REG_BUF_SIZE,
-                               &team_sharp->bufs[i].mr);
-        if (ret != SHARP_COLL_SUCCESS) {
-            xccl_sharp_error("SHARP regmr failed\n");
-        }
-        team_sharp->bufs[i].used = 0;
-    }
     *team = &team_sharp->super;
     return XCCL_OK;
 }
@@ -210,15 +277,6 @@ static xccl_status_t xccl_sharp_team_destroy(xccl_tl_team_t *team)
         xccl_derived_of(team->ctx, xccl_sharp_context_t);
 
     sharp_coll_comm_destroy(team_sharp->sharp_comm);
-    for(int i = 0; i < XCCL_SHARP_REG_BUF_NUM; i++) {
-        int rc;
-        rc = sharp_coll_dereg_mr(team_sharp_ctx->sharp_context,
-                                 team_sharp->bufs[i].mr);
-        if (rc != SHARP_COLL_SUCCESS) {
-            xccl_sharp_error("SHARP deregmr failed\n");
-        }
-        free(team_sharp->bufs[i].buf);
-    }
     free(team);
     return XCCL_OK;
 }
