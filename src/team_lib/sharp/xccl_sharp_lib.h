@@ -21,6 +21,7 @@ typedef struct xccl_team_lib_sharp {
 
 typedef struct xccl_team_lib_sharp_config {
     xccl_team_lib_config_t super;
+    int                    enable_rcache;
 } xccl_team_lib_sharp_config_t;
 
 extern xccl_team_lib_sharp_t xccl_team_lib_sharp;

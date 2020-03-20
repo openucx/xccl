@@ -62,7 +62,7 @@ xccl_sharp_allreduce_init(xccl_coll_op_args_t* coll_args,
     req->super.lib  = &xccl_team_lib_sharp.super;
     req->team       = team_sharp;
     
-    if (team_sharp_ctx == NULL) {
+    if (team_sharp_ctx->rcache == NULL) {
         rc = sharp_coll_reg_mr(team_sharp_ctx->sharp_context,
                                coll_args->buffer_info.src_buffer,
                                coll_args->buffer_info.len, &src_mr);

@@ -13,10 +13,15 @@
 #include <unistd.h>
 #include <inttypes.h>
 
+static int enable_rcache;
 static ucs_config_field_t xccl_team_lib_sharp_config_table[] = {
     {"", "", NULL,
-        ucs_offsetof(xccl_team_lib_sharp_config_t, super),
-        UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
+     ucs_offsetof(xccl_team_lib_sharp_config_t, super),
+     UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
+    },
+
+    {"RCACHE", "try", "Enable using memory registration cache",
+     ucs_offsetof(xccl_team_lib_sharp_config_t, enable_rcache), UCS_CONFIG_TYPE_TERNARY
     },
 
     {NULL}
@@ -52,6 +57,8 @@ static xccl_status_t xccl_sharp_lib_open(xccl_team_lib_h self,
     if (cfg->super.priority != -1) {
         tl->super.priority = cfg->super.priority;
     }
+    enable_rcache = cfg->enable_rcache;
+
     setenv("SHARP_COLL_NUM_COLL_GROUP_RESOURCE_ALLOC_THRESHOLD", "0", 0);
     xccl_sharp_global_rand_state_init();
     map_xccl_to_sharp_dtype();
@@ -164,6 +171,8 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
 {
     xccl_sharp_context_t        *ctx      = malloc(sizeof(*ctx));
     struct sharp_coll_init_spec init_spec = {0};
+    ucs_rcache_params_t rcache_params;
+    ucs_status_t        status;
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, config);
 
     init_spec.progress_func                  = NULL;
@@ -193,22 +202,26 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
         return XCCL_ERR_NO_MESSAGE;
     }
 
-    ucs_rcache_params_t rcache_params;
-    ucs_status_t status;
+    ctx->rcache = NULL;
+    if (enable_rcache != UCS_NO) {
+        rcache_params.region_struct_size = sizeof(xccl_sharp_rcache_region_t);
+        rcache_params.alignment          = 64;
+        rcache_params.max_alignment      = (size_t)sysconf(_SC_PAGE_SIZE);
+        rcache_params.ucm_events         = XCCL_BIT(17) /*TODO: UCM_EVENT_VM_UNMAPPED */;
+        rcache_params.ucm_event_priority = 1000;
+        rcache_params.context            = (void*)ctx;
+        rcache_params.ops                = &xccl_sharp_rcache_ops;
 
-    rcache_params.region_struct_size = sizeof(xccl_sharp_rcache_region_t);
-    rcache_params.alignment          = 64;
-    rcache_params.max_alignment      = (size_t)sysconf(_SC_PAGE_SIZE);
-    rcache_params.ucm_events         = XCCL_BIT(17) /*TODO: UCM_EVENT_VM_UNMAPPED */;
-    rcache_params.ucm_event_priority = 1000;
-    rcache_params.context            = (void*)ctx;
-    rcache_params.ops                = &xccl_sharp_rcache_ops;
-
-    status = ucs_rcache_create(&rcache_params, "team_sharp", NULL, &ctx->rcache);
-    if (status != UCS_OK) {
-        sharp_coll_finalize(ctx->sharp_context);
-        free(ctx);
-        return XCCL_ERR_NO_MESSAGE;
+        status = ucs_rcache_create(&rcache_params, "team_sharp", NULL, &ctx->rcache);
+        if (status != UCS_OK) {
+            if (enable_rcache == UCS_YES) {
+                sharp_coll_finalize(ctx->sharp_context);
+                free(ctx);
+                return XCCL_ERR_NO_MESSAGE;
+            } else {
+                xccl_debug("could not create registration cache");
+            }
+        }
     }
 
     *context = &ctx->super;
