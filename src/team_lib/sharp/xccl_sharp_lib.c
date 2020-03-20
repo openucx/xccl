@@ -132,9 +132,9 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
     int ret = sharp_coll_init(&init_spec, &ctx->sharp_context);
     if (ret < 0 ) {
         if (config->oob.rank == 0) {
-            fprintf(stderr, "Failed to initialize SHARP collectives:%s(%d)"
-                            "job ID:%" PRIu64"\n",
-                            sharp_coll_strerror(ret), ret, init_spec.job_id);
+            xccl_sharp_error("Failed to initialize SHARP collectives:%s(%d)"
+                             "job ID:%" PRIu64"\n",
+                             sharp_coll_strerror(ret), ret, init_spec.job_id);
         }
         free(ctx);
         return XCCL_ERR_NO_MESSAGE;
@@ -176,8 +176,8 @@ xccl_sharp_team_create_post(xccl_tl_context_t *context,
                                &team_sharp->sharp_comm);
     if (ret<0) {
         if (oob.rank == 0) {
-            fprintf(stderr, "SHARP group create failed:%s(%d)",
-                    sharp_coll_strerror(ret), ret);
+            xccl_sharp_error("SHARP group create failed:%s(%d)",
+                              sharp_coll_strerror(ret), ret);
         }
         free(team_sharp);
         return XCCL_ERR_NO_MESSAGE;
@@ -189,7 +189,7 @@ xccl_sharp_team_create_post(xccl_tl_context_t *context,
                                2*XCCL_SHARP_REG_BUF_SIZE,
                                &team_sharp->bufs[i].mr);
         if (ret != SHARP_COLL_SUCCESS) {
-            fprintf(stderr, "SHARP regmr failed\n");
+            xccl_sharp_error("SHARP regmr failed\n");
         }
         team_sharp->bufs[i].used = 0;
     }
@@ -215,7 +215,7 @@ static xccl_status_t xccl_sharp_team_destroy(xccl_tl_team_t *team)
         rc = sharp_coll_dereg_mr(team_sharp_ctx->sharp_context,
                                  team_sharp->bufs[i].mr);
         if (rc != SHARP_COLL_SUCCESS) {
-            fprintf(stderr, "SHARP deregmr failed\n");
+            xccl_sharp_error("SHARP deregmr failed\n");
         }
         free(team_sharp->bufs[i].buf);
     }

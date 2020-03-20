@@ -79,13 +79,13 @@ xccl_sharp_allreduce_init(xccl_coll_op_args_t* coll_args,
                                coll_args->buffer_info.src_buffer,
                                coll_args->buffer_info.len, &send_mr);
         if (rc != SHARP_COLL_SUCCESS) {
-            fprintf(stderr, "SHARP regmr failed\n");
+            xccl_sharp_error("SHARP regmr failed\n");
         }
         rc = sharp_coll_reg_mr(team_sharp_ctx->sharp_context,
                                coll_args->buffer_info.dst_buffer,
                                coll_args->buffer_info.len, &recv_mr);
         if (rc != SHARP_COLL_SUCCESS) {
-            fprintf(stderr, "SHARP regmr failed\n");
+            xccl_sharp_error("SHARP regmr failed\n");
         }
         req->reduce_spec.sbuf_desc.buffer.ptr        = coll_args->buffer_info.src_buffer;
         req->reduce_spec.sbuf_desc.buffer.mem_handle = send_mr;
@@ -198,13 +198,13 @@ xccl_status_t xccl_sharp_collective_finalize(xccl_coll_req_h request)
             rc = sharp_coll_dereg_mr(ctx->sharp_context,
                                     req->reduce_spec.sbuf_desc.buffer.mem_handle);
             if (rc != SHARP_COLL_SUCCESS) {
-                fprintf(stderr, "SHARP deregmr failed\n");
+                xccl_sharp_error("SHARP deregmr failed\n");
             }
 
             rc = sharp_coll_dereg_mr(ctx->sharp_context,
                                     req->reduce_spec.rbuf_desc.buffer.mem_handle);
             if (rc != SHARP_COLL_SUCCESS) {
-                fprintf(stderr, "SHARP deregmr failed\n");
+                xccl_sharp_error("SHARP deregmr failed\n");
             }
 
         } else {
