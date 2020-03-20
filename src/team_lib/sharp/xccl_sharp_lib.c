@@ -13,12 +13,16 @@
 #include <unistd.h>
 #include <inttypes.h>
 
-unsigned int xccl_sharp_global_rand_state;
+static ucs_config_field_t xccl_team_lib_sharp_config_table[] = {
+    {"", "", NULL,
+        ucs_offsetof(xccl_team_lib_sharp_config_t, super),
+        UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
+    },
 
-__attribute__((constructor))
-static void xccl_sharp_constructor(void) {
-    setenv("SHARP_COLL_NUM_COLL_GROUP_RESOURCE_ALLOC_THRESHOLD", "0", 0);
-}
+    {NULL}
+};
+
+unsigned int xccl_sharp_global_rand_state;
 
 static inline int xccl_sharp_rand()
 {
@@ -35,6 +39,22 @@ static inline void xccl_sharp_rand_state_init(unsigned int *state)
 static inline void xccl_sharp_global_rand_state_init()
 {
     xccl_sharp_rand_state_init(&xccl_sharp_global_rand_state);
+}
+
+static xccl_status_t xccl_sharp_lib_open(xccl_team_lib_h self,
+                                         xccl_team_lib_config_t *config) {
+    xccl_team_lib_sharp_t        *tl  = xccl_derived_of(self, xccl_team_lib_sharp_t);
+    xccl_team_lib_sharp_config_t *cfg = xccl_derived_of(config, xccl_team_lib_sharp_config_t);
+    
+    tl->log_component.log_level = cfg->super.log_component.log_level;
+    sprintf(tl->log_component.name, "%s", "TEAM_SHARP");
+    xccl_sharp_debug("Team SPARP opened");
+    if (cfg->super.priority != -1) {
+        tl->super.priority = cfg->super.priority;
+    }
+    setenv("SHARP_COLL_NUM_COLL_GROUP_RESOURCE_ALLOC_THRESHOLD", "0", 0);
+    xccl_sharp_global_rand_state_init();
+    return XCCL_OK;
 }
 
 static int xccl_sharp_oob_barrier(void *context)
@@ -90,7 +110,6 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
     struct sharp_coll_init_spec init_spec = {0};
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, config);
 
-    xccl_sharp_global_rand_state_init();
     map_xccl_to_sharp_dtype();
     map_xccl_to_sharp_reduce_op_type();
 
@@ -208,6 +227,12 @@ xccl_team_lib_sharp_t xccl_team_lib_sharp = {
     .super.name                 = "sharp",
     .super.id                   = XCCL_TL_SHARP,
     .super.priority             = 90,
+    .super.team_lib_config      = {
+        .name                   = "SHARP team library",
+        .prefix                 = "TEAM_SHARP_",
+        .table                  = xccl_team_lib_sharp_config_table,
+        .size                   = sizeof(xccl_team_lib_sharp_config_t),
+    },
     .super.params.reproducible  = XCCL_LIB_NON_REPRODUCIBLE,
     .super.params.thread_mode   = XCCL_LIB_THREAD_SINGLE | XCCL_LIB_THREAD_MULTIPLE,
     .super.params.team_usage    = XCCL_USAGE_HW_COLLECTIVES,
@@ -219,7 +244,7 @@ xccl_team_lib_sharp_t xccl_team_lib_sharp = {
     .super.team_create_test     = xccl_sharp_team_create_test,
     .super.team_destroy         = xccl_sharp_team_destroy,
     .super.progress             = NULL,
-    .super.team_lib_open        = NULL,
+    .super.team_lib_open        = xccl_sharp_lib_open,
     .super.collective_init      = xccl_sharp_collective_init,
     .super.collective_post      = xccl_sharp_collective_post,
     .super.collective_wait      = xccl_sharp_collective_wait,

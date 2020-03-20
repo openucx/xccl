@@ -6,6 +6,7 @@
 #ifndef XCCL_TEAM_LIB_H_
 #define XCCL_TEAM_LIB_H_
 
+#include "config.h"
 #include "api/xccl.h"
 #include "api/xccl_tls.h"
 #include <assert.h>

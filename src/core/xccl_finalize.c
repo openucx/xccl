@@ -6,8 +6,6 @@
 
 #include "config.h"
 #include "xccl_team_lib.h"
-#include <ucs/config/parser.h>
-#include <ucs/sys/compiler.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <dlfcn.h>
