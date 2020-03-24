@@ -11,24 +11,23 @@
 #include <ucs/memory/rcache.h>
 #include "xccl_team_lib.h"
 
-#define XCCL_SHARP_REG_BUF_SIZE 1024
-#define XCCL_SHARP_REG_BUF_NUM  10
-
-typedef struct xccl_team_lib_sharp {
-    xccl_team_lib_t            super;
-    ucs_log_component_config_t log_component;
-} xccl_team_lib_sharp_t;
-
 typedef struct xccl_team_lib_sharp_config {
     xccl_team_lib_config_t super;
     int                    enable_rcache;
+    size_t                 zcopy_thresh;
+    unsigned               bcopy_buf_num;
 } xccl_team_lib_sharp_config_t;
+
+typedef struct xccl_team_lib_sharp {
+    xccl_team_lib_t              super;
+    xccl_team_lib_sharp_config_t config;
+} xccl_team_lib_sharp_t;
 
 extern xccl_team_lib_sharp_t xccl_team_lib_sharp;
 
 #define xccl_team_sharp_log_component(_level, _fmt, ...) \
     do { \
-        ucs_log_component(_level, &xccl_team_lib_sharp.log_component, _fmt, ## __VA_ARGS__); \
+        ucs_log_component(_level, &xccl_team_lib_sharp.config.super.log_component, _fmt, ## __VA_ARGS__); \
     } while (0)
 
 #define xccl_sharp_error(_fmt, ...)        xccl_team_sharp_log_component(UCS_LOG_LEVEL_ERROR, _fmt, ## __VA_ARGS__)

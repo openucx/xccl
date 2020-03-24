@@ -13,7 +13,6 @@
 #include <unistd.h>
 #include <inttypes.h>
 
-static int enable_rcache;
 static ucs_config_field_t xccl_team_lib_sharp_config_table[] = {
     {"", "", NULL,
      ucs_offsetof(xccl_team_lib_sharp_config_t, super),
@@ -23,6 +22,16 @@ static ucs_config_field_t xccl_team_lib_sharp_config_table[] = {
     {"RCACHE", "try", "Enable using memory registration cache",
      ucs_offsetof(xccl_team_lib_sharp_config_t, enable_rcache), UCS_CONFIG_TYPE_TERNARY
     },
+
+    {"ZCOPY_THRESH", "1024",
+     "Threshold for switching from buffer copy to zero copy protocol",
+     ucs_offsetof(xccl_team_lib_sharp_config_t, zcopy_thresh), UCS_CONFIG_TYPE_MEMUNITS
+     },
+
+     {"BCOPY_BUF_NUM", "10",
+      "Number of buffers for buffer copy protocol",
+      ucs_offsetof(xccl_team_lib_sharp_config_t, bcopy_buf_num), UCS_CONFIG_TYPE_UINT
+     },
 
     {NULL}
 };
@@ -47,17 +56,20 @@ static inline void xccl_sharp_global_rand_state_init()
 }
 
 static xccl_status_t xccl_sharp_lib_open(xccl_team_lib_h self,
-                                         xccl_team_lib_config_t *config) {
+                                         xccl_team_lib_config_t *config)
+{
     xccl_team_lib_sharp_t        *tl  = xccl_derived_of(self, xccl_team_lib_sharp_t);
     xccl_team_lib_sharp_config_t *cfg = xccl_derived_of(config, xccl_team_lib_sharp_config_t);
     
-    tl->log_component.log_level = cfg->super.log_component.log_level;
-    sprintf(tl->log_component.name, "%s", "TEAM_SHARP");
+    tl->config.super.log_component.log_level = cfg->super.log_component.log_level;
+    sprintf(tl->config.super.log_component.name, "%s", "TEAM_SHARP");
     xccl_sharp_debug("Team SPARP opened");
     if (cfg->super.priority != -1) {
         tl->super.priority = cfg->super.priority;
     }
-    enable_rcache = cfg->enable_rcache;
+    tl->config.enable_rcache = cfg->enable_rcache;
+    tl->config.zcopy_thresh  = cfg->zcopy_thresh;
+    tl->config.bcopy_buf_num = cfg->bcopy_buf_num;
 
     setenv("SHARP_COLL_NUM_COLL_GROUP_RESOURCE_ALLOC_THRESHOLD", "0", 0);
     xccl_sharp_global_rand_state_init();
@@ -203,7 +215,7 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
     }
 
     ctx->rcache = NULL;
-    if (enable_rcache != UCS_NO) {
+    if (xccl_team_lib_sharp.config.enable_rcache != UCS_NO) {
         rcache_params.region_struct_size = sizeof(xccl_sharp_rcache_region_t);
         rcache_params.alignment          = 64;
         rcache_params.max_alignment      = (size_t)sysconf(_SC_PAGE_SIZE);
@@ -214,12 +226,12 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
 
         status = ucs_rcache_create(&rcache_params, "team_sharp", NULL, &ctx->rcache);
         if (status != UCS_OK) {
-            if (enable_rcache == UCS_YES) {
+            if (xccl_team_lib_sharp.config.enable_rcache == UCS_YES) {
                 sharp_coll_finalize(ctx->sharp_context);
                 free(ctx);
                 return XCCL_ERR_NO_MESSAGE;
             } else {
-                xccl_debug("could not create registration cache");
+                xccl_sharp_debug("could not create registration cache");
             }
         }
     }

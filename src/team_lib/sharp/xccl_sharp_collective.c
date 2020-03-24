@@ -23,7 +23,7 @@ xccl_sharp_mem_rcache_reg(xccl_sharp_context_t *ctx, void *address,
     }
 
     *rregion = (xccl_sharp_rcache_region_t*)region;
-    return UCS_OK;
+    return XCCL_OK;
 }
 
 static void xccl_sharp_mem_rcache_dereg(xccl_sharp_context_t *ctx,
