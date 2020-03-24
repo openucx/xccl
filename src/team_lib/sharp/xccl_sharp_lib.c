@@ -2,6 +2,9 @@
  * Copyright (C) Mellanox Technologies Ltd. 2020.  ALL RIGHTS RESERVED.
  * See file LICENSE for terms.
  */
+
+#include "config.h"
+
 #include "xccl_sharp_lib.h"
 #include "xccl_sharp_collective.h"
 #include "xccl_sharp_map.h"
