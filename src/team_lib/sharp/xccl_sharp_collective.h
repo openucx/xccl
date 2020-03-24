@@ -14,6 +14,7 @@ typedef struct xccl_sharp_coll_req {
     struct sharp_coll_reduce_spec  reduce_spec;
     struct sharp_coll_comm         *sharp_comm;
     void                           *handle;
+    xccl_sharp_buf_t               *sharp_buf;
     xccl_collective_type_t         coll_type;
     int                            (*start)(struct xccl_sharp_coll_req* req);
     xccl_sharp_rcache_region_t     *src_rregion;

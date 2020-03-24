@@ -52,9 +52,18 @@ typedef struct xccl_sharp_context {
     ucs_rcache_t              *rcache;
 } xccl_sharp_context_t;
 
+typedef struct xccl_sharp_buf {
+    void  *buf;
+    void  *mr;
+    void  *orig_src_buf;
+    void  *orig_dst_buf;
+    int   used;
+} xccl_sharp_buf_t;
+
 typedef struct xccl_sharp_team {
     xccl_tl_team_t         super;
     struct sharp_coll_comm *sharp_comm;
+    xccl_sharp_buf_t       *bufs;
 } xccl_sharp_team_t;
 
 #endif

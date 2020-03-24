@@ -267,9 +267,11 @@ xccl_sharp_team_create_post(xccl_tl_context_t *context,
                             xccl_oob_collectives_t oob,
                             xccl_tl_team_t **team)
 {
+    xccl_sharp_team_t    *team_sharp     = malloc(sizeof(*team_sharp));
+    unsigned             bcopy_buf_num   = xccl_team_lib_sharp.config.bcopy_buf_num;
+    size_t               bcopy_buf_size  = xccl_team_lib_sharp.config.zcopy_thresh;
     xccl_sharp_context_t *team_sharp_ctx =
         xccl_derived_of(context, xccl_sharp_context_t);
-    xccl_sharp_team_t *team_sharp = malloc(sizeof(*team_sharp));
     struct sharp_coll_comm_init_spec comm_spec;
     int i, ret;
     XCCL_TEAM_SUPER_INIT(team_sharp->super, context, config, oob);
@@ -288,6 +290,24 @@ xccl_sharp_team_create_post(xccl_tl_context_t *context,
         free(team_sharp);
         return XCCL_ERR_NO_MESSAGE;
     }
+
+    team_sharp->bufs = NULL;
+    if ((bcopy_buf_num > 0) && (bcopy_buf_size > 0)) {
+        team_sharp->bufs = malloc(bcopy_buf_num * sizeof(xccl_sharp_buf_t));
+        for(i = 0; i < bcopy_buf_num; i++) {
+            team_sharp->bufs[i].buf = malloc(2*bcopy_buf_size);
+            ret = sharp_coll_reg_mr(team_sharp_ctx->sharp_context,
+                                team_sharp->bufs[i].buf,
+                                2*bcopy_buf_size,
+                                &team_sharp->bufs[i].mr);
+            if (ret != SHARP_COLL_SUCCESS) {
+                xccl_sharp_error("SHARP regmr failed\n");
+                return XCCL_ERR_NO_MESSAGE;
+            }
+            team_sharp->bufs[i].used = 0;
+        }
+
+    }
     *team = &team_sharp->super;
     return XCCL_OK;
 }
@@ -300,10 +320,23 @@ static xccl_status_t xccl_sharp_team_create_test(xccl_tl_team_t *team)
 
 static xccl_status_t xccl_sharp_team_destroy(xccl_tl_team_t *team)
 {
-    xccl_sharp_team_t *team_sharp = xccl_derived_of(team, xccl_sharp_team_t);
+    unsigned             bcopy_buf_num   = xccl_team_lib_sharp.config.bcopy_buf_num;
+    xccl_sharp_team_t    *team_sharp = xccl_derived_of(team, xccl_sharp_team_t);
     xccl_sharp_context_t *team_sharp_ctx =
         xccl_derived_of(team->ctx, xccl_sharp_context_t);
-
+    
+    if (team_sharp->bufs != NULL) {
+        for(int i = 0; i < bcopy_buf_num; i++) {
+            int rc;
+            rc = sharp_coll_dereg_mr(team_sharp_ctx->sharp_context,
+                                    team_sharp->bufs[i].mr);
+            if (rc != SHARP_COLL_SUCCESS) {
+                xccl_sharp_error("SHARP deregmr failed\n");
+            }
+            free(team_sharp->bufs[i].buf);
+        }
+        free(team_sharp->bufs);
+    }
     sharp_coll_comm_destroy(team_sharp->sharp_comm);
     free(team);
     return XCCL_OK;
