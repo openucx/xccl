@@ -8,7 +8,8 @@
 #define _GNU_SOURCE
 #include "xccl_team_lib.h"
 #include <ucs/config/parser.h>
-#include <ucs/sys/compiler.h>
+#include <ucs/sys/preprocessor.h>
+#include <ucs/sys/compiler_def.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

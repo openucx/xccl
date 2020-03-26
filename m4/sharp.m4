@@ -37,20 +37,22 @@ AS_IF([test "x$with_sharp" != "xno"],
                             sharp_happy="no"])
             ], [sharp_happy="no"])
 
-        CFLAGS="$save_CFLAGS"
-        CPPFLAGS="$save_CPPFLAGS"
-        LDFLAGS="$save_LDFLAGS"
 
         AS_IF([test "x$sharp_happy" = "xyes"],
             [
                 AC_SUBST(SHARP_CPPFLAGS, "-I$xccl_check_sharp_dir/include/ ")
                 AC_SUBST(SHARP_LDFLAGS, "-lsharp_coll -L$xccl_check_sharp_dir/lib")
+                AC_CHECK_MEMBERS([struct sharp_coll_init_spec.oob_ctx, struct sharp_coll_reduce_spec.aggr_mode,
+                                  struct sharp_coll_data_desc.mem_type], [], [],  [[#include <sharp/api/sharp_coll.h>]])
             ],
             [
                 AS_IF([test "x$with_sharp" != "xguess"],
                     [AC_MSG_ERROR([SHARP support is requested but SHARP packages cannot be found])],
                     [AC_MSG_WARN([SHARP not found])])
             ])
+        CFLAGS="$save_CFLAGS"
+        CPPFLAGS="$save_CPPFLAGS"
+        LDFLAGS="$save_LDFLAGS"
 
     ],
     [AC_MSG_WARN([SHARP was explicitly disabled])])
