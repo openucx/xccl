@@ -88,21 +88,27 @@ typedef enum {
  * team context (i.e., a mapping to the world rank)
  * The number of endpoints is provided as part of @ref xccl_team_config_t.
  */
+struct xccl_ep_range_strided {
+    int start;
+    int stride;
+};
+
+struct xccl_ep_range_map {
+    int *map;
+};
+
+struct xccl_ep_range_cb {
+    int   (*cb)(int rank, void *cb_ctx);
+    void  *cb_ctx;
+};
+
 typedef struct xccl_ep_range_t {
     xccl_ep_range_type_t type;
-    int ep_num;
+    int                  ep_num;
     union {
-        struct xccl_ep_range_strided {
-            int start;
-            int stride;
-        } strided;
-        struct xccl_ep_range_map {
-            int *map;
-        } map;
-        struct xccl_ep_range_cb {
-            int   (*cb)(int rank, void *cb_ctx);
-            void  *cb_ctx;
-        } cb;
+        struct xccl_ep_range_strided strided;
+        struct xccl_ep_range_map     map;
+        struct xccl_ep_range_cb      cb;
     };
 } xccl_ep_range_t;
 
@@ -278,6 +284,12 @@ typedef enum {
     XCCL_DT_LAST_PREDEFINED,
     XCCL_DT_UNSUPPORTED
 } xccl_dt_t;
+
+typedef enum xccl_memory_type {
+    XCCL_MEMORY_TYPE_HOST,
+    XCCL_MEMORY_TYPE_CUDA,
+    XCCL_MEMORY_TYPE_LAST
+} xccl_memory_type_t;
 
 typedef struct xccl_reduce_info {
     xccl_dt_t dt;

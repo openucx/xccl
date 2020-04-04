@@ -110,7 +110,7 @@ AM_CONDITIONAL([HAVE_CUDA], [test "x$cuda_happy" != xno])
 AC_MSG_RESULT([CUDA support: $cuda_happy])
 
 includes="-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core"
-CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes -std=gnu11"
+CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes -std=c11"
 LDFLAGS="$LDFLAGS $UCS_LDFLAGS"
 AC_CONFIG_FILES([
                  Makefile
@@ -119,6 +119,8 @@ AC_CONFIG_FILES([
                  src/team_lib/sharp/Makefile
                  src/team_lib/vmc/Makefile
                  src/team_lib/hier/Makefile
+                 src/utils/cuda/Makefile
+                 src/utils/cuda/reduce/Makefile
                  test/Makefile
                  ])
 AC_OUTPUT

@@ -202,6 +202,8 @@ static void xccl_constructor(void)
                 " in %s\n", xccl_lib_global_config.team_lib_path);
         return;
     }
+
+    xccl_mem_component_init(xccl_lib_global_config.team_lib_path);
     /* xccl_print_libs(&xccl_static_lib); */
     gethostname(hostname, sizeof(hostname));
     xccl_local_proc_info.node_hash = xccl_str_hash(hostname);

@@ -29,8 +29,8 @@ int main (int argc, char **argv) {
     sbuf_host = (int*)malloc(msg_size);
     rbuf_mpi  = (int*)malloc(msg_size);
     rbuf_host = (int*)malloc(msg_size);
-    cudaMalloc((void**)sbuf_cuda, msg_size);
-    cudaMalloc((void**)rbuf_cuda, msg_size);
+    cudaMalloc((void**)&sbuf_cuda, msg_size);
+    cudaMalloc((void**)&rbuf_cuda, msg_size);
 
     for (i=0; i<count; i++) {
         rbuf_host[i] = 0;
@@ -43,19 +43,19 @@ int main (int argc, char **argv) {
     cudaStreamSynchronize(stream);
 
     xccl_coll_op_args_t coll = {
-        .coll_type = XCCL_ALLREDUCE,
+        .coll_type   = XCCL_ALLREDUCE,
         .buffer_info = {
             .src_buffer = sbuf_cuda,
             .dst_buffer = rbuf_cuda,
             .len        = msg_size,
         },
         .reduce_info = {
-            .dt = XCCL_DT_INT32,
-            .op = XCCL_OP_SUM,
-            .count = count,
+            .dt         = XCCL_DT_INT32,
+            .op         = XCCL_OP_SUM,
+            .count      = count,
         },
         .alg.set_by_user = 0,
-        .tag  = 123, //todo
+        .tag             = 123, //todo
     };
 
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
@@ -68,7 +68,7 @@ int main (int argc, char **argv) {
 
     MPI_Allreduce(sbuf_host, rbuf_mpi, count, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-    if (0 != memcmp(rbuf_host, rbuf_mpi, count*sizeof(int))) {
+    if (0 != memcmp(rbuf_host, rbuf_mpi, msg_size)) {
         fprintf(stderr, "RST CHECK FAILURE at rank %d\n", rank);
         status = 1;
     }

@@ -12,6 +12,9 @@ endif
 if HAVE_VMC
 SUBDIRS += team_lib/vmc
 endif
+if HAVE_CUDA
+SUBDIRS += utils/cuda
+endif
 
 lib_LTLIBRARIES  = libxccl.la
 noinst_LIBRARIES =
@@ -36,7 +39,8 @@ libxccl_la_SOURCES =      \
 	core/xccl_team.c      \
 	core/xccl_collective.c\
 	core/xccl_query.c     \
-	utils/socketid.c
+	utils/socketid.c      \
+	utils/mem_component.c
 
 libxccl_ladir = $(includedir)
 

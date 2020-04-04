@@ -137,4 +137,5 @@ int xccl_dt_reduce(void *sbuf1, void *sbuf2, void *target, size_t count,
     }
     return 0;
 }
+
 #endif
