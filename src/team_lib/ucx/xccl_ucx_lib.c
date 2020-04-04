@@ -13,6 +13,7 @@
 #include "fanin/fanin.h"
 #include "bcast/bcast.h"
 #include "barrier/barrier.h"
+#include "utils/mem_component.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -33,6 +34,17 @@ static inline xccl_status_t
 xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
                         xccl_ucx_collreq_t **request)
 {
+    xccl_status_t      status;
+    xccl_memory_type_t mem_type;
+
+    status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
+                                     &mem_type);
+    if (status != XCCL_OK) {
+        xccl_ucx_error("Memtype detection error");
+        return XCCL_ERR_INVALID_PARAM;
+    }
+    xccl_ucx_info("src_buffer memory type: %d", mem_type);
+
     //todo malloc ->mpool
     xccl_ucx_collreq_t *req = (xccl_ucx_collreq_t *)malloc(sizeof(*req));
     memcpy(&req->args, coll_args, sizeof(*coll_args));
@@ -40,6 +52,8 @@ xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
     req->team      = team;
     req->super.lib = &xccl_team_lib_ucx.super;
     req->tag       = ((xccl_ucx_team_t*)team)->seq_num++;
+    req->mem_type  = mem_type;
+
     (*request)     = req;
     return XCCL_OK;
 }
