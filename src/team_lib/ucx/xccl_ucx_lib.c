@@ -34,8 +34,8 @@ static inline xccl_status_t
 xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
                         xccl_ucx_collreq_t **request)
 {
-    xccl_status_t      status;
-    xccl_memory_type_t mem_type;
+    xccl_status_t     status;
+    ucs_memory_type_t mem_type;
 
     status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
                                      &mem_type);
@@ -43,7 +43,7 @@ xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
         xccl_ucx_error("Memtype detection error");
         return XCCL_ERR_INVALID_PARAM;
     }
-    xccl_ucx_info("src_buffer memory type: %d", mem_type);
+    xccl_ucx_info("src_buffer memory type: %s", ucs_memory_type_names[mem_type]);
 
     //todo malloc ->mpool
     xccl_ucx_collreq_t *req = (xccl_ucx_collreq_t *)malloc(sizeof(*req));

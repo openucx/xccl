@@ -21,6 +21,8 @@
 #include <glob.h>
 #include <utils/utils.h>
 #include <unistd.h>
+#include "utils/mem_component.h"
+#include "utils/xccl_log.h"
 
 xccl_lib_t xccl_static_lib;
 xccl_local_proc_info_t xccl_local_proc_info;

@@ -285,12 +285,6 @@ typedef enum {
     XCCL_DT_UNSUPPORTED
 } xccl_dt_t;
 
-typedef enum xccl_memory_type {
-    XCCL_MEMORY_TYPE_HOST,
-    XCCL_MEMORY_TYPE_CUDA,
-    XCCL_MEMORY_TYPE_LAST
-} xccl_memory_type_t;
-
 typedef struct xccl_reduce_info {
     xccl_dt_t dt;
     xccl_op_t op;

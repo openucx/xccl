@@ -5,6 +5,7 @@
 */
 
 #include "api/xccl.h"
+#include <ucs/memory/memory_type.h>
 
 typedef struct xccl_mem_component {
     xccl_status_t (*mem_alloc)(void **ptr, size_t len);
@@ -18,12 +19,12 @@ typedef struct xccl_mem_component {
 xccl_status_t xccl_mem_component_init(const char* components_path);
 
 xccl_status_t xccl_mem_component_alloc(void **ptr, size_t len,
-                                       xccl_memory_type_t mem_type);
+                                       ucs_memory_type_t mem_type);
 
-xccl_status_t xccl_mem_component_free(void *ptr, xccl_memory_type_t mem_type);
+xccl_status_t xccl_mem_component_free(void *ptr, ucs_memory_type_t mem_type);
 
-xccl_status_t xccl_mem_component_type(void *ptr, xccl_memory_type_t *mem_type);
+xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type);
 
 xccl_status_t xccl_mem_component_reduce(void *sbuf1, void *sbuf2, void *target,
                                         size_t count, xccl_dt_t dtype,
-                                        xccl_op_t op, xccl_memory_type_t mem_type);
+                                        xccl_op_t op, ucs_memory_type_t mem_type);
