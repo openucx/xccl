@@ -28,8 +28,8 @@ xccl_status_t xccl_cuda_reduce(void *sbuf1, void *sbuf2, void *target,
     return xccl_cuda_reduce_impl(sbuf1, sbuf2, target, count, dtype, op);
 }
 
-xccl_status_t xccl_cuda_mem_type(void *ptr){
-    struct cudaPointerAttributes attr;
+xccl_status_t xccl_cuda_mem_type(void *ptr, ucs_memory_type_t *mem_type) {
+    struct      cudaPointerAttributes attr;
     cudaError_t err;
     
     err = cudaPointerGetAttributes(&attr, ptr);
@@ -38,9 +38,18 @@ xccl_status_t xccl_cuda_mem_type(void *ptr){
         return XCCL_ERR_UNSUPPORTED;
     }
 
+#if CUDART_VERSION >= 10000
+    if (attr.type == cudaMemoryTypeDevice) {
+#else
     if (attr.memoryType == cudaMemoryTypeDevice) {
-        return XCCL_OK;
+#endif
+        *mem_type = UCS_MEMORY_TYPE_CUDA;
     }
+    else {
+        *mem_type = UCS_MEMORY_TYPE_HOST;
+    }
+
+    return XCCL_OK;
 }
 
 xccl_cuda_mem_component_t xccl_cuda_mem_component = {

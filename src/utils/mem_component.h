@@ -10,7 +10,7 @@
 typedef struct xccl_mem_component {
     xccl_status_t (*mem_alloc)(void **ptr, size_t len);
     xccl_status_t (*mem_free)(void *ptr);
-    xccl_status_t (*mem_type)(void *ptr);
+    xccl_status_t (*mem_type)(void *ptr, ucs_memory_type_t *mem_type);
     xccl_status_t (*reduce)(void *sbuf1, void *sbuf2, void *target,
                             size_t count, xccl_dt_t dtype, xccl_op_t op);
 } xccl_mem_component_t;

@@ -84,17 +84,23 @@ xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type)
     xccl_status_t st;
     int           mt;
 
-    *mem_type = UCS_MEMORY_TYPE_HOST;
+    *mem_type = UCS_MEMORY_TYPE_LAST;
 
     for(mt = UCS_MEMORY_TYPE_HOST+1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
         if (mem_components[mt] != NULL) {
-            st = mem_components[mt]->mem_type(ptr);
-            if (st == XCCL_OK) {
-                *mem_type = mt;
-                return XCCL_OK;
+            st = mem_components[mt]->mem_type(ptr, mem_type);
+            if ((st != XCCL_OK) || (*mem_type == UCS_MEMORY_TYPE_LAST)) {
+                /* this mem_component wasn't able to detect memory type
+                 * continue to next
+                 */
+                continue;
             }
+            return st;
         }
     }
+
+    xccl_debug("Assuming mem_type host");
+    *mem_type = UCS_MEMORY_TYPE_HOST;
 
     return XCCL_OK;
 }

@@ -14,6 +14,7 @@
 #include <ucs/config/types.h>
 #include <ucs/debug/log_def.h>
 #include <ucs/config/parser.h>
+#include "utils/xccl_log.h"
 
 typedef struct xccl_tl_context xccl_tl_context_t;
 typedef struct xccl_tl_team    xccl_tl_team_t;
@@ -60,14 +61,6 @@ typedef struct xccl_team_lib {
     xccl_status_t              (*global_mem_unmap)(xccl_tl_mem_h memh_p);
 } xccl_team_lib_t;
 
-typedef struct xccl_lib_config {
-    /* Log level above which log messages will be printed*/
-    ucs_log_component_config_t log_component;
-
-    /* Team libraries path */
-    char                       *team_lib_path;
-} xccl_lib_config_t;
-
 typedef struct xccl_lib {
     int                        n_libs_opened;
     int                        libs_array_size;
@@ -99,6 +92,7 @@ typedef struct xccl_team {
     xccl_status_t   status;
     xccl_tl_team_t* tl_teams[1];
 } xccl_team_t;
+
 
 #define XCCL_CHECK_TEAM(_team) do {                                     \
         if (_team->status != XCCL_OK) {                                 \
@@ -193,6 +187,5 @@ static inline xccl_tl_mem_h xccl_mem_handle_by_tl_id(xccl_mem_h memh, xccl_tl_id
         XCCL_STATIC_ASSERT(offsetof(_type, super) == 0) \
             xccl_container_of(_ptr, _type, super); \
     })
-extern xccl_lib_config_t xccl_lib_global_config;
 
 #endif
