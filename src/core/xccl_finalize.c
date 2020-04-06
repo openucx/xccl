@@ -7,6 +7,7 @@
 #include "config.h"
 #include "xccl_team_lib.h"
 #include "xccl_global_opts.h"
+#include "utils/mem_component.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <dlfcn.h>
@@ -37,6 +38,7 @@ static void xccl_destructor(void)
     int i;
 
     ucs_config_parser_release_opts(&xccl_lib_global_config, xccl_lib_global_config_table);
+    xccl_mem_component_finalize();
 
     for (i=0; i<xccl_static_lib.n_libs_opened; i++) {
         xccl_team_lib_finalize(xccl_static_lib.libs[i]);

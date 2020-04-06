@@ -22,7 +22,8 @@ xccl_status_t xccl_mem_component_init(const char* components_path)
                  components_path, ucs_memory_type_names[mt]);        
         handle = dlopen(mem_comp_path, RTLD_LAZY);
         if (handle) {
-            mem_components[UCS_MEMORY_TYPE_CUDA] = (xccl_mem_component_t*)dlsym(handle, "xccl_cuda_mem_component");
+            mem_components[mt] = (xccl_mem_component_t*)dlsym(handle, "xccl_cuda_mem_component");
+            mem_components[mt]->dlhandle = handle;
             xccl_debug("%s mem component found", ucs_memory_type_names[mt]);
         }
     }
@@ -103,4 +104,15 @@ xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type)
     *mem_type = UCS_MEMORY_TYPE_HOST;
 
     return XCCL_OK;
+}
+
+void xccl_mem_component_finalize()
+{
+    int mt;
+
+    for(mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
+        if (mem_components[mt] != NULL) {
+            dlclose(mem_components[mt]->dlhandle);
+        }
+    }
 }

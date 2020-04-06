@@ -13,6 +13,7 @@ typedef struct xccl_mem_component {
     xccl_status_t (*mem_type)(void *ptr, ucs_memory_type_t *mem_type);
     xccl_status_t (*reduce)(void *sbuf1, void *sbuf2, void *target,
                             size_t count, xccl_dt_t dtype, xccl_op_t op);
+    void           *dlhandle;
 } xccl_mem_component_t;
 
 
@@ -28,3 +29,5 @@ xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type);
 xccl_status_t xccl_mem_component_reduce(void *sbuf1, void *sbuf2, void *target,
                                         size_t count, xccl_dt_t dtype,
                                         xccl_op_t op, ucs_memory_type_t mem_type);
+
+void xccl_mem_component_finalize();
