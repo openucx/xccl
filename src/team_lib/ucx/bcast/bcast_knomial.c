@@ -79,6 +79,9 @@ xccl_status_t xccl_ucx_bcast_knomial_start(xccl_ucx_collreq_t *req)
     size_t data_size = req->args.buffer_info.len;
     int group_rank   = req->team->oob.rank;
     int group_size   = req->team->oob.size;
+    xccl_ucx_request_t *copy_reqs[2];
+
+    xccl_ucx_trace("knomial bcast start");
     memset(req->bcast_kn.reqs, 0, sizeof(req->bcast_kn.reqs));
     req->bcast_kn.radix   = 4;//TODO
     if (req->bcast_kn.radix > req->team->oob.size) {
@@ -90,8 +93,13 @@ xccl_status_t xccl_ucx_bcast_knomial_start(xccl_ucx_collreq_t *req)
     if (req->args.root == group_rank) {
         if (req->args.buffer_info.src_buffer !=
             req->args.buffer_info.dst_buffer) {
-            memcpy(req->args.buffer_info.dst_buffer,
-                   req->args.buffer_info.src_buffer, data_size);
+            xccl_ucx_send_nb(req->args.buffer_info.src_buffer, data_size, 
+                             group_rank, (xccl_ucx_team_t *)req->team, req->tag,
+                             &copy_reqs[0]);
+            xccl_ucx_recv_nb(req->args.buffer_info.dst_buffer, data_size,
+                             group_rank, (xccl_ucx_team_t *)req->team, req->tag,
+                             &copy_reqs[1]);
+            while (xccl_ucx_testall((xccl_ucx_team_t *)req->team, copy_reqs, 2) == XCCL_INPROGRESS);
         }
     }
     req->progress = xccl_ucx_bcast_knomial_progress;
