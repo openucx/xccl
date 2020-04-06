@@ -4,12 +4,12 @@
 * See file LICENSE for terms.
 */
 
-
 #include "config.h"
 #include "xccl_team_lib.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
 xccl_status_t xccl_lib_finalize(xccl_lib_h lib);
 static xccl_status_t xccl_create_team_context(xccl_team_lib_h lib,
                                               xccl_context_config_h config,

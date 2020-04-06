@@ -6,6 +6,7 @@
 #define XCCL_TEAM_LIB_UCX_H_
 #include "xccl_team_lib.h"
 #include <ucp/api/ucp.h>
+#include <ucs/memory/memory_type.h>
 
 typedef struct xccl_team_lib_ucx {
     xccl_team_lib_t super;
@@ -48,6 +49,7 @@ typedef struct xccl_ucx_request_t {
 typedef struct xccl_ucx_collreq {
     xccl_coll_req_t     super;
     xccl_coll_op_args_t args;
+    ucs_memory_type_t   mem_type;
     xccl_tl_team_t     *team;
     xccl_status_t       complete;
     uint16_t            tag;

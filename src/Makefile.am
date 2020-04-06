@@ -12,6 +12,9 @@ endif
 if HAVE_VMC
 SUBDIRS += team_lib/vmc
 endif
+if HAVE_CUDA
+SUBDIRS += utils/cuda
+endif
 
 lib_LTLIBRARIES  = libxccl.la
 noinst_LIBRARIES =
@@ -29,14 +32,16 @@ nobase_dist_libxccl_la_HEADERS = \
 
 noinst_HEADERS = core/xccl_team_lib.h
 
-libxccl_la_SOURCES =      \
-	core/xccl_init.c      \
-	core/xccl_finalize.c  \
-	core/xccl_context.c   \
-	core/xccl_team.c      \
-	core/xccl_collective.c\
-	core/xccl_query.c     \
-	utils/socketid.c
+libxccl_la_SOURCES =       \
+	core/xccl_init.c       \
+	core/xccl_finalize.c   \
+	core/xccl_context.c    \
+	core/xccl_team.c       \
+	core/xccl_collective.c \
+	core/xccl_query.c      \
+	core/xccl_global_opts.c\
+	utils/socketid.c       \
+	utils/mem_component.c
 
 libxccl_ladir = $(includedir)
 

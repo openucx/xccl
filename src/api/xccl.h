@@ -88,21 +88,27 @@ typedef enum {
  * team context (i.e., a mapping to the world rank)
  * The number of endpoints is provided as part of @ref xccl_team_config_t.
  */
+struct xccl_ep_range_strided {
+    int start;
+    int stride;
+};
+
+struct xccl_ep_range_map {
+    int *map;
+};
+
+struct xccl_ep_range_cb {
+    int   (*cb)(int rank, void *cb_ctx);
+    void  *cb_ctx;
+};
+
 typedef struct xccl_ep_range_t {
     xccl_ep_range_type_t type;
-    int ep_num;
+    int                  ep_num;
     union {
-        struct xccl_ep_range_strided {
-            int start;
-            int stride;
-        } strided;
-        struct xccl_ep_range_map {
-            int *map;
-        } map;
-        struct xccl_ep_range_cb {
-            int   (*cb)(int rank, void *cb_ctx);
-            void  *cb_ctx;
-        } cb;
+        struct xccl_ep_range_strided strided;
+        struct xccl_ep_range_map     map;
+        struct xccl_ep_range_cb      cb;
     };
 } xccl_ep_range_t;
 
