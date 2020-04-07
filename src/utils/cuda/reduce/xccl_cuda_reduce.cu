@@ -127,6 +127,7 @@ xccl_status_t xccl_cuda_reduce_impl(void *sbuf1, void *sbuf2, void *target,
         default:
             return XCCL_ERR_UNSUPPORTED;
     }
+    cudaStreamSynchronize(0);
     return XCCL_OK;
 }
 
