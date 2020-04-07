@@ -204,3 +204,21 @@ xccl_ucx_testall(xccl_ucx_team_t *team, xccl_ucx_request_t **reqs,
                                  TEAM_UCX_CTX(team)->num_to_probe, n_reqs);
 }
 #endif
+
+static inline xccl_status_t
+xccl_ucx_send_recv(void *send_buf, size_t send_msg_size, int dest_group_rank, uint32_t sendtag,
+                   void *recv_buf, size_t recv_msg_size, int src_group_rank, uint32_t recvtag,
+                   xccl_ucx_team_t *team)
+{
+    xccl_ucx_request_t *copy_reqs[2];
+    xccl_status_t      status;
+
+    xccl_ucx_send_nb(send_buf, send_msg_size, dest_group_rank, team, sendtag, &copy_reqs[0]);
+    xccl_ucx_recv_nb(recv_buf, recv_msg_size, src_group_rank, team, recvtag, &copy_reqs[1]);
+
+    do {
+        status = xccl_ucx_testall(team, copy_reqs, 2);
+    } while ( status == XCCL_INPROGRESS);
+
+    return status;
+}

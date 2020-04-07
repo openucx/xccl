@@ -76,7 +76,10 @@ int main (int argc, char **argv) {
             status = 1;
         }
 
-        MPI_Reduce(&status, &status_global, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Allreduce(&status, &status_global, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        if (status_global != 0) {
+            break;
+        }
     }
 
     if (0 == rank) {

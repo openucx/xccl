@@ -69,7 +69,6 @@ xccl_status_t xccl_ucx_reduce_linear_start(xccl_ucx_collreq_t *req)
     size_t data_size = req->args.buffer_info.len;
     int group_rank   = req->team->oob.rank;
     int group_size   = req->team->oob.size;
-    xccl_ucx_request_t *copy_reqs[2];
 
     memset(req->reduce_linear.reqs, 0, sizeof(req->reduce_linear.reqs));
     req->reduce_linear.step    = 0;
@@ -77,13 +76,10 @@ xccl_status_t xccl_ucx_reduce_linear_start(xccl_ucx_collreq_t *req)
         xccl_mem_component_alloc(&req->reduce_linear.scratch,
                                  data_size,
                                  req->mem_type);
-        xccl_ucx_send_nb(req->args.buffer_info.src_buffer, data_size, 
-                            group_rank, (xccl_ucx_team_t *)req->team, req->tag,
-                            &copy_reqs[0]);
-        xccl_ucx_recv_nb(req->args.buffer_info.dst_buffer, data_size,
-                            group_rank, (xccl_ucx_team_t *)req->team, req->tag,
-                            &copy_reqs[1]);
-        while (xccl_ucx_testall((xccl_ucx_team_t *)req->team, copy_reqs, 2) == XCCL_INPROGRESS);
+        xccl_ucx_send_recv(req->args.buffer_info.src_buffer, data_size,
+                           group_rank, req->tag, req->args.buffer_info.dst_buffer,
+                           data_size, group_rank, req->tag,
+                           (xccl_ucx_team_t *)req->team);
         req->reduce_linear.step = (group_rank + 1) % group_size;
     } else {
         req->reduce_linear.scratch = NULL;
