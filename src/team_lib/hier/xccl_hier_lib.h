@@ -2,8 +2,10 @@
  * Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
  * See file LICENSE for terms.
  */
+
 #ifndef XCCL_TEAM_LIB_HIER_H_
 #define XCCL_TEAM_LIB_HIER_H_
+
 #include "xccl_team_lib.h"
 
 typedef struct xccl_tl_hier_context_config {

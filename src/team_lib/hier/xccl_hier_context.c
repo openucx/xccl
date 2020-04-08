@@ -137,6 +137,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     hier_cfg = ucs_derived_of(config, xccl_tl_hier_context_config_t);
     /* Disable recursion */
     ctx->tls[ucs_ilog2(XCCL_TL_HIER)].enabled   = 0;
+    ctx->tls[ucs_ilog2(XCCL_TL_MRAIL)].enabled  = 0;
     ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled  = hier_cfg->enable_sharp;
     ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled = hier_cfg->enable_shmseg;
     ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled    = hier_cfg->enable_vmc;

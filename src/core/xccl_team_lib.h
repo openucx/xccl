@@ -124,7 +124,7 @@ xccl_local_proc_info_t* xccl_local_process_info();
 
 #define XCCL_CONTEXT_SUPER_INIT(_ctx, _lib, _params) do {                 \
         (_ctx).lib = (_lib);                                              \
-        memcpy(&((_ctx).params), (_params), sizeof(xccl_team_params_t));  \
+        memcpy(&((_ctx).params), (_params), sizeof(xccl_context_params_t));  \
     }while(0)
 
 #endif

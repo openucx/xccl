@@ -119,6 +119,7 @@ AC_CONFIG_FILES([
                  src/team_lib/sharp/Makefile
                  src/team_lib/vmc/Makefile
                  src/team_lib/hier/Makefile
+                 src/team_lib/multirail/Makefile
                  src/utils/cuda/Makefile
                  src/utils/cuda/reduce/Makefile
                  test/Makefile
