@@ -5,6 +5,7 @@
 */
 
 #include "config.h"
+#include <xccl_lib.h>
 #include "xccl_team_lib.h"
 #include "xccl_global_opts.h"
 #include "utils/mem_component.h"
@@ -13,22 +14,12 @@
 #include <dlfcn.h>
 
 extern xccl_lib_t xccl_static_lib;
-extern xccl_lib_config_t xccl_lib_global_config;
+extern xccl_config_t xccl_lib_global_config;
 extern ucs_config_field_t xccl_lib_global_config_table[];
 
 xccl_status_t xccl_team_lib_finalize(xccl_team_lib_h lib)
 {
     dlclose(lib->dl_handle);
-    return XCCL_OK;
-}
-
-xccl_status_t xccl_lib_finalize(xccl_lib_h lib)
-{
-    int i;
-    if (lib->libs) {
-        free(lib->libs);
-    }
-    free(lib);
     return XCCL_OK;
 }
 

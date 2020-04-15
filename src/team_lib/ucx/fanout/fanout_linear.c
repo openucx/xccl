@@ -7,9 +7,9 @@
 
 xccl_status_t xccl_ucx_fanout_linear_progress(xccl_ucx_collreq_t *req)
 {
-    xccl_tl_team_t *team = req->team;
-    int group_rank       = team->oob.rank;
-    int group_size       = team->oob.size;
+    xccl_tl_team_t *team      = req->team;
+    int            group_rank = team->params.oob.rank;
+    int            group_size = team->params.oob.size;
     xccl_ucx_request_t **reqs = req->fanout_linear.reqs;
 
     if (req->args.root == group_rank) {
@@ -51,8 +51,8 @@ completion:
 xccl_status_t xccl_ucx_fanout_linear_start(xccl_ucx_collreq_t *req)
 {
     size_t data_size = req->args.buffer_info.len;
-    int group_rank   = req->team->oob.rank;
-    int group_size   = req->team->oob.size;
+    int group_rank   = req->team->params.oob.rank;
+    int group_size   = req->team->params.oob.size;
     memset(req->fanout_linear.reqs, 0, sizeof(req->fanout_linear.reqs));
     req->fanout_linear.step    = 0;
     if (req->args.root == group_rank) {

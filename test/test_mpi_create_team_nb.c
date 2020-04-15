@@ -32,12 +32,12 @@ int main (int argc, char **argv) {
                      split_comm, MPI_STATUS_IGNORE);
     }
     while (XCCL_INPROGRESS == xccl_team_create_test(split_team)) {;};
-    XCCL_CHECK(xccl_team_destroy(split_team));
+    xccl_team_destroy(split_team);
         MPI_Comm_free(&split_comm);
     if (0 == rank) {
         printf("Correctness check: %s\n", "PASS");
     }
 
-    XCCL_CHECK(xccl_mpi_test_finalize());
+    xccl_mpi_test_finalize();
     return 0;
 }

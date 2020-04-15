@@ -14,7 +14,7 @@ void xccl_ucx_send_completion_cb(void* request, ucs_status_t status);
 void xccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
                                      ucp_tag_recv_info_t *info);
 
-#define TEAM_UCX_CTX(_team) (xccl_derived_of((_team)->super.ctx, xccl_team_lib_ucx_context_t))
+#define TEAM_UCX_CTX(_team) (ucs_derived_of((_team)->super.ctx, xccl_team_lib_ucx_context_t))
 #define TEAM_UCX_WORKER(_team) TEAM_UCX_CTX(_team)->ucp_worker
 
 #define TEAM_UCX_MAKE_TAG(_tag, _rank, _context_id)                 \
@@ -91,7 +91,7 @@ static inline ucp_ep_h get_p2p_ep(xccl_ucx_team_t *team, int rank)
     ucp_ep_h ep;
     if (TEAM_UCX_CTX(team)->ucp_eps) {
         ep = TEAM_UCX_CTX(team)->ucp_eps[
-            xccl_range_to_rank(team->super.cfg.range, rank)];
+            xccl_range_to_rank(team->super.params.range, rank)];
     } else {
         ep = team->ucp_eps[rank];
     }
@@ -110,7 +110,7 @@ xccl_ucx_send_nb(void *buffer, size_t msglen, int dest_group_rank,
 {
     ucp_datatype_t datatype = ucp_dt_make_contig(msglen);
     ucp_tag_t ucp_tag       =
-        TEAM_UCX_MAKE_SEND_TAG(tag, team->super.oob.rank, team->ctx_id);
+        TEAM_UCX_MAKE_SEND_TAG(tag, team->super.params.oob.rank, team->ctx_id);
     /* fprintf(stderr,"send to group_rank %d, len %d, tag %d\n", dest_group_rank, msglen, tag); */
     ucp_ep_h ep = get_p2p_ep(team, dest_group_rank);
     xccl_ucx_request_t *ucx_req = (xccl_ucx_request_t *)

@@ -20,29 +20,31 @@ struct xccl_ucx_nb_create_req {
     void *allgather_req;
 };
 
-xccl_status_t xccl_ucx_team_create_post(xccl_tl_context_t *context, xccl_team_config_t *config,
-                                        xccl_oob_collectives_t oob, xccl_tl_team_t **team)
+xccl_status_t xccl_ucx_team_create_post(xccl_tl_context_t *context,
+                                        xccl_team_params_t *params,
+                                        xccl_tl_team_t **team)
 {
     xccl_status_t status      = XCCL_OK;
     xccl_team_lib_ucx_context_t *ctx =
-        xccl_derived_of(context, xccl_team_lib_ucx_context_t);
-    int max_cid = 0, max_addrlen = 0, size = oob.size,
-        rank = oob.rank;
+        ucs_derived_of(context, xccl_team_lib_ucx_context_t);
+    int max_cid = 0, max_addrlen = 0, size = params->oob.size,
+        rank = params->oob.rank;
     xccl_ucx_team_t *ucx_team;
     int *tmp;
     int local_addrlen, i, sbuf[2];
     char* addr_array;
     struct xccl_ucx_nb_create_req *nb_req = malloc(sizeof(*nb_req));
     ucx_team = (xccl_ucx_team_t*)malloc(sizeof(xccl_ucx_team_t));
-    XCCL_TEAM_SUPER_INIT(ucx_team->super, context, config, oob);
+    XCCL_TEAM_SUPER_INIT(ucx_team->super, context, params);
     nb_req->phase = 0;
     ucx_team->nb_create_req  = nb_req;
-    ucx_team->range          = config->range;
+    ucx_team->range          = params->range;
     local_addrlen            = (int)ctx->ucp_addrlen;
     tmp                      = (int*)malloc(size*sizeof(int)*2);
     sbuf[0]                  = local_addrlen;
     sbuf[1]                  = ctx->next_cid;
-    xccl_oob_allgather_nb(sbuf, tmp, 2*sizeof(int), &oob, &nb_req->allgather_req);
+    xccl_oob_allgather_nb(sbuf, tmp, 2*sizeof(int), &params->oob,
+                          &nb_req->allgather_req);
     nb_req->scratch = tmp;
     *team = &ucx_team->super;
     return XCCL_OK;
@@ -52,11 +54,11 @@ xccl_status_t xccl_ucx_team_create_test(xccl_tl_team_t *team)
 {
     xccl_status_t status      = XCCL_OK;
     xccl_team_lib_ucx_context_t *ctx =
-        xccl_derived_of(team->ctx, xccl_team_lib_ucx_context_t);
-    xccl_oob_collectives_t oob = team->oob;
+        ucs_derived_of(team->ctx, xccl_team_lib_ucx_context_t);
+    xccl_oob_collectives_t oob = team->params.oob;
     int max_cid = 0, size = oob.size,
         rank = oob.rank;
-    xccl_ucx_team_t *ucx_team = xccl_derived_of(team, xccl_ucx_team_t);
+    xccl_ucx_team_t *ucx_team = ucs_derived_of(team, xccl_ucx_team_t);
     int *tmp;
     int local_addrlen, i, sbuf[2];
     char* addr_array;
@@ -117,14 +119,14 @@ cleanup:
 
 xccl_status_t xccl_ucx_team_destroy(xccl_tl_team_t *team)
 {
-    xccl_ucx_team_t             *ucx_team = xccl_derived_of(team, xccl_ucx_team_t);
-    xccl_team_lib_ucx_context_t *ctx      = xccl_derived_of(team->ctx, xccl_team_lib_ucx_context_t);
+    xccl_ucx_team_t             *ucx_team = ucs_derived_of(team, xccl_ucx_team_t);
+    xccl_team_lib_ucx_context_t *ctx      = ucs_derived_of(team->ctx, xccl_team_lib_ucx_context_t);
     void *tmp;
 
     if (ucx_team->ucp_eps) {
-        close_eps(ucx_team->ucp_eps, team->oob.size, ctx->ucp_worker);
-        tmp = malloc(team->oob.size);
-        xccl_oob_allgather(tmp, tmp, 1, &team->oob);
+        close_eps(ucx_team->ucp_eps, team->params.oob.size, ctx->ucp_worker);
+        tmp = malloc(team->params.oob.size);
+        xccl_oob_allgather(tmp, tmp, 1, &team->params.oob);
         free(tmp);
         free(ucx_team->ucp_eps);
     }

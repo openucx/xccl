@@ -18,7 +18,9 @@ typedef struct xccl_team_lib_ucx_context {
     int                   next_cid;
 } xccl_team_lib_ucx_context_t;
 
-xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib, xccl_context_config_t *config,
+xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
+                                      xccl_context_params_t *params,
+                                      xccl_tl_context_config_t *config,
                                       xccl_tl_context_t **context);
 xccl_status_t xccl_ucx_destroy_context(xccl_tl_context_t *context);
 

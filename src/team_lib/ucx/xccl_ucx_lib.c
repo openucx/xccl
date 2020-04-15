@@ -30,6 +30,20 @@ static ucs_config_field_t xccl_team_lib_ucx_config_table[] = {
     {NULL}
 };
 
+static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
+    {"", "", NULL,
+        ucs_offsetof(xccl_tl_ucx_context_config_t, super),
+        UCS_CONFIG_TYPE_TABLE(xccl_tl_context_config_table)
+    },
+
+    {"NET_DEVICES", "all",
+     "Specifies which network device(s) to use",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, devices), UCS_CONFIG_TYPE_STRING_ARRAY
+    },
+
+    {NULL}
+};
+
 static inline xccl_status_t
 xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
                         xccl_ucx_collreq_t **request)
@@ -207,8 +221,8 @@ static xccl_status_t xccl_ucx_collective_finalize(xccl_coll_req_h request)
 
 static xccl_status_t xccl_ucx_lib_open(xccl_team_lib_h self,
                                        xccl_team_lib_config_t *config) {
-    xccl_team_lib_ucx_t        *tl  = xccl_derived_of(self, xccl_team_lib_ucx_t);
-    xccl_team_lib_ucx_config_t *cfg = xccl_derived_of(config, xccl_team_lib_ucx_config_t);
+    xccl_team_lib_ucx_t        *tl  = ucs_derived_of(self, xccl_team_lib_ucx_t);
+    xccl_team_lib_ucx_config_t *cfg = ucs_derived_of(config, xccl_team_lib_ucx_config_t);
     
     tl->log_component.log_level = cfg->super.log_component.log_level;
     sprintf(tl->log_component.name, "%s", "TEAM_UCX");
@@ -222,38 +236,59 @@ static xccl_status_t xccl_ucx_lib_open(xccl_team_lib_h self,
     return XCCL_OK;
 }
 
+static xccl_status_t xccl_ucx_lib_query(xccl_team_lib_h lib, xccl_tl_attr_t *tl_attr) {
+    int    num_ibv_devices;
+    struct ibv_device **device_list;
+    char   (*devices)[16];
+    int    i, rc, p;
+
+    if (tl_attr->field_mask & XCCL_TL_ATRR_FIELD_CONTEXT_CREATE_MODE) {
+        tl_attr->context_create_mode = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL;
+    }
+
+    return XCCL_OK;
+}
+
 xccl_team_lib_ucx_t xccl_team_lib_ucx = {
-    .super.name                 = "ucx",
-    .super.id                   = XCCL_TL_UCX,
-    .super.priority             = 10,
-    .super.team_lib_config      = {
-        .name                   = "UCX team library",
-        .prefix                 = "TEAM_UCX_",
-        .table                  = xccl_team_lib_ucx_config_table,
-        .size                   = sizeof(xccl_team_lib_ucx_config_t),
+    .super.name                  = "ucx",
+    .super.id                    = XCCL_TL_UCX,
+    .super.priority              = 10,
+    .super.team_lib_config       = {
+        .name                    = "UCX team library",
+        .prefix                  = "TEAM_UCX_",
+        .table                   = xccl_team_lib_ucx_config_table,
+        .size                    = sizeof(xccl_team_lib_ucx_config_t),
     },
-    .super.team_lib_open        = xccl_ucx_lib_open,
-    .super.params.reproducible  = XCCL_LIB_NON_REPRODUCIBLE,
-    .super.params.thread_mode   = XCCL_LIB_THREAD_SINGLE | XCCL_LIB_THREAD_MULTIPLE,
-    .super.params.team_usage    = XCCL_USAGE_SW_COLLECTIVES,
-    .super.params.coll_types    = XCCL_COLL_CAP_BARRIER | XCCL_COLL_CAP_FANIN |
-                                  XCCL_COLL_CAP_FANOUT | XCCL_COLL_CAP_REDUCE |
-                                  XCCL_COLL_CAP_BCAST | XCCL_COLL_CAP_ALLREDUCE,
-    .super.ctx_create_mode      = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
-    .super.create_team_context  = xccl_ucx_create_context,
-    .super.destroy_team_context = xccl_ucx_destroy_context,
-    .super.team_create_post     = xccl_ucx_team_create_post,
-    .super.team_create_test     = xccl_ucx_team_create_test,
-    .super.team_destroy         = xccl_ucx_team_destroy,
-    .super.progress             = NULL,
-    .super.collective_init      = xccl_ucx_collective_init,
-    .super.collective_post      = xccl_ucx_collective_post,
-    .super.collective_wait      = xccl_ucx_collective_wait,
-    .super.collective_test      = xccl_ucx_collective_test,
-    .super.collective_finalize  = xccl_ucx_collective_finalize,
-    .super.global_mem_map_start = NULL,
-    .super.global_mem_map_test  = NULL,
-    .super.global_mem_unmap     = NULL,
+    .super.tl_context_config     = {
+        .name                    = "UCX tl context",
+        .prefix                  = "TEAM_UCX_",
+        .table                   = xccl_tl_ucx_context_config_table,
+        .size                    = sizeof(xccl_tl_ucx_context_config_t),
+    },
+    .super.team_lib_open         = xccl_ucx_lib_open,
+    .super.team_lib_query        = xccl_ucx_lib_query,
+    .super.params.reproducible   = XCCL_REPRODUCIBILITY_MODE_NON_REPRODUCIBLE,
+    .super.params.thread_mode    = XCCL_THREAD_MODE_SINGLE |
+                                   XCCL_THREAD_MODE_MULTIPLE,
+    .super.params.team_usage     = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,
+    .super.params.coll_types     = XCCL_COLL_CAP_BARRIER | XCCL_COLL_CAP_FANIN |
+                                   XCCL_COLL_CAP_FANOUT | XCCL_COLL_CAP_REDUCE |
+                                   XCCL_COLL_CAP_BCAST | XCCL_COLL_CAP_ALLREDUCE,
+    .super.ctx_create_mode       = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
+    .super.team_context_create   = xccl_ucx_create_context,
+    .super.team_context_progress = NULL,
+    .super.team_context_destroy  = xccl_ucx_destroy_context,
+    .super.team_create_post      = xccl_ucx_team_create_post,
+    .super.team_create_test      = xccl_ucx_team_create_test,
+    .super.team_destroy          = xccl_ucx_team_destroy,
+    .super.collective_init       = xccl_ucx_collective_init,
+    .super.collective_post       = xccl_ucx_collective_post,
+    .super.collective_wait       = xccl_ucx_collective_wait,
+    .super.collective_test       = xccl_ucx_collective_test,
+    .super.collective_finalize   = xccl_ucx_collective_finalize,
+    .super.global_mem_map_start  = NULL,
+    .super.global_mem_map_test   = NULL,
+    .super.global_mem_unmap      = NULL,
 };
 
 void xccl_ucx_send_completion_cb(void* request, ucs_status_t status)

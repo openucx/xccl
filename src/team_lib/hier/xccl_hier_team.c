@@ -36,53 +36,57 @@ oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len,
         .cb.cb     = xccl_sbgp_rank_to_team,
         .cb.cb_ctx = (void*)sbgp,
     };
-    team->super.oob.allgather(sbuf, rbuf, len, sbgp->group_rank,
-                              range, team->super.oob.coll_context, req);
+    team->super.params.oob.allgather(sbuf, rbuf, len, sbgp->group_rank,
+                                  range, team->super.params.oob.coll_context, req);
     return 0;
 }
 
 static xccl_status_t xccl_hier_create_pair(sbgp_t *sbgp, xccl_hier_team_t *team,
                                            xccl_tl_id_t tl_id, xccl_hier_pair_type_t pair) {
-    xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx, xccl_hier_context_t);
+    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
     if (sbgp->status != SBGP_ENABLED) {
         return 0;
     }
 
-    xccl_team_config_t team_config = {
-        .range.type      = XCCL_EP_RANGE_CB,
-        .range.cb.cb     = xccl_sbgp_rank_to_context,
-        .range.cb.cb_ctx = (void*)sbgp,
-    };
-
     xccl_oob_collectives_t oob = {
         .allgather  = oob_sbgp_allgather,
-        .req_test   = team->super.oob.req_test,
-        .req_free   = team->super.oob.req_free,
+        .req_test   = team->super.params.oob.req_test,
+        .req_free   = team->super.params.oob.req_free,
         .coll_context = (void*)sbgp,
         .rank = sbgp->group_rank,
         .size = sbgp->group_size,
     };
 
+    xccl_team_params_t team_params = {
+        .range.type      = XCCL_EP_RANGE_CB,
+        .range.cb.cb     = xccl_sbgp_rank_to_context,
+        .range.cb.cb_ctx = (void*)sbgp,
+        .oob             = oob,
+    };
+
     team->pairs[pair] = (xccl_hier_pair_t*)malloc(sizeof(xccl_hier_pair_t));
-    xccl_team_create_post(ctx->tls[tl_id].xccl_ctx, &team_config,
-                         oob, &team->pairs[pair]->team);
+    xccl_team_create_post(ctx->tls[ucs_ilog2(tl_id)].xccl_ctx, &team_params,
+                          &team->pairs[pair]->team);
     while (XCCL_INPROGRESS ==
            xccl_team_create_test(team->pairs[pair]->team)) {;}
     team->pairs[pair]->sbgp = sbgp;
     return XCCL_OK;
 }
 
-xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context, xccl_team_config_t *config,
-                                         xccl_oob_collectives_t oob, xccl_tl_team_t **team)
+xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
+                                         xccl_team_params_t *params,
+                                         xccl_tl_team_t **team)
 {
     //TODO need to make this non blocking + team_hier_wait
-    xccl_status_t status      = XCCL_OK;
-    xccl_hier_context_t *ctx = xccl_derived_of(context, xccl_hier_context_t);
-    int i, size = oob.size, rank = oob.rank;
-    xccl_hier_team_t *hier_team;
+    xccl_status_t       status = XCCL_OK;
+    xccl_hier_context_t *ctx   = ucs_derived_of(context, xccl_hier_context_t);
+    int                 size   = params->oob.size;
+    int                 rank   = params->oob.rank;
+    int                 i;
+    xccl_hier_team_t    *hier_team;
 
     hier_team = (xccl_hier_team_t*)calloc(1, sizeof(xccl_hier_team_t));
-    XCCL_TEAM_SUPER_INIT(hier_team->super, context, config, oob);
+    XCCL_TEAM_SUPER_INIT(hier_team->super, context, params);
 
     for (i=0; i<SBGP_LAST; i++) {
         hier_team->sbgps[i].status = SBGP_DISABLED;
@@ -100,19 +104,19 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context, xccl_team_c
     xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
                           XCCL_TL_UCX, XCCL_HIER_PAIR_NODE_LEADERS_UCX);
 
-    if (ctx->tls[XCCL_TL_SHMSEG].enabled) {
+    if (ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled) {
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET], hier_team,
                               XCCL_TL_SHMSEG, XCCL_HIER_PAIR_SOCKET_SHMSEG);
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET_LEADERS], hier_team,
                               XCCL_TL_SHMSEG, XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG);
     }
 
-    if (ctx->tls[XCCL_TL_SHARP].enabled) {
+    if (ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled) {
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
                               XCCL_TL_SHARP, XCCL_HIER_PAIR_NODE_LEADERS_SHARP);
     }
 
-    if (ctx->tls[XCCL_TL_VMC].enabled) {
+    if (ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled) {
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
                               XCCL_TL_VMC, XCCL_HIER_PAIR_NODE_LEADERS_VMC);
     }
@@ -129,7 +133,7 @@ xccl_status_t xccl_hier_team_create_test(xccl_tl_team_t *team)
 
 xccl_status_t xccl_hier_team_destroy(xccl_tl_team_t *team)
 {
-    xccl_hier_team_t *hier_team = xccl_derived_of(team, xccl_hier_team_t);
+    xccl_hier_team_t *hier_team = ucs_derived_of(team, xccl_hier_team_t);
     int i;
 
     for (i=0; i<XCCL_HIER_PAIR_LAST; i++) {

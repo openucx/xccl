@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
     xccl_lib_h lib;
     xccl_lib_init(lib_config, &lib);
 
-    xccl_context_config_t team_ctx_config = {
+    xccl_context_params_t team_ctx_params = {
         .field_mask = XCCL_CONTEXT_CONFIG_FIELD_TEAM_LIB_NAME |
                       XCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE |
                       XCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE,
@@ -25,6 +25,6 @@ int main(int argc, char **argv) {
         .completion_type = XCCL_TEAM_COMPLETION_BLOCKING,
     };
     xccl_context_h team_ctx;
-    xccl_create_context(lib, team_ctx_config, &team_ctx);
+    xccl_context_create(lib, team_ctx_params, &team_ctx);
     return 0;
 }

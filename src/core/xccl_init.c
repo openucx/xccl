@@ -24,10 +24,11 @@
 #include "utils/mem_component.h"
 #include "utils/xccl_log.h"
 #include "xccl_global_opts.h"
+#include <xccl_lib.h>
 
 xccl_lib_t xccl_static_lib;
 xccl_local_proc_info_t xccl_local_proc_info;
-extern xccl_lib_config_t xccl_lib_global_config;
+extern xccl_config_t xccl_lib_global_config;
 extern ucs_config_field_t xccl_lib_global_config_table[];
 
 xccl_local_proc_info_t* xccl_local_process_info()
@@ -72,7 +73,7 @@ static xccl_status_t xccl_team_lib_init(const char *so_path,
     xccl_debug("Loading library %s\n", so_path);
     if (!handle) {
         xccl_error("Failed to load XCCL Team library: %s\n. "
-                "Check XCCL_TEAM_LIB_PATH or LD_LIBRARY_PATH\n", so_path);
+                   "Check XCCL_TEAM_LIB_PATH or LD_LIBRARY_PATH\n", so_path);
         *team_lib = NULL;
         return XCCL_ERR_NO_MESSAGE;
     }
@@ -116,43 +117,6 @@ static void load_team_lib_plugins(xccl_lib_t *lib)
     }
 }
 
-#define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{                      \
-        if ((params->field_mask & XCCL_LIB_CONFIG_FIELD_ ## _CAP_FIELD) && \
-            !(params-> _cap & tl->params. _cap)) {                       \
-            printf("Disqualifying team %s due to %s cap\n",             \
-                   tl->name, XCCL_PP_QUOTE(_CAP_FIELD));                \
-            continue;                                                   \
-        }                                                               \
-    } while(0)
-
-static void xccl_lib_filter(const xccl_params_t *params, xccl_lib_t *lib)
-{
-    int i;
-    int n_libs = xccl_static_lib.n_libs_opened;
-    lib->libs = (xccl_team_lib_t**)malloc(sizeof(xccl_team_lib_t*)*n_libs);
-    lib->n_libs_opened = 0;
-    for (i=0; i<n_libs; i++) {
-        xccl_team_lib_t *tl = xccl_static_lib.libs[i];
-        CHECK_LIB_CONFIG_CAP(reproducible, REPRODUCIBLE);
-        CHECK_LIB_CONFIG_CAP(thread_mode,  THREAD_MODE);
-        CHECK_LIB_CONFIG_CAP(team_usage,   TEAM_USAGE);
-        CHECK_LIB_CONFIG_CAP(coll_types,   COLL_TYPES);
-        
-        lib->libs[lib->n_libs_opened++] = tl;
-    }
-}
-
-static void xccl_print_libs(xccl_lib_t *lib) {
-    char str[1024];
-    int i;
-    sprintf(str, "n_libs %d: ", lib->n_libs_opened);
-    for (i=0; i<lib->n_libs_opened; i++) {
-        strcat(str, lib->libs[i]->name);
-        strcat(str, " ");
-    }
-    printf("%s\n", str);
-}
-
 __attribute__((constructor))
 static void xccl_constructor(void)
 {
@@ -192,94 +156,3 @@ static void xccl_constructor(void)
     xccl_get_bound_socket_id(&xccl_local_proc_info.socketid);
 }
 
-xccl_status_t xccl_lib_init(const xccl_params_t *params,
-                            xccl_lib_t **xccl_lib)
-{
-    xccl_lib_t *lib = NULL;
-    if (xccl_static_lib.n_libs_opened == 0) {
-        return XCCL_ERR_NO_MESSAGE;
-    }
-
-    lib = malloc(sizeof(*lib));
-    xccl_lib_filter(params, lib);
-    if (lib->n_libs_opened == 0) {
-        xccl_error("XCCL lib init: no plugins left after filtering by params\n");
-        return XCCL_ERR_NO_MESSAGE;
-    }
-    /* xccl_print_libs(lib); */
-    *xccl_lib = lib;
-    return XCCL_OK;
-}
-
-xccl_status_t xccl_init(const xccl_params_t *params,
-                        const xccl_config_t *config,
-                        xccl_context_h *context_p)
-{
-    xccl_status_t status;
-    int i;
-    xccl_lib_t *lib;
-
-    if (XCCL_OK != (status = xccl_lib_init(params, &lib))) {
-        return status;
-    }
-    ucs_config_parser_warn_unused_env_vars_once("XCCL_");
-    return xccl_create_context(lib, config, context_p);
-}
-
-static ucs_config_field_t xccl_config_table[] = {
-  {"TEAMS", "all",
-   "Comma-separated list of teams to use. The order is not meaningful.\n"
-   " - all    : use all the avalable teams.\n"
-   " - ucx    : team ucx"
-   " - sharp  : team sharp"
-   " - vmc    : team vmc"
-   " - shmseg : team shmseg"
-   " - hier   : hierarchical",
-   ucs_offsetof(xccl_config_t, teams), UCS_CONFIG_TYPE_STRING_ARRAY},
-
-   {NULL}
-};
-UCS_CONFIG_REGISTER_TABLE(xccl_config_table, "XCCL", NULL, xccl_config_t)
-
-xccl_status_t xccl_config_read(const char *env_prefix, const char *filename,
-                               xccl_config_t **config_p){
-    xccl_config_t *config;
-    xccl_status_t status;
-    char full_prefix[128] = "XCCL_";
-
-    config = malloc(sizeof(*config));
-    if (config == NULL) {
-        status = XCCL_ERR_NO_MEMORY;
-        goto err;
-    }
-
-    if ((env_prefix != NULL) && (strlen(env_prefix) > 0)) {
-        snprintf(full_prefix, sizeof(full_prefix), "%s%s", "XCCL_", env_prefix);
-    }
-
-    status = ucs_config_parser_fill_opts(config, xccl_config_table, full_prefix,
-                                         NULL, 0);
-    if (status != UCS_OK) {
-        goto err_free;
-    }
-
-    *config_p = config;
-    return XCCL_OK;
-
-err_free:
-    free(config);
-err:
-    return status;
-}
-
-void xccl_config_release(xccl_config_t *config)
-{
-    free(config);
-}
-
-void xccl_config_print(const xccl_config_t *config, FILE *stream,
-                       const char *title, ucs_config_print_flags_t print_flags)
-{
-    ucs_config_parser_print_opts(stream, title, config, xccl_config_table, NULL,
-                                 "XCCL_", print_flags);
-}

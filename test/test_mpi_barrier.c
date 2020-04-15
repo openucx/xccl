@@ -42,6 +42,6 @@ int main (int argc, char **argv) {
         do_barrier(xccl_world_team);
     }
 
-    XCCL_CHECK(xccl_mpi_test_finalize());
+    xccl_mpi_test_finalize();
     return 0;
 }

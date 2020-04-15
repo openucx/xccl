@@ -39,6 +39,15 @@ static ucs_config_field_t xccl_team_lib_sharp_config_table[] = {
     {NULL}
 };
 
+static ucs_config_field_t xccl_tl_sharp_context_config_table[] = {
+    {"", "", NULL,
+        ucs_offsetof(xccl_tl_sharp_context_config_t, super),
+        UCS_CONFIG_TYPE_TABLE(xccl_tl_context_config_table)
+    },
+
+    {NULL}
+};
+
 unsigned int xccl_sharp_global_rand_state;
 
 static inline int xccl_sharp_rand()
@@ -61,8 +70,8 @@ static inline void xccl_sharp_global_rand_state_init()
 static xccl_status_t xccl_sharp_lib_open(xccl_team_lib_h self,
                                          xccl_team_lib_config_t *config)
 {
-    xccl_team_lib_sharp_t        *tl  = xccl_derived_of(self, xccl_team_lib_sharp_t);
-    xccl_team_lib_sharp_config_t *cfg = xccl_derived_of(config, xccl_team_lib_sharp_config_t);
+    xccl_team_lib_sharp_t        *tl  = ucs_derived_of(self, xccl_team_lib_sharp_t);
+    xccl_team_lib_sharp_config_t *cfg = ucs_derived_of(config, xccl_team_lib_sharp_config_t);
     
     tl->config.super.log_component.log_level = cfg->super.log_component.log_level;
     sprintf(tl->config.super.log_component.name, "%s", "TEAM_SHARP");
@@ -134,7 +143,7 @@ static ucs_status_t xccl_sharp_rcache_mem_reg_cb(void *context,
                                                  uint16_t rcache_mem_reg_flags)
 {
     xccl_sharp_context_t       *ctx    = (xccl_sharp_context_t*) context;
-    xccl_sharp_rcache_region_t *region = xccl_derived_of(rregion, xccl_sharp_rcache_region_t);
+    xccl_sharp_rcache_region_t *region = ucs_derived_of(rregion, xccl_sharp_rcache_region_t);
     void                       *addr   = (void*)region->super.super.start;
     size_t                     length  = region->super.super.end - region->super.super.start;
     int rc;
@@ -153,7 +162,7 @@ static void xccl_sharp_rcache_mem_dereg_cb(void *context, ucs_rcache_t *rcache,
                                            ucs_rcache_region_t *rregion)
 {
     xccl_sharp_context_t       *ctx    = (xccl_sharp_context_t*) context;
-    xccl_sharp_rcache_region_t *region = xccl_derived_of(rregion, xccl_sharp_rcache_region_t);
+    xccl_sharp_rcache_region_t *region = ucs_derived_of(rregion, xccl_sharp_rcache_region_t);
     void                       *addr   = (void*)region->super.super.start;
     int rc;
 
@@ -169,7 +178,7 @@ static void xccl_sharp_rcache_dump_region_cb(void *context, ucs_rcache_t *rcache
                                              ucs_rcache_region_t *rregion, char *buf,
                                              size_t max)
 {
-    xccl_sharp_rcache_region_t *region = xccl_derived_of(rregion, xccl_sharp_rcache_region_t);
+    xccl_sharp_rcache_region_t *region = ucs_derived_of(rregion, xccl_sharp_rcache_region_t);
 
     snprintf(buf, max, "memh:%p", region->memh);
 }
@@ -181,34 +190,35 @@ static ucs_rcache_ops_t xccl_sharp_rcache_ops = {
 };
 
 static xccl_status_t
-xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
+xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_params_t *params,
+                          xccl_tl_context_config_t *config,
                           xccl_tl_context_t **context)
 {
     xccl_sharp_context_t        *ctx      = malloc(sizeof(*ctx));
     struct sharp_coll_init_spec init_spec = {0};
     ucs_rcache_params_t rcache_params;
     ucs_status_t        status;
-    XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, config);
+    XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
 
     init_spec.progress_func                  = NULL;
-    init_spec.world_rank                     = config->oob.rank;
+    init_spec.world_rank                     = params->oob.rank;
     init_spec.world_local_rank               = 0;
-    init_spec.world_size                     = config->oob.size;
+    init_spec.world_size                     = params->oob.size;
     init_spec.enable_thread_support          = 1;
     init_spec.group_channel_idx              = 0;
     init_spec.oob_colls.barrier              = xccl_sharp_oob_barrier;
     init_spec.oob_colls.bcast                = xccl_sharp_oob_bcast;
     init_spec.oob_colls.gather               = xccl_sharp_oob_gather;
-    init_spec.oob_ctx                        = &ctx->super.cfg->oob;
+    init_spec.oob_ctx                        = &ctx->super.params.oob;
     init_spec.config                         = sharp_coll_default_config;
     init_spec.config.user_progress_num_polls = 1000000;
     init_spec.config.ib_dev_list             = "mlx5_0:1";
     init_spec.job_id                         = xccl_sharp_rand();
-    xccl_sharp_oob_bcast((void*)&ctx->super.cfg->oob, &init_spec.job_id,
+    xccl_sharp_oob_bcast((void*)&ctx->super.params.oob, &init_spec.job_id,
                          sizeof(uint64_t), 0);
     int ret = sharp_coll_init(&init_spec, &ctx->sharp_context);
     if (ret < 0 ) {
-        if (config->oob.rank == 0) {
+        if (params->oob.rank == 0) {
             xccl_sharp_error("Failed to initialize SHARP collectives:%s(%d)"
                              "job ID:%" PRIu64"\n",
                              sharp_coll_strerror(ret), ret, init_spec.job_id);
@@ -222,7 +232,7 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_config_h config,
         rcache_params.region_struct_size = sizeof(xccl_sharp_rcache_region_t);
         rcache_params.alignment          = 64;
         rcache_params.max_alignment      = (size_t)sysconf(_SC_PAGE_SIZE);
-        rcache_params.ucm_events         = XCCL_BIT(17) /*TODO: UCM_EVENT_VM_UNMAPPED */;
+        rcache_params.ucm_events         = UCS_BIT(17) /*TODO: UCM_EVENT_VM_UNMAPPED */;
         rcache_params.ucm_event_priority = 1000;
         rcache_params.context            = (void*)ctx;
         rcache_params.ops                = &xccl_sharp_rcache_ops;
@@ -247,7 +257,7 @@ static xccl_status_t
 xccl_sharp_destroy_context(xccl_tl_context_t *context)
 {
     xccl_sharp_context_t *team_sharp_ctx =
-        xccl_derived_of(context, xccl_sharp_context_t);
+        ucs_derived_of(context, xccl_sharp_context_t);
 
     if (team_sharp_ctx->rcache) {
         ucs_rcache_destroy(team_sharp_ctx->rcache);
@@ -263,30 +273,27 @@ xccl_sharp_destroy_context(xccl_tl_context_t *context)
 
 static xccl_status_t
 xccl_sharp_team_create_post(xccl_tl_context_t *context,
-                            xccl_team_config_h config,
-                            xccl_oob_collectives_t oob,
+                            xccl_team_params_t *params,
                             xccl_tl_team_t **team)
 {
     xccl_sharp_team_t    *team_sharp     = malloc(sizeof(*team_sharp));
     unsigned             bcopy_buf_num   = xccl_team_lib_sharp.config.bcopy_buf_num;
     size_t               bcopy_buf_size  = xccl_team_lib_sharp.config.zcopy_thresh;
     xccl_sharp_context_t *team_sharp_ctx =
-        xccl_derived_of(context, xccl_sharp_context_t);
+        ucs_derived_of(context, xccl_sharp_context_t);
     struct sharp_coll_comm_init_spec comm_spec;
     int i, ret;
-    XCCL_TEAM_SUPER_INIT(team_sharp->super, context, config, oob);
+    XCCL_TEAM_SUPER_INIT(team_sharp->super, context, params);
 
-    comm_spec.size              = oob.size;
-    comm_spec.rank              = oob.rank;
+    comm_spec.size              = params->oob.size;
+    comm_spec.rank              = params->oob.rank;
     comm_spec.group_world_ranks = NULL;
-    comm_spec.oob_ctx           = &team_sharp->super.oob;
+    comm_spec.oob_ctx           = &team_sharp->super.params.oob;
     ret = sharp_coll_comm_init(team_sharp_ctx->sharp_context, &comm_spec,
                                &team_sharp->sharp_comm);
     if (ret<0) {
-        if (oob.rank == 0) {
-            xccl_sharp_error("SHARP group create failed:%s(%d)",
-                              sharp_coll_strerror(ret), ret);
-        }
+        xccl_sharp_error("SHARP group create failed:%s(%d)",
+                         sharp_coll_strerror(ret), ret);
         free(team_sharp);
         return XCCL_ERR_NO_MESSAGE;
     }
@@ -321,9 +328,9 @@ static xccl_status_t xccl_sharp_team_create_test(xccl_tl_team_t *team)
 static xccl_status_t xccl_sharp_team_destroy(xccl_tl_team_t *team)
 {
     unsigned             bcopy_buf_num   = xccl_team_lib_sharp.config.bcopy_buf_num;
-    xccl_sharp_team_t    *team_sharp = xccl_derived_of(team, xccl_sharp_team_t);
+    xccl_sharp_team_t    *team_sharp = ucs_derived_of(team, xccl_sharp_team_t);
     xccl_sharp_context_t *team_sharp_ctx =
-        xccl_derived_of(team->ctx, xccl_sharp_context_t);
+        ucs_derived_of(team->ctx, xccl_sharp_context_t);
     
     if (team_sharp->bufs != NULL) {
         for(int i = 0; i < bcopy_buf_num; i++) {
@@ -343,33 +350,40 @@ static xccl_status_t xccl_sharp_team_destroy(xccl_tl_team_t *team)
 }
 
 xccl_team_lib_sharp_t xccl_team_lib_sharp = {
-    .super.name                 = "sharp",
-    .super.id                   = XCCL_TL_SHARP,
-    .super.priority             = 90,
-    .super.team_lib_config      = {
-        .name                   = "SHARP team library",
-        .prefix                 = "TEAM_SHARP_",
-        .table                  = xccl_team_lib_sharp_config_table,
-        .size                   = sizeof(xccl_team_lib_sharp_config_t),
+    .super.name                   = "sharp",
+    .super.id                     = XCCL_TL_SHARP,
+    .super.priority               = 90,
+    .super.team_lib_config        =
+    {
+        .name                     = "SHARP team library",
+        .prefix                   = "TEAM_SHARP_",
+        .table                    = xccl_team_lib_sharp_config_table,
+        .size                     = sizeof(xccl_team_lib_sharp_config_t),
     },
-    .super.params.reproducible  = XCCL_LIB_NON_REPRODUCIBLE,
-    .super.params.thread_mode   = XCCL_LIB_THREAD_SINGLE | XCCL_LIB_THREAD_MULTIPLE,
-    .super.params.team_usage    = XCCL_USAGE_HW_COLLECTIVES,
-    .super.params.coll_types    = XCCL_COLL_CAP_BARRIER | XCCL_COLL_CAP_ALLREDUCE,
-    .super.ctx_create_mode      = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_GLOBAL,
-    .super.create_team_context  = xccl_sharp_create_context,
-    .super.destroy_team_context = xccl_sharp_destroy_context,
-    .super.team_create_post     = xccl_sharp_team_create_post,
-    .super.team_create_test     = xccl_sharp_team_create_test,
-    .super.team_destroy         = xccl_sharp_team_destroy,
-    .super.progress             = NULL,
-    .super.team_lib_open        = xccl_sharp_lib_open,
-    .super.collective_init      = xccl_sharp_collective_init,
-    .super.collective_post      = xccl_sharp_collective_post,
-    .super.collective_wait      = xccl_sharp_collective_wait,
-    .super.collective_test      = xccl_sharp_collective_test,
-    .super.collective_finalize  = xccl_sharp_collective_finalize,
-    .super.global_mem_map_start = NULL,
-    .super.global_mem_map_test  = NULL,
-    .super.global_mem_unmap     = NULL,
+    .super.tl_context_config     = {
+        .name                    = "SHARP tl context",
+        .prefix                  = "TEAM_SHARP_",
+        .table                   = xccl_tl_sharp_context_config_table,
+        .size                    = sizeof(xccl_tl_sharp_context_config_t),
+    },
+    .super.params.reproducible    = XCCL_REPRODUCIBILITY_MODE_NON_REPRODUCIBLE,
+    .super.params.thread_mode     = XCCL_THREAD_MODE_SINGLE | XCCL_THREAD_MODE_MULTIPLE,
+    .super.params.team_usage      = XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
+    .super.params.coll_types      = XCCL_COLL_CAP_BARRIER | XCCL_COLL_CAP_ALLREDUCE,
+    .super.ctx_create_mode        = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_GLOBAL,
+    .super.team_context_create    = xccl_sharp_create_context,
+    .super.team_context_destroy   = xccl_sharp_destroy_context,
+    .super.team_create_post       = xccl_sharp_team_create_post,
+    .super.team_create_test       = xccl_sharp_team_create_test,
+    .super.team_destroy           = xccl_sharp_team_destroy,
+    .super.team_context_progress  = NULL,
+    .super.team_lib_open          = xccl_sharp_lib_open,
+    .super.collective_init        = xccl_sharp_collective_init,
+    .super.collective_post        = xccl_sharp_collective_post,
+    .super.collective_wait        = xccl_sharp_collective_wait,
+    .super.collective_test        = xccl_sharp_collective_test,
+    .super.collective_finalize    = xccl_sharp_collective_finalize,
+    .super.global_mem_map_start   = NULL,
+    .super.global_mem_map_test    = NULL,
+    .super.global_mem_unmap       = NULL,
 };

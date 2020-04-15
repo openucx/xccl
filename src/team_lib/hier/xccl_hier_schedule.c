@@ -12,8 +12,8 @@
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_team.h"
 
-static xccl_coll_req_t xccl_hier_complete_req;
-#define REQ_COMPLETE (&xccl_hier_complete_req)
+static xccl_tl_coll_req_t xccl_hier_complete_req;
+#define REQ_COMPLETE ((xccl_coll_req_h)&xccl_hier_complete_req)
 
 static inline int can_start_level(coll_schedule_frag_t *sched, int level) {
     if (sched->fs && sched->fs->ordered) {
@@ -62,7 +62,7 @@ xccl_status_t coll_schedule_progress_sequential(coll_schedule_t *sched)
 {
     int i;
     int curr_idx;
-    coll_schedule_sequential_t *schedule = xccl_derived_of(sched, coll_schedule_sequential_t);
+    coll_schedule_sequential_t *schedule = ucs_derived_of(sched, coll_schedule_sequential_t);
     int n_colls = schedule->super.n_colls;
     xccl_status_t status;
     const int n_polls = 10;
@@ -97,7 +97,7 @@ xccl_status_t coll_schedule_progress_single_dep(coll_schedule_t *sched)
 {
     int i, p;
     int curr_idx;
-    coll_schedule_single_dep_t *schedule = xccl_derived_of(sched, coll_schedule_single_dep_t);
+    coll_schedule_single_dep_t *schedule = ucs_derived_of(sched, coll_schedule_single_dep_t);
     int n_colls = schedule->super.n_colls;
     const int n_polls = 10;
     xccl_status_t status;

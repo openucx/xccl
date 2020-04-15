@@ -17,6 +17,11 @@ typedef struct xccl_team_lib_ucx_config {
     xccl_team_lib_config_t super;
 } xccl_team_lib_ucx_config_t;
 
+typedef struct xccl_tl_ucx_context_config {
+    xccl_tl_context_config_t super;
+    ucs_config_names_array_t devices;
+} xccl_tl_ucx_context_config_t;
+
 extern xccl_team_lib_ucx_t xccl_team_lib_ucx;
 
 #define xccl_team_ucx_log_component(_level, _fmt, ...) \
@@ -47,7 +52,7 @@ typedef struct xccl_ucx_request_t {
 #define MAX_REQS 32
 
 typedef struct xccl_ucx_collreq {
-    xccl_coll_req_t     super;
+    xccl_tl_coll_req_t  super;
     xccl_coll_op_args_t args;
     ucs_memory_type_t   mem_type;
     xccl_tl_team_t     *team;

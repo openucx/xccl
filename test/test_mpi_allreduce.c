@@ -53,6 +53,6 @@ int main (int argc, char **argv) {
         printf("Correctness check: %s\n", status_global == 0 ? "PASS" : "FAIL");
     }
 
-    XCCL_CHECK(xccl_mpi_test_finalize());
+    xccl_mpi_test_finalize();
     return 0;
 }

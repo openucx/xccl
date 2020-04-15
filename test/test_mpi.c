@@ -1,6 +1,7 @@
 #include "test_mpi.h"
 
 xccl_team_h xccl_world_team;
+static xccl_lib_h     lib;
 static xccl_context_h team_ctx;
 
 typedef struct xccl_test_oob_allgather_req {
@@ -100,23 +101,26 @@ int xccl_mpi_create_comm_nb(MPI_Comm comm, xccl_team_h *team) {
     MPI_Comm_size(comm, &size);
 
     /* Create XCCL TEAM for comm world */
-    xccl_team_config_t team_config = {
-        .range     = {
+    xccl_team_params_t team_params = {
+        .field_mask         = XCCL_TEAM_PARAM_FIELD_EP_RANGE |
+                              XCCL_TEAM_PARAM_FIELD_OOB,
+        .range = {
             .type           = XCCL_EP_RANGE_STRIDED,
             .strided.start  = 0,
             .strided.stride = 1
+        },
+
+        .oob   = {
+            .allgather      = oob_allgather,
+            .req_test       = oob_allgather_test,
+            .req_free       = oob_allgather_free,
+            .coll_context   = (void*)comm,
+            .rank           = rank,
+            .size           = size
         }
     };
 
-    xccl_oob_collectives_t oob = {
-        .allgather    = oob_allgather,
-        .req_test     = oob_allgather_test,
-        .req_free     = oob_allgather_free,
-        .coll_context = (void*)comm,
-        .rank = rank,
-        .size = size
-    };
-    XCCL_CHECK(xccl_team_create_post(team_ctx, &team_config, oob, team));
+    XCCL_CHECK(xccl_team_create_post(team_ctx, &team_params, team));
     return 0;
 }
 
@@ -127,8 +131,14 @@ int xccl_mpi_create_comm(MPI_Comm comm, xccl_team_h *team) {
 
 int xccl_mpi_test_init(int argc, char **argv,
                        xccl_collective_cap_t coll_types) {
-    char *var;
-    int rank, size;
+    char     *var;
+    int      rank, size;
+    char     *tl, *saveptr;
+    uint64_t tls = 0;
+    uint64_t i;
+    int      j;
+    xccl_tl_id_t *tl_ids;
+    unsigned     tl_count;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -136,56 +146,62 @@ int xccl_mpi_test_init(int argc, char **argv,
 
     /* Init xccl library */
     var = getenv("XCCL_TEST_TLS");
-    xccl_params_t params = {
-        .field_mask = XCCL_LIB_CONFIG_FIELD_TEAM_USAGE,
-        .team_usage = XCCL_USAGE_SW_COLLECTIVES |
-                      XCCL_USAGE_HW_COLLECTIVES,
+    if (var) {
+        for (i = 1; i < XCCL_TL_LAST; i = i << 1) {
+            if (strstr(var, xccl_tl_str(i))) {
+                tls = tls | i;
+            } 
+        }
+    }
+    else {
+        tls = XCCL_TL_ALL;
+    }
+
+    xccl_lib_params_t lib_params = {
+        .field_mask = XCCL_LIB_PARAM_FIELD_TEAM_USAGE |
+                      XCCL_LIB_PARAM_FIELD_COLL_TYPES,
+        .team_usage = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES |
+                      XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
         .coll_types = coll_types,
     };
 
-    /* Init xccl context for a specified XCCL_TEST_TLS */
-    xccl_config_t config = {
-        .ctx_config = {
-            .field_mask = XCCL_CONTEXT_CONFIG_FIELD_THREAD_MODE |
-            XCCL_CONTEXT_CONFIG_FIELD_OOB |
-            XCCL_CONTEXT_CONFIG_FIELD_COMPLETION_TYPE,
-            .thread_mode     = XCCL_LIB_THREAD_SINGLE,
-            .completion_type = XCCL_TEAM_COMPLETION_BLOCKING,
-            .oob = {
-                .allgather    = oob_allgather,
-                .req_test     = oob_allgather_test,
-                .req_free     = oob_allgather_free,
-                .coll_context = (void*)MPI_COMM_WORLD,
-                .rank         = rank,
-                .size         = size
-            },
-        },
-        .tls = var, //NULL means auto
-    };
-    XCCL_CHECK(xccl_init(&params, &config, &team_ctx));
-#if 0
-    //TODO need to discuss where this should go
-    xccl_team_lib_attr_t team_lib_attr;
-    team_lib_attr.field_mask = XCCL_ATTR_FIELD_CONTEXT_CREATE_MODE;
-    xccl_team_lib_query(lib, &team_lib_attr);
-    if (team_lib_attr.context_create_mode == XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_GLOBAL) {
-        xccl_oob_collectives_t oob_ctx = {
-            .allgather  = oob_allgather,
-            .coll_context = (void*)MPI_COMM_WORLD,
-            .rank = rank,
-            .size = size
-        };
+    xccl_lib_config_t *cfg;
 
-        team_ctx_config.oob = oob_ctx;
-    }
-#endif    
+
+    /* Init xccl context for a specified XCCL_TEST_TLS */
+    xccl_context_params_t ctx_params = {
+        .field_mask      = XCCL_CONTEXT_PARAM_FIELD_THREAD_MODE |
+                           XCCL_CONTEXT_PARAM_FIELD_OOB |
+                           XCCL_CONTEXT_PARAM_FIELD_TEAM_COMPLETION_TYPE |
+                           XCCL_CONTEXT_PARAM_FIELD_TLS,
+        .thread_mode     = XCCL_THREAD_MODE_SINGLE,
+        .completion_type = XCCL_TEAM_COMPLETION_TYPE_BLOCKING,
+        .oob = {
+            .allgather    = oob_allgather,
+            .req_test     = oob_allgather_test,
+            .req_free     = oob_allgather_free,
+            .coll_context = (void*)MPI_COMM_WORLD,
+            .rank         = rank,
+            .size         = size
+        },
+        .tls              = tls,
+    };
+    XCCL_CHECK(xccl_lib_init(&lib_params, cfg, &lib));
+
+    XCCL_CHECK(xccl_get_tl_list(lib, &tl_ids, &tl_count));
+    xccl_free_tl_list(tl_ids);
+
+    xccl_context_config_t *ctx_config;
+    XCCL_CHECK(xccl_context_config_read(lib, NULL, NULL, &ctx_config));
+    XCCL_CHECK(xccl_context_create(lib, &ctx_params, ctx_config, &team_ctx));
+    xccl_context_config_release(ctx_config);
     xccl_mpi_create_comm(MPI_COMM_WORLD, &xccl_world_team);
     return 0;
 }
 
-int xccl_mpi_test_finalize(void) {
-    XCCL_CHECK(xccl_team_destroy(xccl_world_team));
-    XCCL_CHECK(xccl_cleanup(team_ctx));
+void xccl_mpi_test_finalize(void) {
+    xccl_team_destroy(xccl_world_team);
+    xccl_context_destroy(team_ctx);
+    xccl_lib_cleanup(lib);
     MPI_Finalize();
-    return 0;
 }
