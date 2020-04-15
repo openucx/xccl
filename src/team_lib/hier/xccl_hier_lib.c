@@ -23,9 +23,52 @@ static ucs_config_field_t xccl_tl_hier_context_config_table[] = {
 
     {"NET_DEVICES", "all",
      "Specifies which network device(s) to use",
-     ucs_offsetof(xccl_tl_hier_context_config_t, devices), UCS_CONFIG_TYPE_STRING_ARRAY
+     ucs_offsetof(xccl_tl_hier_context_config_t, devices),
+     UCS_CONFIG_TYPE_STRING_ARRAY
     },
 
+    {"ENABLE_SHARP", "no",
+     "Enables sharp team in hier team",
+     ucs_offsetof(xccl_tl_hier_context_config_t, enable_sharp),
+     UCS_CONFIG_TYPE_BOOL
+    },
+
+    {"ENABLE_SHMSEG", "no",
+     "Enables shmseg team in hier team",
+     ucs_offsetof(xccl_tl_hier_context_config_t, enable_shmseg),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"ENABLE_VMC", "no",
+     "Enables vmc team in hier team",
+     ucs_offsetof(xccl_tl_hier_context_config_t, enable_vmc),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"BCAST_PIPELINE_THRESH", "inf",
+     "",
+     ucs_offsetof(xccl_tl_hier_context_config_t, bcast_pipeline_thresh),
+     UCS_CONFIG_TYPE_MEMUNITS
+     },
+
+    {"BCAST_PIPELINE_DEPTH", "1",
+     "",
+     ucs_offsetof(xccl_tl_hier_context_config_t, bcast_pipeline_depth),
+     UCS_CONFIG_TYPE_UINT
+     },
+
+    {"BCAST_SM_GET", "0",
+     "",
+     ucs_offsetof(xccl_tl_hier_context_config_t, bcast_sm_get),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"BCAST_SM_GET_THRESH", "inf",
+     "",
+     ucs_offsetof(xccl_tl_hier_context_config_t, bcast_sm_get_thresh),
+     UCS_CONFIG_TYPE_MEMUNITS
+     },
+    
     {NULL}
 };
 

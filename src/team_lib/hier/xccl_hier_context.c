@@ -10,75 +10,6 @@
 #include <limits.h>
 #include <ucs/sys/math.h>
 
-static xccl_status_t init_env_params(xccl_hier_context_t *ctx)
-{
-    char *var;
-    /* Just quick simple getenv to have smth working.
-       TODO We need a parameter registration framework. */
-
-    var = getenv("XCCL_HIER_ENABLE_SHARP");
-    if (var && (0 == strcmp(var, "y") ||
-                0 == strcmp(var, "1"))) {
-        ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled = 1;
-    } else {
-        ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled = 0;
-    }
-
-    var = getenv("XCCL_HIER_ENABLE_SHMSEG");
-    if (var && (0 == strcmp(var, "y") ||
-                0 == strcmp(var, "1"))) {
-        ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled = 1;
-    } else {
-        ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled = 0;
-    }
-
-    var = getenv("XCCL_HIER_ENABLE_VMC");
-    if (var && (0 == strcmp(var, "y") ||
-                0 == strcmp(var, "1"))) {
-        ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled = 1;
-    } else {
-        ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled = 0;
-    }
-
-    var = getenv("XCCL_BCAST_PIPELINE_THRESH");
-    if (var) {
-        if (0 == strcmp("inf", var) || 0 == strcmp("INF", var)) {
-            ctx->bcast_pipeline_thresh = SIZE_MAX;
-        } else {
-            ctx->bcast_pipeline_thresh = (size_t)atoi(var);
-        }
-    } else {
-        ctx->bcast_pipeline_thresh = SIZE_MAX;
-    }
-
-    var = getenv("XCCL_BCAST_PIPELINE_DEPTH");
-    if (var) {
-        ctx->bcast_pipeline_depth = atoi(var);
-    } else {
-        ctx->bcast_pipeline_depth = 1;
-    }
-
-    var = getenv("XCCL_BCAST_SM_GET");
-    if (var && (0 == strcmp(var, "y") ||
-                0 == strcmp(var, "1"))) {
-        ctx->use_sm_get_bcast = 1;
-    } else {
-        ctx->use_sm_get_bcast = 0;
-    }
-
-    var = getenv("XCCL_BCAST_SM_GET_THRESH");
-    if (var) {
-        if (0 == strcmp("inf", var) || 0 == strcmp("INF", var)) {
-            ctx->bcast_sm_get_thresh = SIZE_MAX;
-        } else {
-            ctx->bcast_sm_get_thresh = (size_t)atoi(var);
-        }
-    } else {
-        ctx->bcast_sm_get_thresh = SIZE_MAX;
-    }
-    return XCCL_OK;
-}
-
 static xccl_status_t
 xccl_hier_init_tl(xccl_hier_context_t *ctx, xccl_tl_id_t tl_id,
                   xccl_oob_collectives_t oob, const char* prefix) {
@@ -187,6 +118,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
                                        xccl_tl_context_t **context)
 {
     xccl_hier_context_t *ctx = (xccl_hier_context_t *)malloc(sizeof(*ctx));
+    xccl_tl_hier_context_config_t *hier_cfg;
     int                 i;
     uint64_t            tl;
 
@@ -201,9 +133,17 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     ucs_for_each_bit(tl, XCCL_TL_ALL) {
         ctx->tls[tl].enabled = 1;
     }
+
+    hier_cfg = ucs_derived_of(config, xccl_tl_hier_context_config_t);
     /* Disable recursion */
-    ctx->tls[ucs_ilog2(XCCL_TL_HIER)].enabled = 0;
-    init_env_params(ctx);
+    ctx->tls[ucs_ilog2(XCCL_TL_HIER)].enabled   = 0;
+    ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled  = hier_cfg->enable_sharp;
+    ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled = hier_cfg->enable_shmseg;
+    ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled    = hier_cfg->enable_vmc;
+    ctx->bcast_pipeline_thresh                  = hier_cfg->bcast_pipeline_thresh;
+    ctx->bcast_pipeline_depth                   = hier_cfg->bcast_pipeline_depth;
+    ctx->use_sm_get_bcast                       = hier_cfg->bcast_sm_get;
+    ctx->bcast_sm_get_thresh                    = hier_cfg->bcast_sm_get_thresh;
 
     ucs_for_each_bit(tl, XCCL_TL_ALL) {
         if (XCCL_OK != xccl_hier_init_tl(ctx, tl, params->oob, config->env_prefix)) {
