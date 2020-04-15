@@ -17,32 +17,44 @@
 #include <inttypes.h>
 
 static ucs_config_field_t xccl_team_lib_sharp_config_table[] = {
-    {"", "", NULL,
+    {"", "",
+     NULL,
      ucs_offsetof(xccl_team_lib_sharp_config_t, super),
      UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
     },
 
-    {"RCACHE", "try", "Enable using memory registration cache",
-     ucs_offsetof(xccl_team_lib_sharp_config_t, enable_rcache), UCS_CONFIG_TYPE_TERNARY
+    {"RCACHE", "try",
+     "Enable memory registration cache",
+     ucs_offsetof(xccl_team_lib_sharp_config_t, enable_rcache),
+     UCS_CONFIG_TYPE_TERNARY
     },
 
     {"ZCOPY_THRESH", "1024",
      "Threshold for switching from buffer copy to zero copy protocol",
-     ucs_offsetof(xccl_team_lib_sharp_config_t, zcopy_thresh), UCS_CONFIG_TYPE_MEMUNITS
-     },
+     ucs_offsetof(xccl_team_lib_sharp_config_t, zcopy_thresh),
+     UCS_CONFIG_TYPE_MEMUNITS
+    },
 
-     {"BCOPY_BUF_NUM", "10",
-      "Number of buffers for buffer copy protocol",
-      ucs_offsetof(xccl_team_lib_sharp_config_t, bcopy_buf_num), UCS_CONFIG_TYPE_UINT
-     },
+    {"BCOPY_BUF_NUM", "10",
+     "Number of buffers for buffer copy protocol",
+     ucs_offsetof(xccl_team_lib_sharp_config_t, bcopy_buf_num),
+     UCS_CONFIG_TYPE_UINT
+    },
 
     {NULL}
 };
 
 static ucs_config_field_t xccl_tl_sharp_context_config_table[] = {
-    {"", "", NULL,
-        ucs_offsetof(xccl_tl_sharp_context_config_t, super),
-        UCS_CONFIG_TYPE_TABLE(xccl_tl_context_config_table)
+    {"", "",
+     NULL,
+     ucs_offsetof(xccl_tl_sharp_context_config_t, super),
+     UCS_CONFIG_TYPE_TABLE(xccl_tl_context_config_table)
+    },
+
+    {"NET_DEVICES", "mlx5_0:1",
+     "Specifies which network device to use",
+     ucs_offsetof(xccl_tl_sharp_context_config_t, device),
+     UCS_CONFIG_TYPE_STRING
     },
 
     {NULL}
@@ -190,15 +202,19 @@ static ucs_rcache_ops_t xccl_sharp_rcache_ops = {
 };
 
 static xccl_status_t
-xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_params_t *params,
+xccl_sharp_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
                           xccl_tl_context_config_t *config,
                           xccl_tl_context_t **context)
 {
     xccl_sharp_context_t        *ctx      = malloc(sizeof(*ctx));
     struct sharp_coll_init_spec init_spec = {0};
-    ucs_rcache_params_t rcache_params;
-    ucs_status_t        status;
+    xccl_tl_sharp_context_config_t *tl_config;
+    ucs_rcache_params_t            rcache_params;
+    ucs_status_t                   status;
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
+
+    tl_config = ucs_derived_of(config, xccl_tl_sharp_context_config_t);
+    xccl_sharp_debug("Using device %s", tl_config->device);
 
     init_spec.progress_func                  = NULL;
     init_spec.world_rank                     = params->oob.rank;
@@ -212,17 +228,15 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_params_t *params,
     init_spec.oob_ctx                        = &ctx->super.params.oob;
     init_spec.config                         = sharp_coll_default_config;
     init_spec.config.user_progress_num_polls = 1000000;
-    init_spec.config.ib_dev_list             = "mlx5_0:1";
+    init_spec.config.ib_dev_list             = tl_config->device;
     init_spec.job_id                         = xccl_sharp_rand();
     xccl_sharp_oob_bcast((void*)&ctx->super.params.oob, &init_spec.job_id,
                          sizeof(uint64_t), 0);
     int ret = sharp_coll_init(&init_spec, &ctx->sharp_context);
     if (ret < 0 ) {
-        if (params->oob.rank == 0) {
-            xccl_sharp_error("Failed to initialize SHARP collectives:%s(%d)"
-                             "job ID:%" PRIu64"\n",
-                             sharp_coll_strerror(ret), ret, init_spec.job_id);
-        }
+        xccl_sharp_error("Failed to initialize SHARP collectives:%s(%d)"
+                         "job ID:%" PRIu64"\n",
+                         sharp_coll_strerror(ret), ret, init_spec.job_id);
         free(ctx);
         return XCCL_ERR_NO_MESSAGE;
     }
@@ -254,7 +268,7 @@ xccl_sharp_create_context(xccl_team_lib_h lib, xccl_context_params_t *params,
 }
 
 static xccl_status_t
-xccl_sharp_destroy_context(xccl_tl_context_t *context)
+xccl_sharp_context_destroy(xccl_tl_context_t *context)
 {
     xccl_sharp_context_t *team_sharp_ctx =
         ucs_derived_of(context, xccl_sharp_context_t);
@@ -291,7 +305,7 @@ xccl_sharp_team_create_post(xccl_tl_context_t *context,
     comm_spec.oob_ctx           = &team_sharp->super.params.oob;
     ret = sharp_coll_comm_init(team_sharp_ctx->sharp_context, &comm_spec,
                                &team_sharp->sharp_comm);
-    if (ret<0) {
+    if (ret < 0) {
         xccl_sharp_error("SHARP group create failed:%s(%d)",
                          sharp_coll_strerror(ret), ret);
         free(team_sharp);
@@ -328,12 +342,13 @@ static xccl_status_t xccl_sharp_team_create_test(xccl_tl_team_t *team)
 static xccl_status_t xccl_sharp_team_destroy(xccl_tl_team_t *team)
 {
     unsigned             bcopy_buf_num   = xccl_team_lib_sharp.config.bcopy_buf_num;
-    xccl_sharp_team_t    *team_sharp = ucs_derived_of(team, xccl_sharp_team_t);
+    xccl_sharp_team_t    *team_sharp     = ucs_derived_of(team, xccl_sharp_team_t);
     xccl_sharp_context_t *team_sharp_ctx =
         ucs_derived_of(team->ctx, xccl_sharp_context_t);
+    int i;
     
     if (team_sharp->bufs != NULL) {
-        for(int i = 0; i < bcopy_buf_num; i++) {
+        for(i = 0; i < bcopy_buf_num; i++) {
             int rc;
             rc = sharp_coll_dereg_mr(team_sharp_ctx->sharp_context,
                                     team_sharp->bufs[i].mr);
@@ -371,12 +386,12 @@ xccl_team_lib_sharp_t xccl_team_lib_sharp = {
     .super.params.team_usage      = XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
     .super.params.coll_types      = XCCL_COLL_CAP_BARRIER | XCCL_COLL_CAP_ALLREDUCE,
     .super.ctx_create_mode        = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_GLOBAL,
-    .super.team_context_create    = xccl_sharp_create_context,
-    .super.team_context_destroy   = xccl_sharp_destroy_context,
+    .super.team_context_create    = xccl_sharp_context_create,
+    .super.team_context_destroy   = xccl_sharp_context_destroy,
+    .super.team_context_progress  = NULL,
     .super.team_create_post       = xccl_sharp_team_create_post,
     .super.team_create_test       = xccl_sharp_team_create_test,
     .super.team_destroy           = xccl_sharp_team_destroy,
-    .super.team_context_progress  = NULL,
     .super.team_lib_open          = xccl_sharp_lib_open,
     .super.collective_init        = xccl_sharp_collective_init,
     .super.collective_post        = xccl_sharp_collective_post,

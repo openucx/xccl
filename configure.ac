@@ -110,7 +110,7 @@ AM_CONDITIONAL([HAVE_CUDA], [test "x$cuda_happy" != xno])
 AC_MSG_RESULT([CUDA support: $cuda_happy])
 
 includes="-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core"
-CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes -std=c11"
+CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes"
 LDFLAGS="$LDFLAGS $UCS_LDFLAGS"
 AC_CONFIG_FILES([
                  Makefile

@@ -20,7 +20,7 @@ typedef struct xccl_team_lib_sharp_config {
 
 typedef struct xccl_tl_sharp_context_config {
     xccl_tl_context_config_t super;
-    ucs_config_names_array_t devices;
+    char                     *device;
 } xccl_tl_sharp_context_config_t;
 
 typedef struct xccl_team_lib_sharp {

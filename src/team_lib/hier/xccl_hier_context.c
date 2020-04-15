@@ -111,11 +111,11 @@ xccl_hier_init_tl(xccl_hier_context_t *ctx, xccl_tl_id_t tl_id,
     }
 
     if (prefix != NULL) {
-        snprintf(env_prefix, sizeof(env_prefix), "%s_HEIR_%s",
+        snprintf(env_prefix, sizeof(env_prefix), "%s_HIER_%s",
                  prefix, xccl_tl_str(1 << tl_id));
     }
     else {
-        snprintf(env_prefix, sizeof(env_prefix), "HEIR_%s", xccl_tl_str(1 << tl_id));
+        snprintf(env_prefix, sizeof(env_prefix), "HIER_%s", xccl_tl_str(1 << tl_id));
     }
 
     xccl_context_config_read(lib, env_prefix, NULL, &cfg);
