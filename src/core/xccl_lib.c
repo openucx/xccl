@@ -81,7 +81,7 @@ xccl_status_t xccl_lib_config_read(const char *env_prefix,
     }
 
     if ((env_prefix != NULL) && (strlen(env_prefix) > 0)) {
-        snprintf(full_prefix, sizeof(full_prefix), "%s%s", "XCCL_", env_prefix);
+        snprintf(full_prefix, sizeof(full_prefix), "%s_%s", env_prefix, "XCCL_");
     }
 
     status = ucs_config_parser_fill_opts(config, xccl_lib_config_table, full_prefix,

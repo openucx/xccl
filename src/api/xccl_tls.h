@@ -37,4 +37,24 @@ const char* xccl_tl_str(xccl_tl_id_t tl_id)
     }
     return NULL;
 }
+
+static inline
+xccl_tl_id_t xccl_tls_str_to_bitmap(const char *tls_str)
+{
+    xccl_tl_id_t tls = 0;
+    int i;
+
+    if (!tls_str) {
+        return tls;
+    }
+
+    for (i = 1; i < XCCL_TL_LAST; i = i << 1) {
+        if (strstr(tls_str, xccl_tl_str(i))) {
+            tls = tls | i;
+        } 
+    }
+
+    return tls;
+}
+
 #endif

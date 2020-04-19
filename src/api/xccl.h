@@ -45,9 +45,6 @@ enum xccl_thread_mode {
 enum xccl_lib_params_team_usage_field {
     XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES   = UCS_BIT(0),
     XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES   = UCS_BIT(1),
-    XCCL_LIB_PARAMS_TEAM_USAGE_P2P_NETWORK      = UCS_BIT(2),
-    XCCL_LIB_PARAMS_TEAM_USAGE_HYBRID           = UCS_BIT(3),
-    XCCL_LIB_PARAMS_TEAM_USAGE_NO_COMMUNICATION = UCS_BIT(4)
 };
 
 typedef enum {
@@ -96,7 +93,7 @@ typedef struct xccl_lib_params {
  *
  * @param [in]  env_prefix    If non-NULL, the routine searches for the
  *                            environment variables that start with
- *                            @e XCCL_<env_prefix>_ prefix.
+ *                            @e \<env_prefix\>_XCCL_ prefix.
  *                            Otherwise, the routine searches for the
  *                            environment variables that start with
  *                            @e XCCL_ prefix.

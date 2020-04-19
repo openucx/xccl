@@ -147,11 +147,7 @@ int xccl_mpi_test_init(int argc, char **argv,
     /* Init xccl library */
     var = getenv("XCCL_TEST_TLS");
     if (var) {
-        for (i = 1; i < XCCL_TL_LAST; i = i << 1) {
-            if (strstr(var, xccl_tl_str(i))) {
-                tls = tls | i;
-            } 
-        }
+        tls = xccl_tls_str_to_bitmap(var);
     }
     else {
         tls = XCCL_TL_ALL;

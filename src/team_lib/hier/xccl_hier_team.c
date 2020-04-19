@@ -49,12 +49,12 @@ static xccl_status_t xccl_hier_create_pair(sbgp_t *sbgp, xccl_hier_team_t *team,
     }
 
     xccl_oob_collectives_t oob = {
-        .allgather  = oob_sbgp_allgather,
-        .req_test   = team->super.params.oob.req_test,
-        .req_free   = team->super.params.oob.req_free,
+        .allgather    = oob_sbgp_allgather,
+        .req_test     = team->super.params.oob.req_test,
+        .req_free     = team->super.params.oob.req_free,
         .coll_context = (void*)sbgp,
-        .rank = sbgp->group_rank,
-        .size = sbgp->group_size,
+        .rank         = sbgp->group_rank,
+        .size         = sbgp->group_size,
     };
 
     xccl_team_params_t team_params = {

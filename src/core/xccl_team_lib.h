@@ -40,7 +40,7 @@ extern ucs_config_field_t xccl_tl_context_config_table[];
 typedef struct xccl_tl_mem_handle*   xccl_tl_mem_h;
 typedef struct xccl_team_lib {
     char*                          name;
-    uint64_t                       id;
+    xccl_tl_id_t                   id;
     int                            priority;
     xccl_lib_params_t              params;
     xccl_context_create_mode_t     ctx_create_mode;

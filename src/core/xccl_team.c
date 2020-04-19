@@ -89,6 +89,11 @@ void xccl_team_destroy(xccl_team_t *team)
     xccl_tl_context_t *tl_ctx;
     int               i;
     
+    if (team->status != XCCL_OK) {
+        xccl_error("team %p is used before team_create is completed", team);
+        return;
+    }
+
     for (i=0; i<team->n_teams; i++) {
         tl_ctx = team->tl_teams[i]->ctx;
         tl_ctx->lib->team_destroy(team->tl_teams[i]);

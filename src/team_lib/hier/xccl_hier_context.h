@@ -7,6 +7,7 @@
 
 #include "xccl_hier_lib.h"
 #include "api/xccl_tls.h"
+#include <xccl_ucs.h>
 
 typedef struct xccl_hier_proc_data {
     unsigned long node_hash;

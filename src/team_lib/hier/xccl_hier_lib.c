@@ -212,8 +212,7 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
         .table                   = xccl_tl_hier_context_config_table,
         .size                    = sizeof(xccl_tl_hier_context_config_t),
     },
-    .super.params.reproducible   = XCCL_REPRODUCIBILITY_MODE_NON_REPRODUCIBLE,
-    
+    .super.params.reproducible   = XCCL_REPRODUCIBILITY_MODE_NON_REPRODUCIBLE,    
     .super.params.thread_mode    = XCCL_THREAD_MODE_SINGLE | 
                                    XCCL_THREAD_MODE_MULTIPLE,
     .super.params.team_usage     = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,

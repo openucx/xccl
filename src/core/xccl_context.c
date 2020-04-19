@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include <xccl_context.h>
+#include <xccl_ucs.h>
 #include <ucs/sys/math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -127,10 +128,7 @@ xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,
         config->configs[i] = (xccl_tl_context_config_t*)malloc(lib->libs[i]->tl_context_config.size);
         config->configs[i]->env_prefix = NULL;
         if ((env_prefix != NULL) && (strlen(env_prefix) > 0)) {
-            env_prefix_len = strlen(env_prefix);
-            config->configs[i]->env_prefix = (char*)malloc(env_prefix_len+1);
-            memcpy(config->configs[i]->env_prefix, env_prefix, env_prefix_len);
-            config->configs[i]->env_prefix[env_prefix_len] = '\0';
+            config->configs[i]->env_prefix = strdup(env_prefix);
             snprintf(full_prefix, sizeof(full_prefix), "%s_%s", env_prefix, "XCCL_");
         }
         status = ucs_config_parser_fill_opts(config->configs[i],
