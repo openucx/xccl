@@ -90,9 +90,26 @@ xccl_ucx_reduce_init(xccl_coll_op_args_t *coll_args,
 {
     //TODO alg selection for allreduce shoud happen here
     xccl_ucx_collreq_t *req;
+    xccl_status_t status = XCCL_OK;
     xccl_ucx_coll_base_init(coll_args, team, &req);
-    req->start = xccl_ucx_reduce_linear_start;
-    (*request) = (xccl_tl_coll_req_t*)&req->super;
+    if (!coll_args->alg.set_by_user) {
+        /* Automatic algorithm selection - take knomial */
+        req->start = xccl_ucx_reduce_knomial_start;
+    } else {
+        switch (coll_args->alg.id) {
+        case 0:
+            req->start = xccl_ucx_reduce_linear_start;
+            break;
+        case 1:
+            req->start = xccl_ucx_reduce_knomial_start;
+            break;
+        default:
+            free(req);
+            req = NULL;
+            status = XCCL_ERR_INVALID_PARAM;
+        }
+    }
+    (*request) = &req->super;
     return XCCL_OK;
 }
 

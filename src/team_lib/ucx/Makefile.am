@@ -12,7 +12,8 @@ allreduce = allreduce/allreduce.h \
 	allreduce/allreduce_knomial.c
 
 reduce = reduce.h \
-	reduce/reduce_linear.c
+	reduce/reduce_linear.c \
+	reduce/reduce_knomial.c
 
 fanin = fanin.h \
 	fanin/fanin_linear.c
