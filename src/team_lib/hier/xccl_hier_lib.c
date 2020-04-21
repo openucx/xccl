@@ -74,7 +74,7 @@ static ucs_config_field_t xccl_tl_hier_context_config_table[] = {
 
 static inline xccl_status_t
 xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
-                         xccl_coll_req_h *request, xccl_tl_team_t *team)
+                         xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     coll_schedule_t *schedule;
@@ -95,14 +95,14 @@ xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
     build_allreduce_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
                              spec, &schedule);
     schedule->super.lib = &xccl_team_lib_hier.super;
-    (*request) = (xccl_coll_req_h)&schedule->super;
+    (*request) = &schedule->super;
     return XCCL_OK;
 }
 
 
 static inline xccl_status_t
 xccl_hier_bcast_init(xccl_coll_op_args_t *coll_args,
-                     xccl_coll_req_h *request, xccl_tl_team_t *team)
+                     xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     coll_schedule_t *schedule;
     xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
@@ -129,13 +129,13 @@ xccl_hier_bcast_init(xccl_coll_op_args_t *coll_args,
                                     &schedule, (*coll_args));
     }
     schedule->super.lib = &xccl_team_lib_hier.super;
-    (*request) = (xccl_coll_req_h)&schedule->super;
+    (*request) = &schedule->super;
     return XCCL_OK;
 }
 
 static inline xccl_status_t
 xccl_hier_barrier_init(xccl_coll_op_args_t *coll_args,
-                      xccl_coll_req_h *request, xccl_tl_team_t *team)
+                       xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     coll_schedule_t *schedule;
     xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
@@ -155,13 +155,13 @@ xccl_hier_barrier_init(xccl_coll_op_args_t *coll_args,
     build_barrier_schedule(ucs_derived_of(team, xccl_hier_team_t),
                            spec, &schedule);
     schedule->super.lib = &xccl_team_lib_hier.super;
-    (*request) = (xccl_coll_req_h)&schedule->super;
+    (*request) = &schedule->super;
     return XCCL_OK;
 }
 
 static xccl_status_t
 xccl_hier_collective_init(xccl_coll_op_args_t *coll_args,
-                         xccl_coll_req_h *request, xccl_tl_team_t *team)
+                          xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     switch (coll_args->coll_type) {
     case XCCL_ALLREDUCE:
@@ -174,20 +174,20 @@ xccl_hier_collective_init(xccl_coll_op_args_t *coll_args,
     return XCCL_ERR_INVALID_PARAM;
 }
 
-static xccl_status_t xccl_hier_collective_post(xccl_coll_req_h request)
+static xccl_status_t xccl_hier_collective_post(xccl_tl_coll_req_t *request)
 {
     coll_schedule_t *schedule = ucs_derived_of(request, coll_schedule_t);
     return coll_schedule_progress(schedule);
 }
 
-static xccl_status_t xccl_hier_collective_test(xccl_coll_req_h request)
+static xccl_status_t xccl_hier_collective_test(xccl_tl_coll_req_t *request)
 {
     coll_schedule_t *schedule = ucs_derived_of(request, coll_schedule_t);
     coll_schedule_progress(schedule);
     return schedule->status;
 }
 
-static xccl_status_t xccl_hier_collective_wait(xccl_coll_req_h request)
+static xccl_status_t xccl_hier_collective_wait(xccl_tl_coll_req_t *request)
 {
     xccl_status_t status = xccl_hier_collective_test(request);
     while (XCCL_OK != status) {
@@ -196,7 +196,7 @@ static xccl_status_t xccl_hier_collective_wait(xccl_coll_req_h request)
     return XCCL_OK;
 }
 
-xccl_status_t xccl_hier_collective_finalize(xccl_coll_req_h request)
+xccl_status_t xccl_hier_collective_finalize(xccl_tl_coll_req_t *request)
 {
     free(request);
     return XCCL_OK;

@@ -7,6 +7,7 @@
 #define XCCL_TLS_H_
 
 #include <ucs/config/types.h>
+#include <string.h>
 
 typedef enum xccl_tl_id {
     XCCL_TL_UCX    = UCS_BIT(0),

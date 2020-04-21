@@ -10,7 +10,7 @@
 #include <xccl_team_lib.h>
 
 typedef struct xccl_coll_req {
-    xccl_tl_coll_req_t req;
+    xccl_tl_coll_req_t *req;
 } xccl_coll_req_t;
 
 #endif

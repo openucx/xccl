@@ -113,7 +113,7 @@ static xccl_status_t xccl_vmc_team_destroy(xccl_tl_team_t *team)
 }
 
 static xccl_status_t xccl_vmc_collective_init(xccl_coll_op_args_t *coll_args,
-                                              xccl_coll_req_h *request,
+                                              xccl_tl_coll_req_t **request,
                                               xccl_tl_team_t *team)
 {
     xccl_vmc_team_t     *team_vmc = ucs_derived_of(team, xccl_vmc_team_t);
@@ -129,18 +129,18 @@ static xccl_status_t xccl_vmc_collective_init(xccl_coll_op_args_t *coll_args,
     req->root      = coll_args->root;
     req->team      = team_vmc;
 
-    *request = (xccl_coll_req_h)&req->super;
+    *request = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_vmc_collective_post(xccl_coll_req_h request)
+static xccl_status_t xccl_vmc_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_vmc_coll_req_t *req = ucs_derived_of(request, xccl_vmc_coll_req_t);
     vmc_ibcast(req->buf, req->len, req->root, NULL, req->team->vmc_comm, &req->handle);
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_vmc_collective_test(xccl_coll_req_h request)
+static xccl_status_t xccl_vmc_collective_test(xccl_tl_coll_req_t *request)
 {
     xccl_vmc_coll_req_t *req = ucs_derived_of(request, xccl_vmc_coll_req_t);
     vmc_status_t st;
@@ -151,7 +151,7 @@ static xccl_status_t xccl_vmc_collective_test(xccl_coll_req_h request)
     return (st == VMC_SUCCESS)? XCCL_OK: XCCL_INPROGRESS;
 }
 
-static xccl_status_t xccl_vmc_collective_wait(xccl_coll_req_h request)
+static xccl_status_t xccl_vmc_collective_wait(xccl_tl_coll_req_t *request)
 {
     xccl_status_t st = XCCL_INPROGRESS;
     while (st == XCCL_INPROGRESS) {
@@ -160,7 +160,7 @@ static xccl_status_t xccl_vmc_collective_wait(xccl_coll_req_h request)
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_vmc_collective_finalize(xccl_coll_req_h request)
+static xccl_status_t xccl_vmc_collective_finalize(xccl_tl_coll_req_t *request)
 {
     xccl_vmc_coll_req_t *req = ucs_derived_of(request, xccl_vmc_coll_req_t);
     vmc_req_free(req->handle);

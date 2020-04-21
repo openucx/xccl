@@ -22,11 +22,11 @@ typedef struct xccl_sharp_coll_req {
 } xccl_sharp_coll_req_t;
 
 xccl_status_t xccl_sharp_collective_init(xccl_coll_op_args_t *coll_args,
-                                         xccl_coll_req_h *request,
+                                         xccl_tl_coll_req_t **request,
                                          xccl_tl_team_t *team);
-xccl_status_t xccl_sharp_collective_post(xccl_coll_req_h request);
-xccl_status_t xccl_sharp_collective_wait(xccl_coll_req_h request);
-xccl_status_t xccl_sharp_collective_test(xccl_coll_req_h request);
-xccl_status_t xccl_sharp_collective_finalize(xccl_coll_req_h request);
+xccl_status_t xccl_sharp_collective_post(xccl_tl_coll_req_t *request);
+xccl_status_t xccl_sharp_collective_wait(xccl_tl_coll_req_t *request);
+xccl_status_t xccl_sharp_collective_test(xccl_tl_coll_req_t *request);
+xccl_status_t xccl_sharp_collective_finalize(xccl_tl_coll_req_t *request);
 
 #endif

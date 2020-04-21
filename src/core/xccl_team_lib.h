@@ -15,8 +15,9 @@
 #include <assert.h>
 #include <string.h>
 
-typedef struct xccl_tl_context xccl_tl_context_t;
-typedef struct xccl_tl_team    xccl_tl_team_t;
+typedef struct xccl_tl_context  xccl_tl_context_t;
+typedef struct xccl_tl_team     xccl_tl_team_t;
+typedef struct xccl_tl_coll_req xccl_tl_coll_req_t;
 typedef struct xccl_team_lib* xccl_team_lib_h;
 
 typedef struct xccl_team_lib_config {
@@ -63,12 +64,12 @@ typedef struct xccl_team_lib {
     xccl_status_t              (*team_create_test)(xccl_tl_team_t *team_ctx);
     xccl_status_t              (*team_destroy)(xccl_tl_team_t *team);
     xccl_status_t              (*collective_init)(xccl_coll_op_args_t *coll_args,
-                                                  xccl_coll_req_h *request,
+                                                  xccl_tl_coll_req_t **request,
                                                   xccl_tl_team_t *team);
-    xccl_status_t              (*collective_post)(xccl_coll_req_h request);
-    xccl_status_t              (*collective_wait)(xccl_coll_req_h request);
-    xccl_status_t              (*collective_test)(xccl_coll_req_h request);
-    xccl_status_t              (*collective_finalize)(xccl_coll_req_h request);
+    xccl_status_t              (*collective_post)(xccl_tl_coll_req_t *request);
+    xccl_status_t              (*collective_wait)(xccl_tl_coll_req_t *request);
+    xccl_status_t              (*collective_test)(xccl_tl_coll_req_t *request);
+    xccl_status_t              (*collective_finalize)(xccl_tl_coll_req_t *request);
     xccl_status_t              (*global_mem_map_start)(xccl_tl_team_t *team,
                                                        xccl_mem_map_params_t params,
                                                        xccl_tl_mem_h *memh_p);

@@ -74,55 +74,55 @@ xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
 
 static inline xccl_status_t
 xccl_ucx_allreduce_init(xccl_coll_op_args_t *coll_args,
-                        xccl_coll_req_h *request, xccl_tl_team_t *team)
+                        xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     xccl_ucx_collreq_t *req;
     xccl_ucx_coll_base_init(coll_args, team, &req);
     req->start = xccl_ucx_allreduce_knomial_start;
-    (*request) = (xccl_coll_req_h)req;
+    (*request) = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
 
 static inline xccl_status_t
 xccl_ucx_reduce_init(xccl_coll_op_args_t *coll_args,
-                     xccl_coll_req_h *request, xccl_tl_team_t *team)
+                     xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     xccl_ucx_collreq_t *req;
     xccl_ucx_coll_base_init(coll_args, team, &req);
     req->start = xccl_ucx_reduce_linear_start;
-    (*request) = (xccl_coll_req_h)req;
+    (*request) = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
 
 static inline xccl_status_t
 xccl_ucx_fanin_init(xccl_coll_op_args_t *coll_args,
-                    xccl_coll_req_h *request, xccl_tl_team_t *team)
+                    xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     xccl_ucx_collreq_t *req;
     xccl_ucx_coll_base_init(coll_args, team, &req);
     req->start = xccl_ucx_fanin_linear_start;
-    (*request) = (xccl_coll_req_h)req;
+    (*request) = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
 
 static inline xccl_status_t
 xccl_ucx_fanout_init(xccl_coll_op_args_t *coll_args,
-                     xccl_coll_req_h *request, xccl_tl_team_t *team)
+                     xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     xccl_ucx_collreq_t *req;
     xccl_ucx_coll_base_init(coll_args, team, &req);
     req->start = xccl_ucx_fanout_linear_start;
-    (*request) = (xccl_coll_req_h)req;
+    (*request) = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
 
 static inline xccl_status_t
 xccl_ucx_bcast_init(xccl_coll_op_args_t *coll_args,
-                    xccl_coll_req_h *request, xccl_tl_team_t *team)
+                    xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     xccl_ucx_collreq_t *req;
@@ -145,25 +145,25 @@ xccl_ucx_bcast_init(xccl_coll_op_args_t *coll_args,
             status = XCCL_ERR_INVALID_PARAM;
         }
     }
-    (*request) = (xccl_coll_req_h)req;
+    (*request) = (xccl_tl_coll_req_t*)&req->super;
     return status;
 }
 
 static inline xccl_status_t
 xccl_ucx_barrier_init(xccl_coll_op_args_t *coll_args,
-                      xccl_coll_req_h *request, xccl_tl_team_t *team)
+                      xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
     xccl_ucx_collreq_t *req;
     xccl_ucx_coll_base_init(coll_args, team, &req);
     req->start = xccl_ucx_barrier_knomial_start;
-    (*request) = (xccl_coll_req_h)req;
+    (*request) = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
 
 static xccl_status_t
 xccl_ucx_collective_init(xccl_coll_op_args_t *coll_args,
-                         xccl_coll_req_h *request, xccl_tl_team_t *team)
+                         xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     switch (coll_args->coll_type) {
     case XCCL_ALLREDUCE:
@@ -182,15 +182,15 @@ xccl_ucx_collective_init(xccl_coll_op_args_t *coll_args,
     return XCCL_ERR_INVALID_PARAM;
 }
 
-static xccl_status_t xccl_ucx_collective_post(xccl_coll_req_h request)
+static xccl_status_t xccl_ucx_collective_post(xccl_tl_coll_req_t *request)
 {
-    xccl_ucx_collreq_t *req = (xccl_ucx_collreq_t *)request;
+    xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
     return req->start(req);
 }
 
-static xccl_status_t xccl_ucx_collective_wait(xccl_coll_req_h request)
+static xccl_status_t xccl_ucx_collective_wait(xccl_tl_coll_req_t *request)
 {
-    xccl_ucx_collreq_t *req = (xccl_ucx_collreq_t *)request;
+    xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
     xccl_status_t status;
     while (XCCL_INPROGRESS == req->complete) {
         if (XCCL_OK != (status = req->progress(req))) {
@@ -201,9 +201,9 @@ static xccl_status_t xccl_ucx_collective_wait(xccl_coll_req_h request)
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_ucx_collective_test(xccl_coll_req_h request)
+static xccl_status_t xccl_ucx_collective_test(xccl_tl_coll_req_t *request)
 {
-    xccl_ucx_collreq_t *req = (xccl_ucx_collreq_t *)request;
+    xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
     xccl_status_t status;
     if (XCCL_INPROGRESS == req->complete) {
         if (XCCL_OK != (status = req->progress(req))) {
@@ -213,7 +213,7 @@ static xccl_status_t xccl_ucx_collective_test(xccl_coll_req_h request)
     return req->complete;
 }
 
-static xccl_status_t xccl_ucx_collective_finalize(xccl_coll_req_h request)
+static xccl_status_t xccl_ucx_collective_finalize(xccl_tl_coll_req_t *request)
 {
     free(request);
     return XCCL_OK;

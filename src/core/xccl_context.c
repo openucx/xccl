@@ -119,16 +119,31 @@ xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,
     int                   env_prefix_len;
 
     config          = (xccl_context_config_t*)malloc(sizeof(xccl_context_config_t));
+    if (config == NULL) {
+        goto err_config;
+    }
+
     config->configs = (xccl_tl_context_config_t**)malloc(lib->n_libs_opened * sizeof(xccl_tl_context_config_t*));
+    if (config->configs == NULL) {
+        goto err_configs;
+    }
 
     for(i = 0; i < lib->n_libs_opened; i++) {
         if (lib->libs[i]->tl_context_config.table == NULL) {
             continue;
         }
         config->configs[i] = (xccl_tl_context_config_t*)malloc(lib->libs[i]->tl_context_config.size);
+        if (config->configs[i] == NULL) {
+            goto err_config_i;
+        }
+
         config->configs[i]->env_prefix = NULL;
         if ((env_prefix != NULL) && (strlen(env_prefix) > 0)) {
             config->configs[i]->env_prefix = strdup(env_prefix);
+            if (config->configs[i]->env_prefix == NULL) {
+                goto err_prefix;
+            }
+
             snprintf(full_prefix, sizeof(full_prefix), "%s_%s", env_prefix, "XCCL_");
         }
         status = ucs_config_parser_fill_opts(config->configs[i],
@@ -141,7 +156,25 @@ xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,
     config->lib      = lib;
     *config_p = config;
 
-   return XCCL_OK;
+    return XCCL_OK;
+
+err_prefix:
+    free(config->configs[i]);
+
+err_config_i:
+    for(i = i - 1;i >= 0; i--) {
+        free(config->configs[i]);
+        if (config->configs[i]->env_prefix != NULL) {
+            free(config->configs[i]->env_prefix);
+        }
+    }
+err_configs:
+    free(config->configs);
+
+err_config:
+    free(config);
+
+    return XCCL_ERR_NO_MEMORY;
 }
 
 xccl_status_t xccl_context_config_modify(xccl_tl_id_t *tl_id,

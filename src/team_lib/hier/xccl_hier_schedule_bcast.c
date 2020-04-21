@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_team.h"
-xccl_status_t xccl_hier_collective_finalize(xccl_coll_req_h request);
+xccl_status_t xccl_hier_collective_finalize(xccl_tl_coll_req_t *request);
 
 static inline int
 root_at_socket(int root, sbgp_t *sbgp) {
@@ -170,7 +170,7 @@ static xccl_status_t coll_schedule_progress_bcast_sm_get(coll_schedule_t *sched)
         assert(schedule->bcast_sched);
         coll_schedule_progress(schedule->bcast_sched);
         if (schedule->bcast_sched->status == XCCL_OK) {
-            xccl_hier_collective_finalize((xccl_coll_req_h)&schedule->bcast_sched->super);
+            xccl_hier_collective_finalize(&schedule->bcast_sched->super);
             schedule->bcast_sched = NULL;
             xccl_hier_team_t *team = schedule->super.hier_team;
             if (schedule->sock_memh) {

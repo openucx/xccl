@@ -87,7 +87,7 @@ static xccl_status_t xccl_sharp_lib_open(xccl_team_lib_h self,
     
     tl->config.super.log_component.log_level = cfg->super.log_component.log_level;
     sprintf(tl->config.super.log_component.name, "%s", "TEAM_SHARP");
-    xccl_sharp_debug("Team SPARP opened");
+    xccl_sharp_debug("Team SHARP opened");
     if (cfg->super.priority != -1) {
         tl->super.priority = cfg->super.priority;
     }
