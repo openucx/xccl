@@ -4,28 +4,11 @@
 * See file LICENSE for terms.
 */
 
-
 #include "config.h"
-#include "xccl_team_lib.h"
+
+#include <xccl_team.h>
 #include <stdlib.h>
 #include <stdio.h>
-
-ucs_config_field_t xccl_team_lib_config_table[] = {
-  {"LOG_LEVEL", "warn",
-  "XCCL logging level. Messages with a level higher or equal to the selected "
-  "will be printed.\n"
-  "Possible values are: fatal, error, warn, info, debug, trace, data, func, poll.",
-  ucs_offsetof(xccl_team_lib_config_t, log_component),
-  UCS_CONFIG_TYPE_LOG_COMP},
-
-  {"PRIORITY", "-1",
-  "XCCL team lib priority.\n"
-  "Possible values are: [1,inf]",
-  ucs_offsetof(xccl_team_lib_config_t, priority),
-  UCS_CONFIG_TYPE_INT},
-
-  {NULL}
-};
 
 static int compare_teams_by_priority(const void* t1, const void* t2)
 {
@@ -35,9 +18,9 @@ static int compare_teams_by_priority(const void* t1, const void* t2)
 }
 
 
-xccl_status_t xccl_team_create_post(xccl_context_t *context,
-                                    xccl_team_config_t *config,
-                                    xccl_oob_collectives_t oob, xccl_team_t **xccl_team)
+xccl_status_t xccl_team_create_post(xccl_context_h context,
+                                    xccl_team_params_t *params,
+                                    xccl_team_t **xccl_team)
 {
     int i;
     int n_ctx = context->n_tl_ctx;
@@ -48,6 +31,7 @@ xccl_status_t xccl_team_create_post(xccl_context_t *context,
 
     *xccl_team = NULL;
     if (context->n_tl_ctx < 1) {
+        xccl_error("No library contexts available");
         return XCCL_ERR_NO_MESSAGE;
     }
 
@@ -57,8 +41,8 @@ xccl_status_t xccl_team_create_post(xccl_context_t *context,
     team->n_teams = 0;
     for (i=0; i<context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
-        status = tl_ctx->lib->team_create_post(tl_ctx, config,
-                                               oob, &team->tl_teams[team->n_teams]);
+        status = tl_ctx->lib->team_create_post(tl_ctx, params,
+                                               &team->tl_teams[team->n_teams]);
         if (XCCL_OK == status) {
             /* fprintf(stderr, "Created team %s\n", team->tl_teams[team->n_teams]->ctx->lib->name); */
             team->n_teams++;
@@ -66,6 +50,7 @@ xccl_status_t xccl_team_create_post(xccl_context_t *context,
     }
     if (team->n_teams == 0) {
         free(team);
+        xccl_error("No teams were opened");
         return XCCL_ERR_NO_MESSAGE;
     }
     team->status = XCCL_INPROGRESS;
@@ -88,7 +73,7 @@ xccl_status_t xccl_team_create_test(xccl_team_t *team)
     for (c = 0; c < XCCL_COLL_LAST; c++) {
         for (i=0; i<team->n_teams; i++) {
             if (team->tl_teams[i]->ctx->lib->params.coll_types &
-                XCCL_BIT(c)) {
+                UCS_BIT(c)) {
                 team->coll_team_id[c] = i;
                 break;
             }
@@ -98,15 +83,20 @@ xccl_status_t xccl_team_create_test(xccl_team_t *team)
     /* TODO: check if some teams are never used after selection and clean them up */
     return XCCL_OK;
 }
-xccl_status_t xccl_team_destroy(xccl_team_t *team)
+
+void xccl_team_destroy(xccl_team_t *team)
 {
-    XCCL_CHECK_TEAM(team);
-    int i;
     xccl_tl_context_t *tl_ctx;
+    int               i;
+    
+    if (team->status != XCCL_OK) {
+        xccl_error("team %p is used before team_create is completed", team);
+        return;
+    }
+
     for (i=0; i<team->n_teams; i++) {
         tl_ctx = team->tl_teams[i]->ctx;
         tl_ctx->lib->team_destroy(team->tl_teams[i]);
     }
     free(team);
-    return XCCL_OK;
 }

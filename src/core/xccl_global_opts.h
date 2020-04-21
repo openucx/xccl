@@ -15,12 +15,12 @@
 #include <ucs/debug/log_def.h>
 #include <ucs/config/parser.h>
 
-typedef struct xccl_lib_config {
+typedef struct xccl_config {
     /* Log level above which log messages will be printed*/
     ucs_log_component_config_t log_component;
 
     /* Team libraries path */
     char                       *team_lib_path;
-} xccl_lib_config_t;
+} xccl_config_t;
 
 #endif

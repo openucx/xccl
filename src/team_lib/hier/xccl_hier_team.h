@@ -32,33 +32,34 @@ typedef struct xccl_hier_team {
     xccl_hier_pair_t  *pairs[XCCL_HIER_PAIR_LAST];
 } xccl_hier_team_t;
 
-xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context, xccl_team_config_t *config,
-                                         xccl_oob_collectives_t oob, xccl_tl_team_t **team);
+xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
+                                         xccl_team_params_t *config,
+                                         xccl_tl_team_t **team);
 xccl_status_t xccl_hier_team_create_test(xccl_tl_team_t *team);
 xccl_status_t xccl_hier_team_destroy(xccl_tl_team_t *team);
 
 
 static inline int xccl_hier_team_rank2ctx(xccl_hier_team_t *team, int rank)
 {
-    return xccl_range_to_rank(team->super.cfg.range, rank);
+    return xccl_range_to_rank(team->super.params.range, rank);
 }
 
 static inline int sbgp_rank2ctx(sbgp_t *sbgp, int rank)
 {
-    return xccl_range_to_rank(sbgp->hier_team->super.cfg.range,
+    return xccl_range_to_rank(sbgp->hier_team->super.params.range,
                               sbgp_rank2team(sbgp, rank));
 }
 
 static inline int is_rank_on_local_node(int rank, xccl_hier_team_t *team)
 {
-    xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx, xccl_hier_context_t);
+    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
     return ctx->procs[xccl_hier_team_rank2ctx(team, rank)].node_hash
         == ctx->local_proc.node_hash;
 }
 
 static inline int is_rank_on_local_socket(int rank, xccl_hier_team_t *team)
 {
-    xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx, xccl_hier_context_t);
+    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
     if (ctx->local_proc.socketid < 0) {
         return 0;
     }

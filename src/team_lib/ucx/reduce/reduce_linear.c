@@ -12,8 +12,8 @@ xccl_status_t xccl_ucx_reduce_linear_progress(xccl_ucx_collreq_t *req)
     xccl_tl_team_t     *team        = req->team;
     void               *data_buffer = req->args.buffer_info.dst_buffer;
     size_t             data_size    = req->args.buffer_info.len;
-    int                group_rank   = team->oob.rank;
-    int                group_size   = team->oob.size;
+    int                group_rank   = team->params.oob.rank;
+    int                group_size   = team->params.oob.size;
     void               *scratch     = req->reduce_linear.scratch;
     xccl_ucx_request_t **reqs       = req->reduce_linear.reqs;
 
@@ -67,8 +67,8 @@ completion:
 xccl_status_t xccl_ucx_reduce_linear_start(xccl_ucx_collreq_t *req)
 {
     size_t data_size = req->args.buffer_info.len;
-    int group_rank   = req->team->oob.rank;
-    int group_size   = req->team->oob.size;
+    int group_rank   = req->team->params.oob.rank;
+    int group_size   = req->team->params.oob.size;
 
     memset(req->reduce_linear.reqs, 0, sizeof(req->reduce_linear.reqs));
     req->reduce_linear.step    = 0;

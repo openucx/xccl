@@ -60,14 +60,14 @@ xccl_sharp_get_free_buf(xccl_sharp_team_t *team_sharp,
 
 static xccl_status_t
 xccl_sharp_allreduce_init(xccl_coll_op_args_t* coll_args,
-                          xccl_coll_req_h *request,
+                          xccl_tl_coll_req_t **request,
                           xccl_tl_team_t *team)
 {
     xccl_sharp_coll_req_t *req            = malloc(sizeof(xccl_sharp_coll_req_t));
-    xccl_sharp_team_t     *team_sharp     = xccl_derived_of(team, xccl_sharp_team_t);
+    xccl_sharp_team_t     *team_sharp     = ucs_derived_of(team, xccl_sharp_team_t);
     enum sharp_datatype   sharp_type      = xccl_to_sharp_dtype[coll_args->reduce_info.dt];
     enum sharp_reduce_op  sharp_op        = xccl_to_sharp_reduce_op[coll_args->reduce_info.op];
-    xccl_sharp_context_t  *team_sharp_ctx = xccl_derived_of(team->ctx, xccl_sharp_context_t);
+    xccl_sharp_context_t  *team_sharp_ctx = ucs_derived_of(team->ctx, xccl_sharp_context_t);
     unsigned              bcopy_buf_num   = xccl_team_lib_sharp.config.bcopy_buf_num;
     size_t                bcopy_buf_size  = xccl_team_lib_sharp.config.zcopy_thresh;
 
@@ -165,7 +165,7 @@ xccl_sharp_allreduce_init(xccl_coll_op_args_t* coll_args,
 #if HAVE_STRUCT_SHARP_COLL_REDUCE_SPEC_AGGR_MODE
     req->reduce_spec.aggr_mode                   = SHARP_AGGREGATION_NONE;
 #endif
-    *request = &req->super;
+    *request = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
 
@@ -177,14 +177,14 @@ xccl_sharp_barrier_post(xccl_sharp_coll_req_t *req)
 
 static xccl_status_t
 xccl_sharp_barrier_init(xccl_coll_op_args_t *coll_args,
-                        xccl_coll_req_h *request,
+                        xccl_tl_coll_req_t **request,
                         xccl_tl_team_t *team)
 {
     xccl_sharp_coll_req_t* req;
     xccl_sharp_team_t*     team_sharp;
 
     req             = malloc(sizeof(xccl_sharp_coll_req_t));
-    team_sharp      = xccl_derived_of(team, xccl_sharp_team_t);
+    team_sharp      = ucs_derived_of(team, xccl_sharp_team_t);
     req->sharp_comm = team_sharp->sharp_comm;
     req->super.lib  = &xccl_team_lib_sharp.super;
     req->team       = team_sharp;
@@ -192,12 +192,12 @@ xccl_sharp_barrier_init(xccl_coll_op_args_t *coll_args,
     req->coll_type  = XCCL_BARRIER;
     req->sharp_buf  = NULL;
     
-    *request = &req->super;
+    *request = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
 
 xccl_status_t xccl_sharp_collective_init(xccl_coll_op_args_t *coll_args,
-                                         xccl_coll_req_h *request,
+                                         xccl_tl_coll_req_t **request,
                                          xccl_tl_team_t *team)
 {
     switch(coll_args->coll_type) {
@@ -211,13 +211,13 @@ xccl_status_t xccl_sharp_collective_init(xccl_coll_op_args_t *coll_args,
     return XCCL_ERR_INVALID_PARAM;
 }
 
-xccl_status_t xccl_sharp_collective_post(xccl_coll_req_h request)
+xccl_status_t xccl_sharp_collective_post(xccl_tl_coll_req_t *request)
 {
-    xccl_sharp_coll_req_t *req = xccl_derived_of(request, xccl_sharp_coll_req_t);
+    xccl_sharp_coll_req_t *req = ucs_derived_of(request, xccl_sharp_coll_req_t);
     return (SHARP_COLL_SUCCESS == req->start(req)) ? XCCL_OK : XCCL_ERR_NO_MESSAGE;
 }
 
-xccl_status_t xccl_sharp_collective_wait(xccl_coll_req_h request)
+xccl_status_t xccl_sharp_collective_wait(xccl_tl_coll_req_t *request)
 {
     xccl_status_t              status = XCCL_INPROGRESS;
     while(status == XCCL_INPROGRESS) {
@@ -226,9 +226,9 @@ xccl_status_t xccl_sharp_collective_wait(xccl_coll_req_h request)
     return XCCL_OK;
 }
 
-xccl_status_t xccl_sharp_collective_test(xccl_coll_req_h request)
+xccl_status_t xccl_sharp_collective_test(xccl_tl_coll_req_t *request)
 {
-    xccl_sharp_coll_req_t *req = xccl_derived_of(request, xccl_sharp_coll_req_t);
+    xccl_sharp_coll_req_t *req = ucs_derived_of(request, xccl_sharp_coll_req_t);
     int completed;
 
     completed = sharp_coll_req_test(req->handle);
@@ -241,11 +241,11 @@ xccl_status_t xccl_sharp_collective_test(xccl_coll_req_h request)
     return (completed) ? XCCL_OK : XCCL_INPROGRESS;
 }
 
-xccl_status_t xccl_sharp_collective_finalize(xccl_coll_req_h request)
+xccl_status_t xccl_sharp_collective_finalize(xccl_tl_coll_req_t *request)
 {
-    xccl_sharp_coll_req_t *req  = xccl_derived_of(request, xccl_sharp_coll_req_t);
+    xccl_sharp_coll_req_t *req  = ucs_derived_of(request, xccl_sharp_coll_req_t);
     xccl_sharp_team_t     *team = req->team;
-    xccl_sharp_context_t  *ctx  = xccl_derived_of(team->super.ctx,
+    xccl_sharp_context_t  *ctx  = ucs_derived_of(team->super.ctx,
                                                   xccl_sharp_context_t);
     int rc;
 

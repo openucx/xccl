@@ -6,17 +6,27 @@
 
 #ifndef XCCL_DEF_H_
 #define XCCL_DEF_H_
+
 #include <stddef.h>
 #include <stdint.h>
 
-/**
- * @ingroup XCCL_TEAM_LIB
- * @brief XCCL library handle
- *
- * @todo add description here
- */
-typedef struct xccl_team_lib* xccl_team_lib_h;
 typedef struct xccl_lib* xccl_lib_h;
+
+/**
+ * @ingroup XCCL_LIB_CONFIG
+ * @brief XCCL configuration descriptor
+ *
+ * This descriptor defines the configuration for @ref xccl_lib_h
+ * "XCCL team library". The configuration is loaded from the run-time
+ * environment (using configuration files of environment variables)
+ * using @ref xccl_lib_config_read "xccl_lib_config_read" routine and can be printed
+ * using @ref xccl_lib_config_print "xccl_lib_config_print" routine. In addition,
+ * application is responsible to release the descriptor using
+ * @ref xccl_lib_config_release "xccl_lib_config_release" routine.
+ */
+typedef struct xccl_lib_config xccl_lib_config_t;
+
+typedef struct xccl_context_config xccl_context_config_t;
 
 /**
  * @ingroup XCCL_TEAM
@@ -35,22 +45,6 @@ typedef struct xccl_team* xccl_team_h;
 typedef struct xccl_context* xccl_context_h;
 
 /**
- * @ingroup XCCL_TEAM_CONTEXT
- * @brief XCCL team context config handle
- *
- * @todo add description here
- */
-typedef struct xccl_context_config* xccl_context_config_h;
-
-/**
- * @ingroup XCCL_TEAM
- * @brief XCCL team config handle
- *
- * @todo add description here
- */
-typedef struct xccl_team_config* xccl_team_config_h;
-
-/**
  * @ingroup XCCL_COLL
  * @brief XCCL collective requst handle
  *
@@ -58,9 +52,7 @@ typedef struct xccl_team_config* xccl_team_config_h;
  */
 
 typedef struct xccl_coll_req* xccl_coll_req_h;
+
 typedef struct xccl_mem_handle* xccl_mem_h;
 
-#define XCCL_BIT(i)               (1ul << (i))
-#define XCCL_MASK(i)              (XCCL_BIT(i) - 1)
-#define XCCL_PP_QUOTE(x)                 # x
 #endif

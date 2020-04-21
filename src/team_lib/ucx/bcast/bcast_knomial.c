@@ -17,8 +17,8 @@ xccl_status_t xccl_ucx_bcast_knomial_progress(xccl_ucx_collreq_t *req)
     xccl_tl_team_t *team = req->team;
     void *data_buffer    = req->args.buffer_info.dst_buffer;
     size_t data_size     = req->args.buffer_info.len;
-    int group_rank       = team->oob.rank;
-    int group_size       = team->oob.size;
+    int group_rank       = team->params.oob.rank;
+    int group_size       = team->params.oob.size;
     int root             = req->args.root;
     int radix            = req->bcast_kn.radix;
     xccl_ucx_request_t **reqs = req->bcast_kn.reqs;
@@ -77,14 +77,14 @@ xccl_status_t xccl_ucx_bcast_knomial_progress(xccl_ucx_collreq_t *req)
 xccl_status_t xccl_ucx_bcast_knomial_start(xccl_ucx_collreq_t *req)
 {
     size_t data_size = req->args.buffer_info.len;
-    int group_rank   = req->team->oob.rank;
-    int group_size   = req->team->oob.size;
+    int group_rank   = req->team->params.oob.rank;
+    int group_size   = req->team->params.oob.size;
 
     xccl_ucx_trace("knomial bcast start");
     memset(req->bcast_kn.reqs, 0, sizeof(req->bcast_kn.reqs));
     req->bcast_kn.radix   = 4;//TODO
-    if (req->bcast_kn.radix > req->team->oob.size) {
-        req->bcast_kn.radix = req->team->oob.size;
+    if (req->bcast_kn.radix > req->team->params.oob.size) {
+        req->bcast_kn.radix = req->team->params.oob.size;
     }
 
     req->bcast_kn.active_reqs = 0;

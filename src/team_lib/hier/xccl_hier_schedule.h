@@ -28,10 +28,10 @@ typedef struct xccl_coll_args {
 } xccl_coll_args_t;
 
 typedef struct coll_schedule_t {
-    xccl_coll_req_t             super;
+    xccl_tl_coll_req_t          super;
     coll_schedule_type_t        type;
     xccl_status_t               status;
-    xccl_hier_team_t           *hier_team;
+    xccl_hier_team_t            *hier_team;
     coll_schedule_progress_fn_t progress;
 } coll_schedule_t;
 

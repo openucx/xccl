@@ -18,6 +18,11 @@ typedef struct xccl_team_lib_sharp_config {
     unsigned               bcopy_buf_num;
 } xccl_team_lib_sharp_config_t;
 
+typedef struct xccl_tl_sharp_context_config {
+    xccl_tl_context_config_t super;
+    char                     *device;
+} xccl_tl_sharp_context_config_t;
+
 typedef struct xccl_team_lib_sharp {
     xccl_team_lib_t              super;
     xccl_team_lib_sharp_config_t config;

@@ -29,8 +29,8 @@ static inline int is_rank_local(int rank, xccl_hier_team_t *team, int local) {
 static inline xccl_status_t sbgp_create_local(sbgp_t *sbgp, int local) {
     xccl_hier_team_t *team = sbgp->hier_team;
     int *local_ranks;
-    int group_size     = team->super.oob.size;
-    int group_rank     = team->super.oob.rank;
+    int group_size     = team->super.params.oob.size;
+    int group_rank     = team->super.params.oob.rank;
     int max_local_size = 256;
     int node_rank = 0, node_size = 0, i;
     local_ranks = (int*)malloc(max_local_size*sizeof(int));
@@ -70,10 +70,10 @@ static xccl_status_t sbgp_create_socket(sbgp_t *sbgp) {
 
 static xccl_status_t sbgp_create_node_leaders(sbgp_t *sbgp) {
     xccl_hier_team_t *team = sbgp->hier_team;
-    xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx,
+    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx,
                                                xccl_hier_context_t);
-    int comm_size     = team->super.oob.size;
-    int comm_rank     = team->super.oob.rank;
+    int comm_size     = team->super.params.oob.size;
+    int comm_rank     = team->super.params.oob.rank;
     int i, c;
     int i_am_node_leader = 0;
     int nnodes = ctx->nnodes;
@@ -124,10 +124,10 @@ static xccl_status_t sbgp_create_node_leaders(sbgp_t *sbgp) {
 
 static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp) {
     xccl_hier_team_t *team = sbgp->hier_team;
-    xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx,
+    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx,
                                                xccl_hier_context_t);
-    int comm_size     = team->super.oob.size;
-    int comm_rank     = team->super.oob.rank;
+    int comm_size     = team->super.params.oob.size;
+    int comm_rank     = team->super.params.oob.rank;
     int i, c;
     int i_am_socket_leader = 0;
     int max_ppn = ctx->max_ppn;//TODO can be changed to max_sockets_per_node

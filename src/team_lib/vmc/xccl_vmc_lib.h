@@ -7,6 +7,11 @@
 #include "xccl_team_lib.h"
 #include <vmc.h>
 
+typedef struct xccl_tl_vmc_context_config {
+    xccl_tl_context_config_t super;
+    ucs_config_names_array_t devices;
+} xccl_tl_vmc_context_config_t;
+
 typedef struct xccl_team_lib_vmc {
     xccl_team_lib_t super;
 } xccl_team_lib_vmc_t;
@@ -23,12 +28,12 @@ typedef struct xccl_vmc_team {
 } xccl_vmc_team_t;
 
 typedef struct xccl_vmc_coll_req {
-    xccl_coll_req_t  super;
-    xccl_vmc_team_t *team;
-    void            *handle;
-    void            *buf;
-    size_t           len;
-    int              root;
+    xccl_tl_coll_req_t super;
+    xccl_vmc_team_t    *team;
+    void               *handle;
+    void               *buf;
+    size_t             len;
+    int                root;
 } xccl_vmc_coll_req_t;
 
 #endif

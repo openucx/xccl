@@ -9,7 +9,7 @@
 #include "config.h"
 #include "xccl_global_opts.h"
 
-extern xccl_lib_config_t xccl_lib_global_config;
+extern xccl_config_t xccl_lib_global_config;
 #define xccl_log_component(_level, _fmt, ...) \
     do { \
         ucs_log_component(_level, &xccl_lib_global_config.log_component, _fmt, ## __VA_ARGS__); \

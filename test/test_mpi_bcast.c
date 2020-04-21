@@ -62,6 +62,6 @@ int main (int argc, char **argv) {
     }
     free(buf);
     free(buf_mpi);
-    XCCL_CHECK(xccl_mpi_test_finalize());
+    xccl_mpi_test_finalize();
     return 0;
 }

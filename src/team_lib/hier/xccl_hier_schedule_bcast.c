@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_team.h"
-xccl_status_t xccl_hier_collective_finalize(xccl_coll_req_h request);
+xccl_status_t xccl_hier_collective_finalize(xccl_tl_coll_req_t *request);
 
 static inline int
 root_at_socket(int root, sbgp_t *sbgp) {
@@ -37,12 +37,12 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     sbgp_type_t top_sbgp = node_leaders_group_exists ? SBGP_NODE_LEADERS :
         (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
     int root = coll.root, c = 0;
-    int rank = team->super.oob.rank;
+    int rank = team->super.params.oob.rank;
     int wroot = xccl_hier_team_rank2ctx(team, root);
     int root_on_local_node = is_rank_on_local_node(root, team);
     int root_on_local_socket = root_on_local_node &&
         is_rank_on_local_socket(root, team);
-    xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx, xccl_hier_context_t);
+    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
     coll_schedule_single_dep_t *schedule = (coll_schedule_single_dep_t *)malloc(sizeof(*schedule));
     size_t pipeline_thresh = ctx->bcast_pipeline_thresh;
     schedule->super.super.hier_team = team;
@@ -147,7 +147,7 @@ static xccl_status_t coll_schedule_progress_bcast_sm_get(coll_schedule_t *sched)
         }
         if (XCCL_OK == s1 && XCCL_OK == s2) {
             xccl_hier_context_t *ctx =
-                xccl_derived_of(schedule->super.hier_team->super.ctx,
+                ucs_derived_of(schedule->super.hier_team->super.ctx,
                                 xccl_hier_context_t);
             xccl_hier_bcast_spec_t spec = {
                 .use_sm_fanout_get   = 1,
@@ -246,12 +246,12 @@ xccl_status_t build_bcast_schedule_sm_get(xccl_hier_team_t *team, coll_schedule_
     int have_socket_group = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
     int root = coll.root;
-    int rank = team->super.oob.rank;
+    int rank = team->super.params.oob.rank;
     int wroot = xccl_hier_team_rank2ctx(team, root);
     int root_on_local_node = is_rank_on_local_node(root, team);
     int root_on_local_socket = root_on_local_node &&
         is_rank_on_local_socket(root, team);
-    xccl_hier_context_t *ctx = xccl_derived_of(team->super.ctx, xccl_hier_context_t);
+    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
     schedule_bcast_sm_get_t *schedule = calloc(1, sizeof(*schedule));
     schedule->super.hier_team = team;
     schedule->super.progress = coll_schedule_progress_bcast_sm_get;

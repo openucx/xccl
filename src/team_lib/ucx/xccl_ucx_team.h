@@ -7,17 +7,18 @@
 #include "xccl_ucx_lib.h"
 
 typedef struct xccl_ucx_team_t {
-    xccl_tl_team_t   super;
-    uint16_t         ctx_id;
-    uint16_t         seq_num;
-    int              max_addrlen;
+    xccl_tl_team_t  super;
+    uint16_t        ctx_id;
+    uint16_t        seq_num;
+    int             max_addrlen;
     ucp_ep_h        *ucp_eps;
-    xccl_ep_range_t  range;
+    xccl_ep_range_t range;
     void            *nb_create_req;
 } xccl_ucx_team_t;
 
-xccl_status_t xccl_ucx_team_create_post(xccl_tl_context_t *context, xccl_team_config_t *config,
-                                        xccl_oob_collectives_t oob, xccl_tl_team_t **team);
+xccl_status_t xccl_ucx_team_create_post(xccl_tl_context_t *context,
+                                        xccl_team_params_t *params,
+                                        xccl_tl_team_t **team);
 xccl_status_t xccl_ucx_team_create_test(xccl_tl_team_t *team);
 xccl_status_t xccl_ucx_team_destroy(xccl_tl_team_t *team);
 #endif
