@@ -55,7 +55,7 @@ typedef struct xccl_ucx_collreq {
     xccl_tl_coll_req_t  super;
     xccl_coll_op_args_t args;
     ucs_memory_type_t   mem_type;
-    xccl_tl_team_t     *team;
+    xccl_tl_team_t      *team;
     xccl_status_t       complete;
     uint16_t            tag;
     xccl_status_t       (*start)(struct xccl_ucx_collreq* req);
@@ -63,43 +63,53 @@ typedef struct xccl_ucx_collreq {
     union {
         struct {
             xccl_ucx_request_t *reqs[MAX_REQS];
-            int                    phase;
-            int                    iteration;
-            int                    radix_mask_pow;
-            int                    active_reqs;
-            int                    radix;
-            void                   *scratch;
+            int                phase;
+            int                iteration;
+            int                radix_mask_pow;
+            int                active_reqs;
+            int                radix;
+            void               *scratch;
         } allreduce;
         struct {
             xccl_ucx_request_t *reqs[2];
-            int                    step;
-            void                   *scratch;
+            int                step;
+            void               *scratch;
         } reduce_linear;
         struct {
             xccl_ucx_request_t *reqs[2];
-            int                    step;
+            int                step;
         } fanin_linear;
         struct {
             xccl_ucx_request_t *reqs[2];
-            int                    step;
+            int                step;
         } fanout_linear;
         struct {
             xccl_ucx_request_t *reqs[2];
-            int                    step;
+            int                step;
         } bcast_linear;
         struct {
             xccl_ucx_request_t *reqs[MAX_REQS];
-            int                    active_reqs;
-            int                    radix;
-            int                    dist;
+            int                active_reqs;
+            int                radix;
+            int                dist;
         } bcast_kn;
         struct {
             xccl_ucx_request_t *reqs[MAX_REQS];
-            int                    phase;
-            int                    iteration;
-            int                    radix_mask_pow;
-            int                    active_reqs;
-            int                    radix;
+            uint8_t            active_reqs;
+            uint8_t            radix;
+            uint8_t            phase;
+            int                dist;
+            int                max_dist;
+            void               *scratch;
+            void               *data_buf;
+        } reduce_kn;
+        struct {
+            xccl_ucx_request_t *reqs[MAX_REQS];
+            int                phase;
+            int                iteration;
+            int                radix_mask_pow;
+            int                active_reqs;
+            int                radix;
         } barrier;
     };
 } xccl_ucx_collreq_t;
