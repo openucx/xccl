@@ -13,18 +13,15 @@
 static xccl_status_t
 xccl_hier_init_tl(xccl_hier_context_t *ctx, xccl_tl_id_t tl_id,
                   xccl_oob_collectives_t oob, const char* prefix) {
-    xccl_lib_h            lib;
+    xccl_team_lib_hier_t  *hlib = ucs_derived_of(ctx->super.lib,
+                                                 xccl_team_lib_hier_t);
+    xccl_lib_h            lib = hlib->tl_lib;
     xccl_context_config_t *cfg;
     char env_prefix[128];
 
     if (!ctx->tls[tl_id].enabled) {
         return XCCL_OK;
     }
-    xccl_lib_params_t lib_params = {
-        .field_mask = XCCL_LIB_PARAM_FIELD_TEAM_USAGE,
-        .team_usage = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES |
-                      XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
-    };
 
     xccl_context_params_t ctx_params = {
         .field_mask      = XCCL_CONTEXT_PARAM_FIELD_THREAD_MODE |
@@ -36,10 +33,6 @@ xccl_hier_init_tl(xccl_hier_context_t *ctx, xccl_tl_id_t tl_id,
         .oob             = oob,
         .tls             = 1 << tl_id,
     };
-
-    if (XCCL_OK != xccl_lib_init(&lib_params, NULL, &lib)) {
-        return XCCL_ERR_NO_MESSAGE;
-    }
 
     if (prefix != NULL) {
         snprintf(env_prefix, sizeof(env_prefix), "%s_HIER_%s",
@@ -117,12 +110,24 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
                                        xccl_tl_context_config_t *config,
                                        xccl_tl_context_t **context)
 {
-    xccl_hier_context_t *ctx = (xccl_hier_context_t *)malloc(sizeof(*ctx));
+    xccl_team_lib_hier_t *hlib = ucs_derived_of(lib, xccl_team_lib_hier_t);
+    xccl_hier_context_t  *ctx  = (xccl_hier_context_t *)malloc(sizeof(*ctx));
     xccl_tl_hier_context_config_t *hier_cfg;
     int                 i;
     uint64_t            tl;
-
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
+
+    if (NULL == hlib->tl_lib) {
+        xccl_lib_params_t lib_params = {
+            .field_mask = XCCL_LIB_PARAM_FIELD_TEAM_USAGE,
+            .team_usage = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES |
+            XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
+        };
+        if (XCCL_OK != xccl_lib_init(&lib_params, NULL, &hlib->tl_lib)) {
+            return XCCL_ERR_NO_MESSAGE;
+        }
+    }
+
     ctx->procs = (xccl_hier_proc_data_t*)malloc(
         params->oob.size*sizeof(xccl_hier_proc_data_t));
     ctx->local_proc.socketid = xccl_local_process_info()->socketid;

@@ -234,4 +234,5 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
     .super.global_mem_map_start  = NULL,
     .super.global_mem_map_test   = NULL,
     .super.global_mem_unmap      = NULL,
+    .tl_lib                      = NULL,
 };

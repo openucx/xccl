@@ -22,6 +22,7 @@ typedef struct xccl_tl_hier_context_config {
 
 typedef struct xccl_team_lib_hier {
     xccl_team_lib_t super;
+    xccl_lib_h      tl_lib;
 } xccl_team_lib_hier_t;
 extern xccl_team_lib_hier_t xccl_team_lib_hier;
 
