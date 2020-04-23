@@ -60,4 +60,5 @@ xccl_names_array_to_str(ucs_config_names_array_t *array) {
     }
     return str;
 }
+
 #endif
