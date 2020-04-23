@@ -50,3 +50,7 @@ libxccl_la_SOURCES =       \
 	utils/mem_component.c
 
 libxccl_ladir = $(includedir)
+
+install-exec-hook:
+	cp -f $(XCCL_TOP_BUILDDIR)/src/libxccl.la $(libdir)/
+	perl -pi -e "s/installed=no/installed=yes/" $(libdir)/libxccl.la
