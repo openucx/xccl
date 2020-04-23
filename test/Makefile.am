@@ -10,6 +10,7 @@
 bin_PROGRAMS =  test_mpi_allreduce \
 				test_mpi_bcast \
 				test_mpi_barrier \
+				test_mpi_reduce \
 				test_mpi_fanout_get \
 				test_mpi_create_team_nb
 if HAVE_CUDA
@@ -19,6 +20,7 @@ bin_PROGRAMS += test_mpi_cuda_allreduce \
 endif
 
 test_mpi_allreduce_SOURCES=test_mpi_allreduce.c test_mpi.c
+test_mpi_reduce_SOURCES=test_mpi_reduce.c test_mpi.c
 test_mpi_bcast_SOURCES=test_mpi_bcast.c test_mpi.c
 test_mpi_barrier_SOURCES=test_mpi_barrier.c test_mpi.c
 test_mpi_fanout_get_SOURCES=test_mpi_fanout_get.c test_mpi.c
