@@ -38,4 +38,26 @@ unsigned long xccl_str_hash(const char *str) {
     return hash;
 }
 
+static inline char*
+xccl_names_array_to_str(ucs_config_names_array_t *array) {
+    size_t total_len = 0;
+    int    i;
+    char   *str;
+    if (array->count == 0) {
+        return NULL;
+    }
+    for (i=0; i<array->count; i++) {
+        total_len += strlen(array->names[i]) + 1;
+    }
+    str = (char*)malloc(total_len);
+    if (!str) {
+        return NULL;
+    }
+    strcpy(str, array->names[0]);
+    for (i=1; i<array->count; i++) {
+        strcat(str, ",");
+        strcat(str, array->names[i]);
+    }
+    return str;
+}
 #endif

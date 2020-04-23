@@ -5,21 +5,23 @@
 */
 #include "config.h"
 #include "xccl_hier_context.h"
+#include "utils/utils.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
 #include <ucs/sys/math.h>
 
 static xccl_status_t
-xccl_hier_init_tl(xccl_hier_context_t *ctx, xccl_tl_id_t tl_id,
-                  xccl_oob_collectives_t oob, const char* prefix) {
+xccl_hier_init_tl(xccl_hier_context_t *ctx, int tl_idx,
+                  xccl_oob_collectives_t oob, xccl_tl_hier_context_config_t *hier_cfg) {
     xccl_team_lib_hier_t  *hlib = ucs_derived_of(ctx->super.lib,
                                                  xccl_team_lib_hier_t);
-    xccl_lib_h            lib = hlib->tl_lib;
+    xccl_lib_h            lib   = hlib->tl_lib;
+    xccl_tl_id_t          tl_id = UCS_BIT(tl_idx);
     xccl_context_config_t *cfg;
     char env_prefix[128];
 
-    if (!ctx->tls[tl_id].enabled) {
+    if (!ctx->tls[tl_idx].enabled) {
         return XCCL_OK;
     }
 
@@ -31,20 +33,24 @@ xccl_hier_init_tl(xccl_hier_context_t *ctx, xccl_tl_id_t tl_id,
         .thread_mode     = XCCL_THREAD_MODE_SINGLE,
         .completion_type = XCCL_TEAM_COMPLETION_TYPE_BLOCKING,
         .oob             = oob,
-        .tls             = 1 << tl_id,
+        .tls             = tl_id,
     };
 
-    if (prefix != NULL) {
+    if (hier_cfg->super.env_prefix != NULL) {
         snprintf(env_prefix, sizeof(env_prefix), "%s_HIER_%s",
-                 prefix, xccl_tl_str(1 << tl_id));
+                 hier_cfg->super.env_prefix, xccl_tl_str(tl_id));
     }
     else {
-        snprintf(env_prefix, sizeof(env_prefix), "HIER_%s", xccl_tl_str(1 << tl_id));
+        snprintf(env_prefix, sizeof(env_prefix), "HIER_%s", xccl_tl_str(tl_id));
     }
-
     xccl_context_config_read(lib, env_prefix, NULL, &cfg);
+    if (hier_cfg->devices.count > 1 ||
+        0 != strncmp(hier_cfg->devices.names[0], "all", 3)) {
+        xccl_context_config_modify(&tl_id, cfg, "NET_DEVICES",
+                                   xccl_names_array_to_str(&hier_cfg->devices));
+    }
     if (XCCL_OK != xccl_context_create(lib, &ctx_params, cfg,
-                                       &ctx->tls[tl_id].xccl_ctx)) {
+                                       &ctx->tls[tl_idx].xccl_ctx)) {
         return XCCL_ERR_NO_MESSAGE;
     }
     xccl_context_config_release(cfg);
@@ -152,7 +158,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     ctx->bcast_sm_get_thresh                    = hier_cfg->bcast_sm_get_thresh;
 
     ucs_for_each_bit(tl, XCCL_TL_ALL) {
-        if (XCCL_OK != xccl_hier_init_tl(ctx, tl, params->oob, config->env_prefix)) {
+        if (XCCL_OK != xccl_hier_init_tl(ctx, tl, params->oob, hier_cfg)) {
             return XCCL_ERR_NO_MESSAGE;
         }
     }
