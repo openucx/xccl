@@ -2,7 +2,10 @@
 # Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
 #
 
-SUBDIRS = team_lib/hier
+SUBDIRS =              \
+	team_lib/hier      \
+	team_lib/multirail
+
 if HAVE_UCX
 SUBDIRS += team_lib/ucx
 endif
@@ -47,4 +50,3 @@ libxccl_la_SOURCES =       \
 	utils/mem_component.c
 
 libxccl_ladir = $(includedir)
-

@@ -92,12 +92,14 @@ static xccl_status_t xccl_team_lib_init(const char *so_path,
 
 static void load_team_lib_plugins(xccl_lib_t *lib)
 {
-    const char *tl_pattern = "/xccl_team_lib_*.so";
-    glob_t globbuf;
-    int i;
-    char *pattern = (char*)malloc(strlen(xccl_lib_global_config.team_lib_path) +
-                                  strlen(tl_pattern) + 1);
+    const char    *tl_pattern = "/xccl_team_lib_*.so";
+    glob_t        globbuf;
+    int           i;
+    char          *pattern;
+    xccl_status_t status;
 
+    pattern = (char*)malloc(strlen(xccl_lib_global_config.team_lib_path) +
+                            strlen(tl_pattern) + 1);
     strcpy(pattern, xccl_lib_global_config.team_lib_path);
     strcat(pattern, tl_pattern);
     glob(pattern, 0, NULL, &globbuf);
@@ -108,7 +110,11 @@ static void load_team_lib_plugins(xccl_lib_t *lib)
             lib->libs = (xccl_team_lib_t**)realloc(lib->libs,
                                                    lib->libs_array_size*sizeof(*lib->libs));
         }
-        xccl_team_lib_init(globbuf.gl_pathv[i], &lib->libs[lib->n_libs_opened]);
+        status = xccl_team_lib_init(globbuf.gl_pathv[i],
+                                    &lib->libs[lib->n_libs_opened]);
+        if (status != XCCL_OK) {
+            continue;
+        }
         lib->n_libs_opened++;
     }
 
