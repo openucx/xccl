@@ -13,6 +13,8 @@
 #include <ucs/config/types.h>
 #include <stdio.h>
 
+BEGIN_C_DECLS
+
 /**
  * @defgroup XCCL_API Unified Communication Collectives (XCCL) API
  * @{
@@ -484,5 +486,7 @@ xccl_status_t xccl_global_mem_map_start(xccl_team_h team, xccl_mem_map_params_t 
                                         xccl_mem_h *memh_p);
 xccl_status_t xccl_global_mem_map_test(xccl_mem_h memh_p);
 xccl_status_t xccl_global_mem_unmap(xccl_mem_h memh_p);
+
+END_C_DECLS
 
 #endif

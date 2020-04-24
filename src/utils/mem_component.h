@@ -7,6 +7,13 @@
 #include "api/xccl.h"
 #include <ucs/memory/memory_type.h>
 
+typedef struct xccl_mem_component_buf {
+    void   *buf;
+    size_t size;
+    int    used;    
+} xccl_mem_component_buf_t;
+
+
 typedef struct xccl_mem_component {
     xccl_status_t (*mem_alloc)(void **ptr, size_t len);
     xccl_status_t (*mem_free)(void *ptr);
@@ -14,6 +21,7 @@ typedef struct xccl_mem_component {
     xccl_status_t (*reduce)(void *sbuf1, void *sbuf2, void *target,
                             size_t count, xccl_dt_t dtype, xccl_op_t op);
     void           *dlhandle;
+    xccl_mem_component_buf_t cache;
 } xccl_mem_component_t;
 
 
