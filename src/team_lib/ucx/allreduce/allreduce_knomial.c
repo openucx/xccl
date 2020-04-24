@@ -163,23 +163,14 @@ PHASE_EXTRA:
                 return XCCL_OK;
             }
             assert(active_reqs % 2 == 0);
-            xccl_mem_component_reduce(src_buffer,
-                                      (void*)((ptrdiff_t)scratch),
-                                      dst_buffer,
-                                      req->args.reduce_info.count,
-                                      req->args.reduce_info.dt,
-                                      req->args.reduce_info.op,
-                                      req->mem_type);
-
-            for (k=1; k<active_reqs/2; k++) {
-                xccl_mem_component_reduce(dst_buffer,
-                                          (void*)((ptrdiff_t)scratch + k*data_size),
-                                          dst_buffer,
-                                          req->args.reduce_info.count,
-                                          req->args.reduce_info.dt,
-                                          req->args.reduce_info.op,
-                                          req->mem_type);
-            }
+ 
+            xccl_mem_component_reduce_multi(src_buffer, scratch, dst_buffer,
+                                            active_reqs/2,
+                                            req->args.reduce_info.count,
+                                            data_size,
+                                            req->args.reduce_info.dt,
+                                            req->args.reduce_info.op,
+                                            req->mem_type);
         }
     }
     if (KN_PROXY == node_type) {

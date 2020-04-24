@@ -41,6 +41,24 @@ xccl_status_t xccl_cuda_reduce(void *sbuf1, void *sbuf2, void *target,
                                  xccl_cuda_mem_component.stream);
 }
 
+xccl_status_t xccl_cuda_reduce_multi_impl(void *sbuf1, void *sbuf2, void *rbuf,
+                                         size_t count, size_t size, size_t stride,
+                                         xccl_dt_t dtype, xccl_op_t op,
+                                         cudaStream_t stream);
+
+xccl_status_t xccl_cuda_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf,
+                                     size_t count, size_t size, size_t stride,
+                                     xccl_dt_t dtype, xccl_op_t op)
+{
+    if (xccl_cuda_mem_component.stream == 0) {
+        CUDACHECK(cudaStreamCreateWithFlags(&xccl_cuda_mem_component.stream,
+                                            cudaStreamNonBlocking));
+    }
+    return xccl_cuda_reduce_multi_impl(sbuf1, sbuf2, rbuf, count, size, stride,
+                                       dtype, op,
+                                       xccl_cuda_mem_component.stream);
+}
+
 xccl_status_t xccl_cuda_mem_type(void *ptr, ucs_memory_type_t *mem_type) {
     struct      cudaPointerAttributes attr;
     cudaError_t err;
@@ -78,5 +96,6 @@ xccl_cuda_mem_component_t xccl_cuda_mem_component = {
     xccl_cuda_mem_free,
     xccl_cuda_mem_type,
     xccl_cuda_reduce,
+    xccl_cuda_reduce_multi,
     xccl_cuda_close
 };

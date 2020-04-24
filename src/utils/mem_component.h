@@ -21,6 +21,9 @@ typedef struct xccl_mem_component {
     xccl_status_t (*mem_type)(void *ptr, ucs_memory_type_t *mem_type);
     xccl_status_t (*reduce)(void *sbuf1, void *sbuf2, void *target,
                             size_t count, xccl_dt_t dtype, xccl_op_t op);
+    xccl_status_t (*reduce_multi)(void *sbuf1, void *sbuf2, void *rbuf,
+                                  size_t count, size_t size, size_t stride,
+                                  xccl_dt_t dtype, xccl_op_t op);
     void          (*close)();
     void                     *dlhandle;
     xccl_mem_component_buf_t cache;
@@ -40,4 +43,16 @@ xccl_status_t xccl_mem_component_reduce(void *sbuf1, void *sbuf2, void *target,
                                         size_t count, xccl_dt_t dtype,
                                         xccl_op_t op, ucs_memory_type_t mem_type);
 
+/* 
+ * Perfroms reduction of multiple vectors and stores result to rbuf
+ * rbuf = sbuf1 + sbuf2{0} + sbuf2{1} + sbuf2{count-1}
+ * count  - number of vectros in sbuf2
+ * size   - size of each verctor
+ * stride - offset between vectors in sbuf2
+ */
+
+xccl_status_t
+xccl_mem_component_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf, size_t count,
+                                size_t size, size_t stride, xccl_dt_t dtype,
+                                xccl_op_t op, ucs_memory_type_t mem_type);
 void xccl_mem_component_finalize();

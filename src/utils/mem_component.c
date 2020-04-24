@@ -107,6 +107,31 @@ xccl_status_t xccl_mem_component_reduce(void *sbuf1, void *sbuf2, void *target,
     return mem_components[mem_type]->reduce(sbuf1, sbuf2, target, count, dtype, op);
 }
 
+xccl_status_t
+xccl_mem_component_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf, size_t count,
+                                size_t size, size_t stride, xccl_dt_t dtype,
+                                xccl_op_t op, ucs_memory_type_t mem_type)
+{
+    int i;
+
+    assert(count > 1);
+    if (mem_type == UCS_MEMORY_TYPE_HOST) {
+        xccl_dt_reduce(sbuf1, sbuf2, rbuf, size, dtype, op);
+        for (i = 1; i < count; i++) {
+            xccl_dt_reduce((void*)((ptrdiff_t)sbuf2 + stride*i), rbuf,
+                           rbuf, size, dtype, op);
+        }
+        return XCCL_OK;
+    }
+
+    if (mem_components[mem_type] == NULL) {
+         return XCCL_ERR_UNSUPPORTED;
+    }
+
+    return mem_components[mem_type]->reduce_multi(sbuf1, sbuf2, rbuf, count,
+                                                  size, stride, dtype, op);
+}
+
 xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type)
 {
     xccl_status_t st;
