@@ -35,66 +35,66 @@ DO_CUDA_REDUCE_WITH_OP(BOR,  DO_OP_BOR)
 DO_CUDA_REDUCE_WITH_OP(LXOR, DO_OP_LXOR)
 DO_CUDA_REDUCE_WITH_OP(BXOR, DO_OP_BXOR)
 
-#define DO_LAUNCH_KERNEL(NAME, type, src1, src2, dest, count)                                 \
-        XCCL_REDUCE_CUDA_ ## NAME<type> <<<(count + 255)/256, 256>>>(src1, src2, dest, count)
+#define DO_LAUNCH_KERNEL(NAME, type, src1, src2, dest, count, stream) \
+        XCCL_REDUCE_CUDA_ ## NAME<type> <<<(count + 255)/256, 256, 0, stream>>>(src1, src2, dest, count)
 
-#define DO_DT_REDUCE_INT(type, op, src1_p, src2_p, dest_p, count) do { \
-        type *src1 = (type *)src1_p;                                   \
-        type *src2 = (type *)src2_p;                                   \
-        type *dest = (type *)dest_p;                                   \
-        switch(op) {                                                   \
-        case XCCL_OP_MAX:                                              \
-            DO_LAUNCH_KERNEL(MAX, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_MIN:                                              \
-            DO_LAUNCH_KERNEL(MIN, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_SUM:                                              \
-            DO_LAUNCH_KERNEL(SUM, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_PROD:                                              \
-            DO_LAUNCH_KERNEL(PROD, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_LAND:                                              \
-            DO_LAUNCH_KERNEL(LAND, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_BAND:                                              \
-            DO_LAUNCH_KERNEL(BAND, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_LOR:                                              \
-            DO_LAUNCH_KERNEL(LOR, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_LXOR:                                              \
-            DO_LAUNCH_KERNEL(LXOR, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_BXOR:                                              \
-            DO_LAUNCH_KERNEL(BXOR, type, src1, src2, dest, count);      \
-            break;                                                     \
-        default:                                                       \
-            return XCCL_ERR_UNSUPPORTED;                               \
-        }                                                              \
+#define DO_DT_REDUCE_INT(type, op, src1_p, src2_p, dest_p, count, stream) do { \
+        type *src1 = (type *)src1_p;                                       \
+        type *src2 = (type *)src2_p;                                       \
+        type *dest = (type *)dest_p;                                       \
+        switch(op) {                                                       \
+        case XCCL_OP_MAX:                                                  \
+            DO_LAUNCH_KERNEL(MAX, type, src1, src2, dest, count, stream);  \
+            break;                                                         \
+        case XCCL_OP_MIN:                                                  \
+            DO_LAUNCH_KERNEL(MIN, type, src1, src2, dest, count, stream);  \
+            break;                                                         \
+        case XCCL_OP_SUM:                                                  \
+            DO_LAUNCH_KERNEL(SUM, type, src1, src2, dest, count, stream);  \
+            break;                                                         \
+        case XCCL_OP_PROD:                                                 \
+            DO_LAUNCH_KERNEL(PROD, type, src1, src2, dest, count, stream); \
+            break;                                                         \
+        case XCCL_OP_LAND:                                                 \
+            DO_LAUNCH_KERNEL(LAND, type, src1, src2, dest, count, stream); \
+            break;                                                         \
+        case XCCL_OP_BAND:                                                 \
+            DO_LAUNCH_KERNEL(BAND, type, src1, src2, dest, count, stream); \
+            break;                                                         \
+        case XCCL_OP_LOR:                                                  \
+            DO_LAUNCH_KERNEL(LOR, type, src1, src2, dest, count, stream);  \
+            break;                                                         \
+        case XCCL_OP_LXOR:                                                 \
+            DO_LAUNCH_KERNEL(LXOR, type, src1, src2, dest, count, stream); \
+            break;                                                         \
+        case XCCL_OP_BXOR:                                                 \
+            DO_LAUNCH_KERNEL(BXOR, type, src1, src2, dest, count, stream); \
+            break;                                                         \
+        default:                                                           \
+            return XCCL_ERR_UNSUPPORTED;                                   \
+        }                                                                  \
     } while(0)
 
-#define DO_DT_REDUCE_FLOAT(type, op, src1_p, src2_p, dest_p, count) do { \
-        type *src1 = (type *)src1_p;                                   \
-        type *src2 = (type *)src2_p;                                   \
-        type *dest = (type *)dest_p;                                   \
-        switch(op) {                                                   \
-        case XCCL_OP_MAX:                                              \
-            DO_LAUNCH_KERNEL(MAX, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_MIN:                                              \
-            DO_LAUNCH_KERNEL(MIN, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_SUM:                                              \
-            DO_LAUNCH_KERNEL(SUM, type, src1, src2, dest, count);      \
-            break;                                                     \
-        case XCCL_OP_PROD:                                              \
-            DO_LAUNCH_KERNEL(PROD, type, src1, src2, dest, count);      \
-            break;                                                     \
-        default:                                                       \
-            return XCCL_ERR_UNSUPPORTED;                               \
-        }                                                              \
+#define DO_DT_REDUCE_FLOAT(type, op, src1_p, src2_p, dest_p, count, stream) do { \
+        type *src1 = (type *)src1_p;                                      \
+        type *src2 = (type *)src2_p;                                      \
+        type *dest = (type *)dest_p;                                      \
+        switch(op) {                                                      \
+        case XCCL_OP_MAX:                                                 \
+            DO_LAUNCH_KERNEL(MAX, type, src1, src2, dest, count, stream); \
+            break;                                                        \
+        case XCCL_OP_MIN:                                                 \
+            DO_LAUNCH_KERNEL(MIN, type, src1, src2, dest, count, stream); \
+            break;                                                        \
+        case XCCL_OP_SUM:                                                 \
+            DO_LAUNCH_KERNEL(SUM, type, src1, src2, dest, count, stream); \
+            break;                                                        \
+        case XCCL_OP_PROD:                                                \
+            DO_LAUNCH_KERNEL(PROD, type, src1, src2, dest, count,stream); \
+            break;                                                        \
+        default:                                                          \
+            return XCCL_ERR_UNSUPPORTED;                                  \
+        }                                                                 \
     } while(0)
 
 
@@ -103,31 +103,32 @@ extern "C" {
 #endif
 
 xccl_status_t xccl_cuda_reduce_impl(void *sbuf1, void *sbuf2, void *target,
-                                    size_t count, xccl_dt_t dtype, xccl_op_t op)
+                                    size_t count, xccl_dt_t dtype, xccl_op_t op,
+                                    cudaStream_t stream)
 {
     switch (dtype)
     {
         case XCCL_DT_INT16:
-            DO_DT_REDUCE_INT(int16_t, op, sbuf1, sbuf2, target, count);
+            DO_DT_REDUCE_INT(int16_t, op, sbuf1, sbuf2, target, count, stream);
             break;     
         case XCCL_DT_INT32:
-            DO_DT_REDUCE_INT(int32_t, op, sbuf1, sbuf2, target, count);
+            DO_DT_REDUCE_INT(int32_t, op, sbuf1, sbuf2, target, count, stream);
             break;
         case XCCL_DT_INT64:
-            DO_DT_REDUCE_INT(int64_t, op, sbuf1, sbuf2, target, count);
+            DO_DT_REDUCE_INT(int64_t, op, sbuf1, sbuf2, target, count, stream);
             break;
         case XCCL_DT_FLOAT32:
             assert(4 == sizeof(float));
-            DO_DT_REDUCE_FLOAT(float, op, sbuf1, sbuf2, target, count);
+            DO_DT_REDUCE_FLOAT(float, op, sbuf1, sbuf2, target, count, stream);
             break;
         case XCCL_DT_FLOAT64:
             assert(8 == sizeof(double));
-            DO_DT_REDUCE_FLOAT(double, op, sbuf1, sbuf2, target, count);
+            DO_DT_REDUCE_FLOAT(double, op, sbuf1, sbuf2, target, count, stream);
             break;
         default:
             return XCCL_ERR_UNSUPPORTED;
     }
-    cudaStreamSynchronize(0);
+    cudaStreamSynchronize(stream);
     return XCCL_OK;
 }
 

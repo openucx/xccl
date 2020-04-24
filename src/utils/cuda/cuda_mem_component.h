@@ -12,6 +12,7 @@
 
 typedef struct xccl_cuda_mem_component {
     xccl_mem_component_t super;
+    cudaStream_t         stream;
 } xccl_cuda_mem_component_t;
 
 #endif
