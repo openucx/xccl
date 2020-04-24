@@ -44,9 +44,9 @@ xccl_status_t xccl_mem_component_reduce(void *sbuf1, void *sbuf2, void *target,
                                         xccl_op_t op, ucs_memory_type_t mem_type);
 
 /* 
- * Perfroms reduction of multiple vectors and stores result to rbuf
+ * Performs reduction of multiple vectors and stores result to rbuf
  * rbuf = sbuf1 + sbuf2{0} + sbuf2{1} + sbuf2{count-1}
- * count  - number of vectros in sbuf2
+ * count  - number of vectors in sbuf2
  * size   - size of each verctor
  * stride - offset between vectors in sbuf2
  */

@@ -17,8 +17,11 @@ xccl_status_t xccl_mem_component_init(const char* components_path)
 
     mem_comp_path_len = strlen(components_path) + 32;
     mem_comp_path     = (char*)malloc(mem_comp_path_len);
+    if (mem_comp_path == NULL) {
+        return XCCL_ERR_NO_MEMORY;
+    }
 
-    for(mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
+    for (mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
         snprintf(mem_comp_path, mem_comp_path_len, "%s/xccl_%s_mem_component.so",
                  components_path, ucs_memory_type_names[mt]);        
         handle = dlopen(mem_comp_path, RTLD_LAZY);
@@ -114,7 +117,6 @@ xccl_mem_component_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf, size_t cou
 {
     int i;
 
-    assert(count > 1);
     if (mem_type == UCS_MEMORY_TYPE_HOST) {
         xccl_dt_reduce(sbuf1, sbuf2, rbuf, size, dtype, op);
         for (i = 1; i < count; i++) {
