@@ -27,7 +27,8 @@ LINK = $(LIBTOOL) --mode=link $(CC) -o $@
 
 comp_noinst = libxccl_cuda_reduce.la
 
-libxccl_cuda_reduce_la_SOURCES  = xccl_cuda_reduce.cu
+libxccl_cuda_reduce_la_SOURCES  = xccl_cuda_reduce.cu \
+                                  xccl_cuda_reduce_multi.cu
 libxccl_cuda_reduce_la_CPPFLAGS =
 
 noinst_LTLIBRARIES = $(comp_noinst)

@@ -93,6 +93,6 @@ int main (int argc, char **argv) {
     free(rbuf_host);
     free(rbuf_mpi);
 
-    XCCL_CHECK(xccl_mpi_test_finalize());
+    xccl_mpi_test_finalize();
     return 0;
 }

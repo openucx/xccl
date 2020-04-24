@@ -10,6 +10,7 @@
 #include <string.h>
 
 typedef enum xccl_tl_id {
+    XCCL_TL_NULL   = 0,
     XCCL_TL_UCX    = UCS_BIT(0),
     XCCL_TL_HIER   = UCS_BIT(1),
     XCCL_TL_SHARP  = UCS_BIT(2),
@@ -45,16 +46,16 @@ const char* xccl_tl_str(xccl_tl_id_t tl_id)
 static inline
 xccl_tl_id_t xccl_tls_str_to_bitmap(const char *tls_str)
 {
-    xccl_tl_id_t tls = 0;
-    int i;
+    xccl_tl_id_t tls = XCCL_TL_NULL;
+    uint64_t     i;
 
     if (!tls_str) {
         return tls;
     }
 
     for (i = 1; i < XCCL_TL_LAST; i = i << 1) {
-        if (strstr(tls_str, xccl_tl_str(i))) {
-            tls = tls | i;
+        if (strstr(tls_str, xccl_tl_str((xccl_tl_id_t)i))) {
+            tls = (xccl_tl_id_t)(tls | i);
         } 
     }
 
