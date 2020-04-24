@@ -5,26 +5,26 @@
 */
 #include "config.h"
 #include "xccl_hier_context.h"
+#include "utils/utils.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
 #include <ucs/sys/math.h>
 
 static xccl_status_t
-xccl_hier_init_tl(xccl_hier_context_t *ctx, xccl_tl_id_t tl_id,
-                  xccl_oob_collectives_t oob, const char* prefix) {
-    xccl_lib_h            lib;
+xccl_hier_init_tl(xccl_hier_context_t *ctx, int tl_idx,
+                  xccl_oob_collectives_t oob, xccl_tl_hier_context_config_t *hier_cfg) {
+    xccl_team_lib_hier_t  *hlib = ucs_derived_of(ctx->super.lib,
+                                                 xccl_team_lib_hier_t);
+    xccl_lib_h            lib   = hlib->tl_lib;
+    xccl_tl_id_t          tl_id = UCS_BIT(tl_idx);
     xccl_context_config_t *cfg;
-    char env_prefix[128];
+    xccl_status_t         status;
+    char                  env_prefix[128];
 
-    if (!ctx->tls[tl_id].enabled) {
+    if (!ctx->tls[tl_idx].enabled) {
         return XCCL_OK;
     }
-    xccl_lib_params_t lib_params = {
-        .field_mask = XCCL_LIB_PARAM_FIELD_TEAM_USAGE,
-        .team_usage = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES |
-                      XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
-    };
 
     xccl_context_params_t ctx_params = {
         .field_mask      = XCCL_CONTEXT_PARAM_FIELD_THREAD_MODE |
@@ -34,29 +34,28 @@ xccl_hier_init_tl(xccl_hier_context_t *ctx, xccl_tl_id_t tl_id,
         .thread_mode     = XCCL_THREAD_MODE_SINGLE,
         .completion_type = XCCL_TEAM_COMPLETION_TYPE_BLOCKING,
         .oob             = oob,
-        .tls             = 1 << tl_id,
+        .tls             = tl_id,
     };
 
-    if (XCCL_OK != xccl_lib_init(&lib_params, NULL, &lib)) {
-        return XCCL_ERR_NO_MESSAGE;
-    }
-
-    if (prefix != NULL) {
+    if (hier_cfg->super.env_prefix != NULL) {
         snprintf(env_prefix, sizeof(env_prefix), "%s_HIER_%s",
-                 prefix, xccl_tl_str(1 << tl_id));
+                 hier_cfg->super.env_prefix, xccl_tl_str(tl_id));
     }
     else {
-        snprintf(env_prefix, sizeof(env_prefix), "HIER_%s", xccl_tl_str(1 << tl_id));
+        snprintf(env_prefix, sizeof(env_prefix), "HIER_%s", xccl_tl_str(tl_id));
     }
-
     xccl_context_config_read(lib, env_prefix, NULL, &cfg);
-    if (XCCL_OK != xccl_context_create(lib, &ctx_params, cfg,
-                                       &ctx->tls[tl_id].xccl_ctx)) {
-        return XCCL_ERR_NO_MESSAGE;
+    if (hier_cfg->devices.count > 1 ||
+        0 != strncmp(hier_cfg->devices.names[0], "all", 3)) {
+        char *dev_str = xccl_names_array_to_str(&hier_cfg->devices);
+        if (dev_str) {
+            xccl_context_config_modify(&tl_id, cfg, "NET_DEVICES", dev_str);
+            free(dev_str);
+        }
     }
+    status = xccl_context_create(lib, &ctx_params, cfg, &ctx->tls[tl_idx].xccl_ctx);
     xccl_context_config_release(cfg);
-
-    return XCCL_OK;
+    return status;
 }
 
 static int compare_proc_data(const void* a, const void* b) {
@@ -117,12 +116,28 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
                                        xccl_tl_context_config_t *config,
                                        xccl_tl_context_t **context)
 {
-    xccl_hier_context_t *ctx = (xccl_hier_context_t *)malloc(sizeof(*ctx));
+    xccl_team_lib_hier_t *hlib = ucs_derived_of(lib, xccl_team_lib_hier_t);
+    xccl_hier_context_t  *ctx  = (xccl_hier_context_t *)malloc(sizeof(*ctx));
     xccl_tl_hier_context_config_t *hier_cfg;
+    xccl_status_t       status;
     int                 i;
     uint64_t            tl;
-
+    if (!ctx) {
+        return XCCL_ERR_NO_MEMORY;
+    }
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
+
+    if (NULL == hlib->tl_lib) {
+        xccl_lib_params_t lib_params = {
+            .field_mask = XCCL_LIB_PARAM_FIELD_TEAM_USAGE,
+            .team_usage = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES |
+                          XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
+        };
+        if (XCCL_OK != (status = xccl_lib_init(&lib_params, NULL, &hlib->tl_lib))) {
+            return status;
+        }
+    }
+
     ctx->procs = (xccl_hier_proc_data_t*)malloc(
         params->oob.size*sizeof(xccl_hier_proc_data_t));
     ctx->local_proc.socketid = xccl_local_process_info()->socketid;
@@ -147,8 +162,8 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     ctx->bcast_sm_get_thresh                    = hier_cfg->bcast_sm_get_thresh;
 
     ucs_for_each_bit(tl, XCCL_TL_ALL) {
-        if (XCCL_OK != xccl_hier_init_tl(ctx, tl, params->oob, config->env_prefix)) {
-            return XCCL_ERR_NO_MESSAGE;
+        if (XCCL_OK != (status = xccl_hier_init_tl(ctx, tl, params->oob, hier_cfg))) {
+            return status;
         }
     }
 
