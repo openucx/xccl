@@ -1263,7 +1263,7 @@ index a71956e..8da082c 100644
 2.6.2
 
 
-From 4c577797be5d8069d4ce55efa07a2730db22c46f Mon Sep 17 00:00:00 2001
+From 4c9a0c95f3dd03ed33f55df0fbcc4887e932f61e Mon Sep 17 00:00:00 2001
 From: Valentin Petrov <valentinp@mellanox.com>
 Date: Thu, 23 Apr 2020 00:01:46 +0300
 Subject: [PATCH 4/4] coll/xccl: adopt to latest xccl.h changes
@@ -1332,7 +1332,7 @@ index 9fda6d7..00fd25f 100644
  typedef struct mca_coll_xccl_component_t mca_coll_xccl_component_t;
  
 diff --git a/ompi/mca/coll/xccl/coll_xccl_module.c b/ompi/mca/coll/xccl/coll_xccl_module.c
-index 8da082c..d92f2e3 100644
+index 8da082c..4108893 100644
 --- a/ompi/mca/coll/xccl/coll_xccl_module.c
 +++ b/ompi/mca/coll/xccl/coll_xccl_module.c
 @@ -11,7 +11,9 @@
@@ -1364,18 +1364,19 @@ index 8da082c..d92f2e3 100644
  /*
  ** Communicator free callback
  */
-@@ -97,9 +95,8 @@ static int xccl_comm_attr_del_fn(MPI_Comm comm, int keyval, void *attr_val, void
+@@ -97,10 +95,9 @@ static int xccl_comm_attr_del_fn(MPI_Comm comm, int keyval, void *attr_val, void
      if (xccl_module->comm == &ompi_mpi_comm_world.comm) {
          if (mca_coll_xccl_component.libxccl_initialized) {
              XCCL_VERBOSE(5,"XCCL FINALIZE");
 -            if (XCCL_OK != xccl_cleanup(mca_coll_xccl_component.xccl_context)) {
 -                XCCL_VERBOSE(1,"XCCL library finalize failed");
 -            }
+             opal_progress_unregister(mca_coll_xccl_progress);
 +            xccl_context_destroy(mca_coll_xccl_component.xccl_context);
 +            xccl_lib_cleanup(mca_coll_xccl_component.xccl_lib);
-             opal_progress_unregister(mca_coll_xccl_progress);
          }
      }
+     return OMPI_SUCCESS;
 @@ -108,23 +105,24 @@ static int xccl_comm_attr_del_fn(MPI_Comm comm, int keyval, void *attr_val, void
  
  typedef struct oob_allgather_req{
