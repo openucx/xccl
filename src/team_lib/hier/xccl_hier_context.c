@@ -5,6 +5,7 @@
 */
 #include "config.h"
 #include "xccl_hier_context.h"
+#include "xccl_hier_sbgp.h"
 #include "utils/utils.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -58,22 +59,13 @@ xccl_hier_init_tl(xccl_hier_context_t *ctx, int tl_idx,
     return status;
 }
 
-static int compare_proc_data(const void* a, const void* b) {
-    const xccl_hier_proc_data_t *d1 = (const xccl_hier_proc_data_t*)a;
-    const xccl_hier_proc_data_t *d2 = (const xccl_hier_proc_data_t*)b;
-    if (d1->node_hash != d2->node_hash) {
-        return d1->node_hash > d2->node_hash ? 1 : -1;
-    } else {
-        return d1->socketid - d2->socketid;
-    }
-}
-
 static void compute_layout(xccl_hier_context_t *ctx) {
     int ctx_size = ctx->super.params.oob.size;
     xccl_hier_proc_data_t *sorted = (xccl_hier_proc_data_t*)
         malloc(ctx_size*sizeof(xccl_hier_proc_data_t));
     memcpy(sorted, ctx->procs, ctx_size*sizeof(xccl_hier_proc_data_t));
-    qsort(sorted, ctx_size, sizeof(xccl_hier_proc_data_t), compare_proc_data);
+    qsort(sorted, ctx_size, sizeof(xccl_hier_proc_data_t),
+          xccl_hier_compare_proc_data);
     unsigned long current_hash = sorted[0].node_hash;
     int current_ppn = 1;
     int min_ppn = INT_MAX;
@@ -145,8 +137,9 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
 
     ctx->procs = (xccl_hier_proc_data_t*)malloc(
         params->oob.size*sizeof(xccl_hier_proc_data_t));
-    ctx->local_proc.socketid = xccl_local_process_info()->socketid;
+    ctx->local_proc.socketid  = xccl_local_process_info()->socketid;
     ctx->local_proc.node_hash = xccl_local_process_info()->node_hash;
+    ctx->local_proc.pid       = xccl_local_process_info()->pid;
     memset(ctx->tls, 0, sizeof(ctx->tls));
     *context = NULL;
     
@@ -165,6 +158,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     ctx->bcast_pipeline_depth                   = hier_cfg->bcast_pipeline_depth;
     ctx->use_sm_get_bcast                       = hier_cfg->bcast_sm_get;
     ctx->bcast_sm_get_thresh                    = hier_cfg->bcast_sm_get_thresh;
+    ctx->node_leader_rank_id                    = hier_cfg->node_leader_rank_id;
 
     ucs_for_each_bit(tl, XCCL_TL_ALL) {
         if (XCCL_OK != (status = xccl_hier_init_tl(ctx, tl, params->oob, hier_cfg))) {

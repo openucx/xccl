@@ -113,6 +113,7 @@ xccl_oob_allgather(void *sbuf, void* rbuf, size_t len, xccl_oob_collectives_t *o
 typedef struct xccl_local_proc_info {
     unsigned long node_hash;
     int           socketid; //if process is bound to a socket
+    int           pid;
 } xccl_local_proc_info_t;
 
 xccl_local_proc_info_t* xccl_local_process_info();
