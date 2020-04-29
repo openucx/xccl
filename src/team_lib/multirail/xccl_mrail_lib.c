@@ -6,8 +6,10 @@
 #include "config.h"
 
 #include "xccl_mrail_lib.h"
+#include <pthread.h>
 
 static const char *xccl_tl_names[] = {
+    "",
     "ucx",
     "hier",
     "sharp",
@@ -34,6 +36,13 @@ static ucs_config_field_t xccl_team_lib_mrail_config_table[] = {
      UCS_CONFIG_TYPE_UINT
     },
 
+    {"THREADS_NUMBER", "2",
+     "Progress threads number\n",
+     ucs_offsetof(xccl_team_lib_mrail_config_t, threads_num),
+     UCS_CONFIG_TYPE_UINT
+    },
+
+
     {NULL}
 };
 
@@ -53,23 +62,85 @@ static ucs_config_field_t xccl_tl_mrail_context_config_table[] = {
     {NULL}
 };
 
+static void *progress_context_async(void *progress_thread) {
+    int                           progress_count       = 3;
+    int                           i;
+    xccl_mrail_progress_thread_t  *t = progress_thread;
+    xccl_mrail_progress_request_t *req;
+
+    while(1) {
+        pthread_mutex_lock(&t->mutex);
+
+        while(ucs_list_is_empty(&t->list)) {
+            pthread_cond_wait(&t->cond, &t->mutex);
+            if (t->close) {
+                return NULL;
+            }
+        }
+
+        i = 0;
+        do {
+            ucs_list_for_each(req, &t->list, list) {
+                xccl_context_progress(req->ctx);
+                req->completed = xccl_collective_test(req->req);
+                if (req->completed == XCCL_OK) {
+                    ucs_list_del(&req->list);
+                }
+            }
+            i++;
+        } while((i < progress_count) && (!ucs_list_is_empty(&t->list)));
+
+        pthread_mutex_unlock(&t->mutex);
+    }
+
+    return NULL;
+}
+
 
 static xccl_status_t xccl_mrail_open(xccl_team_lib_h self,
                                      xccl_team_lib_config_t *config)
 {
     xccl_team_lib_mrail_t        *tl  = ucs_derived_of(self, xccl_team_lib_mrail_t);
     xccl_team_lib_mrail_config_t *cfg = ucs_derived_of(config, xccl_team_lib_mrail_config_t);
+    pthread_attr_t               attr;
+    int                          i;
 
     tl->config.super.log_component.log_level = cfg->super.log_component.log_level;
     sprintf(tl->config.super.log_component.name, "%s", tl->super.name);
     if (cfg->super.priority != -1) {
         tl->super.priority = cfg->super.priority;
     }
-    tl->config.replicated_tl_id = cfg->replicated_tl_id;
+    tl->config.replicated_tl_id = UCS_BIT(cfg->replicated_tl_id - 1);
     tl->config.replicas_num     = cfg->replicas_num;
+    tl->config.threads_num      = cfg->threads_num;
 
+    for(i = 0; i < tl->config.threads_num; i++) {
+        pthread_mutex_init(&tl->threads[i].mutex, NULL);
+        pthread_cond_init (&tl->threads[i].cond,  NULL);
+        ucs_list_head_init(&tl->threads[i].list);
+        tl->threads[i].close = 0;
+
+        pthread_attr_init(&attr);
+        pthread_create(&tl->threads[i].tid, &attr, progress_context_async,
+                       &tl->threads[i]);
+    }
     xccl_mrail_debug("team opened");
+
     return XCCL_OK;
+}
+
+static void xccl_mrail_close(xccl_team_lib_h self)
+{
+    xccl_team_lib_mrail_t *tl  = ucs_derived_of(self, xccl_team_lib_mrail_t);
+    int i;
+
+    for(i = 0; i < tl->config.threads_num; i++) {
+        tl->threads[i].close = 1;
+        pthread_cond_signal(&tl->threads[i].cond);
+        pthread_join(tl->threads[i].tid, NULL);
+        pthread_mutex_destroy(&tl->threads[i].mutex);
+        pthread_cond_destroy(&tl->threads[i].cond);
+    }
 }
 
 static xccl_status_t xccl_mrail_init_tl(xccl_lib_h *lib_p)
@@ -284,11 +355,16 @@ xccl_status_t xccl_mrail_team_destroy(xccl_tl_team_t *team)
 xccl_status_t xccl_mrail_context_progress(xccl_tl_context_t *team_context)
 {
     int                  i;
-    xccl_mrail_context_t *mrail_ctx = ucs_derived_of(team_context,
+    xccl_mrail_context_t  *mrail_ctx = ucs_derived_of(team_context,
                                                      xccl_mrail_context_t);
+    xccl_team_lib_mrail_t *mrail     = ucs_derived_of(team_context->lib,
+                                                     xccl_team_lib_mrail_t);
 
-    for(i = 0; i < mrail_ctx->n_tls; i++) {
-        xccl_context_progress(mrail_ctx->tls[i]);
+    // TODO: if there are no progress threads then progress here 
+    if (mrail->config.threads_num == 0) {
+        for(i = 0; i < mrail_ctx->n_tls; i++) {
+            xccl_context_progress(mrail_ctx->tls[i]);
+        }
     }
 
     return XCCL_OK;
@@ -299,7 +375,9 @@ xccl_mrail_collective_init(xccl_coll_op_args_t *coll_args,
                            xccl_tl_coll_req_t **request, xccl_tl_team_t *tl_team)
 {
     xccl_mrail_coll_req_t *req;
-    xccl_mrail_team_t     *team = ucs_derived_of(tl_team, xccl_mrail_team_t);
+    xccl_mrail_team_t     *team  = ucs_derived_of(tl_team, xccl_mrail_team_t);
+    xccl_mrail_context_t  *ctx   = ucs_derived_of(tl_team->ctx, xccl_mrail_context_t);
+    xccl_team_lib_mrail_t *mrail = ucs_derived_of(ctx->super.lib, xccl_team_lib_mrail_t);
     xccl_status_t         status;
     xccl_coll_op_args_t   team_args;
     int                   n_reqs;
@@ -307,6 +385,8 @@ xccl_mrail_collective_init(xccl_coll_op_args_t *coll_args,
     int                   last_buf_len;
     int                   len;
     int                   offset;
+    int                   i;
+    int                   thread_id;
 
     req = (xccl_mrail_coll_req_t*)malloc(sizeof(xccl_mrail_coll_req_t));
 
@@ -340,14 +420,16 @@ xccl_mrail_collective_init(xccl_coll_op_args_t *coll_args,
                                            offset);
         team_args.buffer_info.len        = len;
         team_args.reduce_info.count      = len/xccl_dt_size(coll_args->reduce_info.dt);
-        status = xccl_collective_init(&team_args, &req->reqs[req->n_reqs],
+        status = xccl_collective_init(&team_args, &req->reqs[req->n_reqs].req,
                                       team->teams[req->n_reqs]);
+        req->reqs[req->n_reqs].completed = XCCL_INPROGRESS;
+        req->reqs[req->n_reqs].ctx       = ctx->tls[req->n_reqs];
+ 
         if (status != XCCL_OK) {
             xccl_mrail_error("Failed to init collective");
             goto free_req;
         }
     }
-
 
     req->super.lib = &xccl_team_lib_mrail.super;
     (*request) = &req->super;
@@ -359,15 +441,36 @@ free_req:
 
 static xccl_status_t xccl_mrail_collective_post(xccl_tl_coll_req_t *request)
 {
-    xccl_mrail_coll_req_t  *req = ucs_derived_of(request, xccl_mrail_coll_req_t);
+    xccl_mrail_coll_req_t  *req   = ucs_derived_of(request, xccl_mrail_coll_req_t);
+    xccl_team_lib_mrail_t  *mrail = ucs_derived_of(request->lib, xccl_team_lib_mrail_t);
     xccl_status_t          status;
     int                    i;
+    int                    thread_id;
 
     for(i = 0; i < req->n_reqs; i++) {
-        status = xccl_collective_post(req->reqs[i]);
+        if (mrail->config.threads_num != 0) {
+            thread_id = i % mrail->config.threads_num;
+            pthread_mutex_lock(&mrail->threads[thread_id].mutex);
+        }
+
+        status = xccl_collective_post(req->reqs[i].req);
+
+        if (mrail->config.threads_num != 0) {
+            thread_id = i % mrail->config.threads_num;
+            ucs_list_add_tail(&mrail->threads[thread_id].list, &req->reqs[i].list);
+            pthread_mutex_unlock(&mrail->threads[thread_id].mutex);
+        }
+
         if (status != XCCL_OK) {
             xccl_mrail_error("Failed to post collective");
             return status;
+        }
+    }
+
+    if (mrail->config.threads_num != 0) {
+        for(i = 0; i < req->n_reqs; i++) {
+            thread_id = i % mrail->config.threads_num;
+            pthread_cond_signal(&mrail->threads[thread_id].cond);
         }
     }
 
@@ -376,18 +479,25 @@ static xccl_status_t xccl_mrail_collective_post(xccl_tl_coll_req_t *request)
 
 static xccl_status_t xccl_mrail_collective_test(xccl_tl_coll_req_t *request)
 {
-    xccl_mrail_coll_req_t *req = ucs_derived_of(request, xccl_mrail_coll_req_t);
+    xccl_mrail_coll_req_t *req   = ucs_derived_of(request, xccl_mrail_coll_req_t);
+    xccl_team_lib_mrail_t *mrail = ucs_derived_of(request->lib, xccl_team_lib_mrail_t);
     xccl_status_t         status;
     int                   i;
     xccl_status_t         global_status;
 
     global_status = XCCL_OK;
     for(i = 0; i < req->n_reqs; i++) {
-        status = xccl_collective_test(req->reqs[i]);
+        if (mrail->config.threads_num != 0) {
+            status = req->reqs[i].completed;
+        } else {
+            status = xccl_collective_test(req->reqs[i].req);
+        }
+
         if ((status != XCCL_OK) && (status != XCCL_INPROGRESS)) {
             xccl_mrail_error("Error occured during collective test");
             return status;
         }
+
         if (status == XCCL_INPROGRESS) {
             global_status = XCCL_INPROGRESS;
         }
@@ -416,7 +526,7 @@ xccl_status_t xccl_mrail_collective_finalize(xccl_tl_coll_req_t *request)
 
     global_status = XCCL_OK;
     for(i = 0; i < req->n_reqs; i++) {
-        status = xccl_collective_finalize(req->reqs[i]);
+        status = xccl_collective_finalize(req->reqs[i].req);
         if (status != XCCL_OK) {
             global_status = status;
             xccl_error("collective finalize error");
@@ -458,6 +568,7 @@ xccl_team_lib_mrail_t xccl_team_lib_mrail = {
     .super.team_destroy          = xccl_mrail_team_destroy,
     .super.team_context_progress = xccl_mrail_context_progress,
     .super.team_lib_open         = xccl_mrail_open,
+    .super.team_lib_close        = xccl_mrail_close,
     .super.collective_init       = xccl_mrail_collective_init,
     .super.collective_post       = xccl_mrail_collective_post,
     .super.collective_wait       = xccl_mrail_collective_wait,

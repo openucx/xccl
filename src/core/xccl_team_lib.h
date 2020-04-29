@@ -50,6 +50,7 @@ typedef struct xccl_team_lib {
     ucs_config_global_list_entry_t tl_context_config;
     xccl_status_t              (*team_lib_open)(xccl_team_lib_h self,
                                                 xccl_team_lib_config_t *config);
+    void                       (*team_lib_close)(xccl_team_lib_h self);
     xccl_status_t              (*team_lib_query)(xccl_team_lib_h lib,
                                                  xccl_tl_attr_t *attr);
     xccl_status_t              (*team_context_create)(xccl_team_lib_h lib,

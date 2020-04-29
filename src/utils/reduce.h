@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <api/xccl.h>
+#include <utils/xccl_log.h>
 
 #define  DO_OP_MAX(_v1, _v2)  (_v1 > _v2 ? _v1 : _v2)
 #define  DO_OP_MIN(_v1, _v2)  (_v1 < _v2 ? _v1 : _v2)
@@ -71,21 +72,21 @@
         type *src2 = (type *)src2_p;                                     \
         type *dest = (type *)dest_p;                                     \
         switch(op) {                                                     \
-        case XCCL_OP_MAX:                                                 \
+        case XCCL_OP_MAX:                                                \
             DO_DT_REDUCE_WITH_OP(src1, src2, dest, count, DO_OP_MAX);    \
             break;                                                       \
-        case XCCL_OP_MIN:                                                 \
+        case XCCL_OP_MIN:                                                \
             DO_DT_REDUCE_WITH_OP(src1, src2, dest, count, DO_OP_MIN);    \
             break;                                                       \
-        case XCCL_OP_SUM:                                                 \
+        case XCCL_OP_SUM:                                                \
             DO_DT_REDUCE_WITH_OP(src1, src2, dest, count, DO_OP_SUM);    \
             break;                                                       \
-        case XCCL_OP_PROD:                                                \
+        case XCCL_OP_PROD:                                               \
             DO_DT_REDUCE_WITH_OP(src1, src2, dest, count, DO_OP_PROD);   \
             break;                                                       \
         default:                                                         \
-            fprintf(stderr, "Floating point dtype does not support "     \
-                    "the requested reduce op: %d\n", op);                \
+            xccl_error("Floating point dtype does not support "          \
+                       "the requested reduce op: %d", op);               \
             return -1;                                                   \
         }                                                                \
     } while(0)
@@ -96,15 +97,15 @@
         type *src2 = (type *)src2_p;                                       \
         type *dest = (type *)dest_p;                                       \
         switch(op) {                                                       \
-        case XCCL_OP_SUM:                                                   \
+        case XCCL_OP_SUM:                                                  \
             DO_DT_REDUCE_WITH_OP(src1, src2, dest, count, DO_OP_SUM);      \
             break;                                                         \
-        case XCCL_OP_PROD:                                                  \
+        case XCCL_OP_PROD:                                                 \
             DO_DT_REDUCE_WITH_OP(src1, src2, dest, count, DO_OP_PROD);     \
             break;                                                         \
         default:                                                           \
-            fprintf(stderr, "Complex dtype does not support the"           \
-                    "requested reduce op: %d\n",op);                       \
+            xccl_error("Complex dtype does not support the"                \
+                       "requested reduce op: %d", op);                     \
             return -1;                                                     \
         }                                                                  \
     } while(0)
@@ -132,7 +133,7 @@ int xccl_dt_reduce(void *sbuf1, void *sbuf2, void *target, size_t count,
         DO_DT_REDUCE_FLOAT(double, op, sbuf1, sbuf2, target, count);
         break;
     default:
-        fprintf(stderr, "Unsupported type for reduction\n");
+        xccl_error("Unsupported type for reduction (%d)", dtype);
         return -1;
     }
     return 0;

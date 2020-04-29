@@ -15,6 +15,7 @@ typedef struct xccl_team_lib_mrail_config {
     xccl_team_lib_config_t super;
     xccl_tl_id_t           replicated_tl_id;
     unsigned               replicas_num;
+    unsigned               threads_num;
 } xccl_team_lib_mrail_config_t;
 
 typedef struct xccl_tl_mrail_context_config {
@@ -22,10 +23,25 @@ typedef struct xccl_tl_mrail_context_config {
     ucs_config_names_array_t devices;
 } xccl_tl_mrail_context_config_t;
 
+typedef struct xccl_mrail_progress_thread {
+    ucs_list_link_t list;
+    pthread_t       tid;
+    pthread_mutex_t mutex;
+    pthread_cond_t  cond;
+    int             close;
+} xccl_mrail_progress_thread_t;
+
+typedef struct xccl_mrail_progress_request {
+    ucs_list_link_t list;
+    xccl_context_h  ctx;
+    xccl_coll_req_h req;
+    xccl_status_t   completed;
+} xccl_mrail_progress_request_t;
 
 typedef struct xccl_team_lib_mrail {
     xccl_team_lib_t              super;
     xccl_team_lib_mrail_config_t config;
+    xccl_mrail_progress_thread_t threads[MAX_TLS_NUMBER];
 } xccl_team_lib_mrail_t;
 extern xccl_team_lib_mrail_t xccl_team_lib_mrail;
 
@@ -40,7 +56,7 @@ typedef struct xccl_mrail_context {
     size_t            n_tls;
 } xccl_mrail_context_t;
 
-//TODO: how many teams allower per context? Do we need more than 1 team?
+//TODO: how many teams allowed per context? Do we need more than 1 team?
 typedef struct xccl_mrail_team {
     xccl_tl_team_t super;
 /* teams array holds n_teams pointers to some other team library teams */
@@ -51,7 +67,8 @@ typedef struct xccl_mrail_team {
 typedef struct xccl_mrail_coll_req {
     xccl_tl_coll_req_t super;
     xccl_mrail_team_t  team;
-    xccl_coll_req_h    reqs[MAX_TLS_NUMBER];
+//    xccl_coll_req_h    reqs[MAX_TLS_NUMBER];
+    xccl_mrail_progress_request_t reqs[MAX_TLS_NUMBER];
     size_t             n_reqs;
 } xccl_mrail_coll_req_t;
 
