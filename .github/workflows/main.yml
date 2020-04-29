@@ -40,7 +40,12 @@ jobs:
         export LD_LIBRARY_PATH=/tmp/ucx/install/lib:$LD_LIBRARY_PATH
         mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
         mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
-        mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier        
+        mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
+
+        mpirun --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=3 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
+        mpirun --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=4 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
+        mpirun --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=5 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
+
         mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
         mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
         mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier        
