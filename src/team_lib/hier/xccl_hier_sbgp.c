@@ -32,7 +32,8 @@ static inline int is_rank_local(int rank, xccl_hier_team_t *team, int local)
     }
 }
 
-static inline xccl_status_t sbgp_create_socket(sbgp_t *sbgp) {
+static inline xccl_status_t sbgp_create_socket(sbgp_t *sbgp)
+{
     xccl_hier_team_t *team = sbgp->hier_team;
     sbgp_t *node_sbgp      = &team->sbgps[SBGP_NODE];
     int *local_ranks;
@@ -42,7 +43,9 @@ static inline xccl_status_t sbgp_create_socket(sbgp_t *sbgp) {
     int sock_rank = 0, sock_size = 0, i, r, nlr_pos;
     assert(node_sbgp->status == SBGP_ENABLED);
     local_ranks = (int*)malloc(node_sbgp->group_size*sizeof(int));
-
+    if (!local_ranks) {
+        return XCCL_ERR_NO_MEMORY;
+    }
     for (i=0; i<node_sbgp->group_size; i++) {
         r = node_sbgp->rank_map[i];
         if (is_rank_local(r, team, LOCAL_SOCKET)) {
@@ -88,6 +91,9 @@ static inline xccl_status_t sbgp_create_node(sbgp_t *sbgp)
     int node_rank = 0, node_size = 0, i;
     int *local_ranks;
     local_ranks = (int*)malloc(max_local_size*sizeof(int));
+    if (!local_ranks) {
+        return XCCL_ERR_NO_MEMORY;
+    }
     for (i=0; i<group_size; i++) {
         if (is_rank_local(i, team, LOCAL_NODE)) {
             if (node_size == max_local_size) {
@@ -109,6 +115,10 @@ static inline xccl_status_t sbgp_create_node(sbgp_t *sbgp)
         /* Rotate local_ranks array so that node_leader_rank_id becomes first
            in that array */
         sbgp->rank_map = (int*)malloc(node_size*sizeof(int));
+        if (!sbgp->rank_map) {
+            free(local_ranks);
+            return XCCL_ERR_NO_MEMORY;
+        }
         for (i=ctx_nlr; i<node_size; i++) {
             sbgp->rank_map[i - ctx_nlr] = local_ranks[i];
         }
@@ -130,18 +140,26 @@ static inline xccl_status_t sbgp_create_node(sbgp_t *sbgp)
 
 static xccl_status_t sbgp_create_node_leaders(sbgp_t *sbgp)
 {
-    xccl_hier_team_t *team = sbgp->hier_team;
+    xccl_hier_team_t *team   = sbgp->hier_team;
     xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx,
                                                xccl_hier_context_t);
-    int comm_size     = team->super.params.oob.size;
-    int comm_rank     = team->super.params.oob.rank;
-    int ctx_nlr       = ctx->node_leader_rank_id;
-    int i, c;
+    int comm_size        = team->super.params.oob.size;
+    int comm_rank        = team->super.params.oob.rank;
+    int ctx_nlr          = ctx->node_leader_rank_id;
     int i_am_node_leader = 0;
-    int nnodes = ctx->nnodes;
-    int *nl_array_1 = (int*)malloc(nnodes*sizeof(int));
-    int *nl_array_2 = (int*)malloc(nnodes*sizeof(int));
-    int n_node_leaders;
+    int nnodes           = ctx->nnodes;
+    int i, c, n_node_leaders;
+    int *nl_array_1, *nl_array_2;
+
+    nl_array_1 = (int*)malloc(nnodes*sizeof(int));
+    if (!nl_array_1) {
+        return XCCL_ERR_NO_MEMORY;
+    }
+    nl_array_2 = (int*)malloc(nnodes*sizeof(int));
+    if (!nl_array_2) {
+        free(nl_array_1);
+        return XCCL_ERR_NO_MEMORY;
+    }
 
     for (i=0; i<nnodes; i++) {
         nl_array_1[i] = 0;
@@ -187,18 +205,21 @@ static xccl_status_t sbgp_create_node_leaders(sbgp_t *sbgp)
 
 static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp)
 {
-    xccl_hier_team_t *team = sbgp->hier_team;
-    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx,
+    xccl_hier_team_t    *team = sbgp->hier_team;
+    xccl_hier_context_t *ctx  = ucs_derived_of(team->super.ctx,
                                                xccl_hier_context_t);
-    sbgp_t *node_sbgp      = &team->sbgps[SBGP_NODE];
-    int comm_size     = team->super.params.oob.size;
-    int comm_rank     = team->super.params.oob.rank;
-    int nlr            = team->node_leader_rank;
-    int i_am_socket_leader = (nlr == comm_rank);
-    int max_n_sockets = ctx->max_n_sockets;
-    int *sl_array = (int*)malloc(max_n_sockets*sizeof(int));
-    int n_socket_leaders = 1, i, nlr_sock_id;
+    sbgp_t *node_sbgp         = &team->sbgps[SBGP_NODE];
+    int    comm_size          = team->super.params.oob.size;
+    int    comm_rank          = team->super.params.oob.rank;
+    int    nlr                = team->node_leader_rank;
+    int    i_am_socket_leader = (nlr == comm_rank);
+    int    max_n_sockets      = ctx->max_n_sockets;
+    int    *sl_array          = (int*)malloc(max_n_sockets*sizeof(int));
+    int    n_socket_leaders   = 1, i, nlr_sock_id;
 
+    if (!sl_array) {
+        return XCCL_ERR_NO_MEMORY;
+    }
     for (i=0; i<max_n_sockets; i++) {
         sl_array[i] = INT_MAX;
     }
@@ -222,6 +243,10 @@ static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp)
         if (i_am_socket_leader) {
             int sl_rank;
             sbgp->rank_map = (int*)malloc(sizeof(int)*n_socket_leaders);
+            if (!sbgp->rank_map) {
+                free(sl_array);
+                return XCCL_ERR_NO_MEMORY;
+            }
             n_socket_leaders = 0;
             for (i=0; i<max_n_sockets; i++) {
                 if (sl_array[i] != INT_MAX) {
@@ -262,7 +287,8 @@ static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp)
 char* sbgp_type_str[SBGP_LAST] = {"undef", "numa", "socket", "node", "node_leaders",
                                   "socket_leaders", "numa_leaders", "flat"};
 
-static void print_sbgp(sbgp_t *sbgp) {
+static void print_sbgp(sbgp_t *sbgp)
+{
     int i;
     if (sbgp->group_rank == 0 && sbgp->status == SBGP_ENABLED) {
         printf("sbgp: %15s: group_size %4d, xccl_ranks=[ ",
@@ -275,7 +301,8 @@ static void print_sbgp(sbgp_t *sbgp) {
     }
 }
 
-xccl_status_t sbgp_create(xccl_hier_team_t *team, sbgp_type_t type) {
+xccl_status_t sbgp_create(xccl_hier_team_t *team, sbgp_type_t type)
+{
     xccl_status_t status;
     sbgp_t *sbgp = &team->sbgps[type];
     sbgp->hier_team = team;

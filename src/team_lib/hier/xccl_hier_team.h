@@ -13,9 +13,6 @@ typedef struct xccl_hier_pair {
     sbgp_t     *sbgp;
 } xccl_hier_pair_t;
 
-void xccl_hier_team_rank_data_free(xccl_hier_team_t *team);
-xccl_status_t xccl_hier_team_rank_data_init(xccl_hier_team_t *team);
-
 typedef enum {
     XCCL_HIER_PAIR_NODE_UCX,
     XCCL_HIER_PAIR_SOCKET_UCX,
@@ -28,11 +25,6 @@ typedef enum {
     XCCL_HIER_PAIR_NODE_LEADERS_VMC,
     XCCL_HIER_PAIR_LAST,
 } xccl_hier_pair_type_t;
-
-typedef struct xccl_hier_team_rank_data {
-    xccl_hier_proc_data_t pd;
-    int                   comm_rank;
-}xccl_hier_team_rank_data_t;
 
 typedef struct xccl_hier_team {
     xccl_tl_team_t             super;
