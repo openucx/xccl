@@ -79,6 +79,7 @@ static void compute_layout(xccl_hier_context_t *ctx) {
     int min_ppn = INT_MAX;
     int max_ppn = 0;
     int nnodes = 1;
+    int max_sockid = 0;
     int i, j;
     for (i=1; i<ctx_size; i++) {
         unsigned long hash = sorted[i].node_hash;
@@ -98,6 +99,9 @@ static void compute_layout(xccl_hier_context_t *ctx) {
         }
     }
     for (j=0; j<ctx_size; j++) {
+        if (ctx->procs[j].socketid > max_sockid) {
+            max_sockid = ctx->procs[j].socketid;
+        }
         if (ctx->procs[j].node_hash == current_hash) {
             ctx->procs[j].node_id = nnodes - 1;
         }
@@ -109,6 +113,7 @@ static void compute_layout(xccl_hier_context_t *ctx) {
     ctx->nnodes = nnodes;
     ctx->min_ppn = min_ppn;
     ctx->max_ppn = max_ppn;
+    ctx->max_n_sockets = max_sockid+1;
 }
 
 xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
