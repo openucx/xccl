@@ -15,6 +15,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+static ucs_config_field_t xccl_team_lib_hier_config_table[] = {
+    {"", "", NULL,
+     ucs_offsetof(xccl_team_lib_hier_config_t, super),
+     UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
+    },
+
+    {NULL}
+};
+
+
 static ucs_config_field_t xccl_tl_hier_context_config_table[] = {
     {"", "", NULL,
         ucs_offsetof(xccl_tl_hier_context_config_t, super),
@@ -77,6 +87,17 @@ static ucs_config_field_t xccl_tl_hier_context_config_table[] = {
 
     {NULL}
 };
+
+static xccl_status_t xccl_hier_open(xccl_team_lib_h self,
+                                    xccl_team_lib_config_t *config)
+{
+    xccl_team_lib_hier_t *tl  = ucs_derived_of(self, xccl_team_lib_hier_t);
+
+    tl->config.super.log_component.log_level = config->log_component.log_level;
+    sprintf(tl->config.super.log_component.name, "%s", tl->super.name);
+
+    return XCCL_OK;
+}
 
 static inline xccl_status_t
 xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
@@ -212,6 +233,12 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
     .super.name                  = "hier",
     .super.id                    = XCCL_TL_HIER,
     .super.priority              = 150,
+    .super.team_lib_config       = {
+        .name                    = "HIER tl",
+        .prefix                  = "TEAM_HIER_",
+        .table                   = xccl_team_lib_hier_config_table,
+        .size                    = sizeof(xccl_team_lib_hier_config_t),
+    },
     .super.tl_context_config     = {
         .name                    = "HIER tl context",
         .prefix                  = "TEAM_HIER_",
@@ -231,7 +258,7 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
     .super.team_create_post      = xccl_hier_team_create_post,
     .super.team_create_test      = xccl_hier_team_create_test,
     .super.team_destroy          = xccl_hier_team_destroy,
-    .super.team_lib_open         = NULL,
+    .super.team_lib_open         = xccl_hier_open,
     .super.collective_init       = xccl_hier_collective_init,
     .super.collective_post       = xccl_hier_collective_post,
     .super.collective_wait       = xccl_hier_collective_wait,
