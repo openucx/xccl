@@ -92,6 +92,8 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
         hier_team->sbgps[i].status = SBGP_DISABLED;
     }
 
+    /* SBGP_NODE has to be always created first, it is used to
+       create other sbgps: socket and socket_leaders */
     sbgp_create(hier_team, SBGP_NODE);
     sbgp_create(hier_team, SBGP_SOCKET);
     sbgp_create(hier_team, SBGP_NODE_LEADERS);
@@ -103,7 +105,7 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
                           XCCL_TL_UCX, XCCL_HIER_PAIR_SOCKET_LEADERS_UCX);
     xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
                           XCCL_TL_UCX, XCCL_HIER_PAIR_NODE_LEADERS_UCX);
-
+    
     if (ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled) {
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET], hier_team,
                               XCCL_TL_SHMSEG, XCCL_HIER_PAIR_SOCKET_SHMSEG);

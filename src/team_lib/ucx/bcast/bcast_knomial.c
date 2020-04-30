@@ -79,8 +79,8 @@ xccl_status_t xccl_ucx_bcast_knomial_start(xccl_ucx_collreq_t *req)
     size_t data_size = req->args.buffer_info.len;
     int group_rank   = req->team->params.oob.rank;
     int group_size   = req->team->params.oob.size;
-
-    xccl_ucx_trace("knomial bcast start");
+    xccl_ucx_debug("knomial bcast start: group_size %d, group_rank %d, data_size %zd",
+                   group_size, group_rank, data_size);
     memset(req->bcast_kn.reqs, 0, sizeof(req->bcast_kn.reqs));
     req->bcast_kn.radix   = 4;//TODO
     if (req->bcast_kn.radix > req->team->params.oob.size) {

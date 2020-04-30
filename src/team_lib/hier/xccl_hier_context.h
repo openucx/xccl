@@ -13,6 +13,7 @@ typedef struct xccl_hier_proc_data {
     unsigned long node_hash;
     int           node_id;
     int           socketid; //if process is bound to a socket
+    int           pid;
 } xccl_hier_proc_data_t;
 
 typedef struct xccl_hier_tl_t {
@@ -28,9 +29,11 @@ typedef struct xccl_hier_context {
     int                       nnodes;
     int                       max_ppn;
     int                       min_ppn;
+    int                       max_n_sockets;
+    int                       node_leader_rank_id;
     int                       use_sm_get_bcast;
-    size_t                    bcast_sm_get_thresh;
     int                       bcast_pipeline_depth;
+    size_t                    bcast_sm_get_thresh;
     size_t                    bcast_pipeline_thresh;
 } xccl_hier_context_t;
 

@@ -14,16 +14,40 @@
 xccl_status_t xccl_hier_collective_finalize(xccl_tl_coll_req_t *request);
 
 static inline int
-root_at_socket(int root, sbgp_t *sbgp) {
+find_root_by_rank(int root, sbgp_t *sbgp)
+{
     int i;
-    int socket_root_rank = -1;
+    int root_id = -1;
     for (i=0; i<sbgp->group_size; i++) {
         if (root == sbgp->rank_map[i]) {
-            socket_root_rank = i;
+            root_id = i;
             break;
         }
     }
-    return socket_root_rank;
+    return root_id;
+}
+
+enum {
+    ROOT_ID_SOCKET,
+    ROOT_ID_NODE,
+};
+
+static inline int
+find_root_by_id(int root_id, sbgp_t *sbgp, xccl_hier_proc_data_t *proc, int id_type)
+{
+    xccl_hier_team_t *team = sbgp->hier_team;
+    int i;
+    int root_idx = -1;
+    for (i=0; i<sbgp->group_size; i++) {
+        int wrank = xccl_hier_team_rank2ctx(team, sbgp->rank_map[i]);
+        int id = (id_type == ROOT_ID_SOCKET ? proc[wrank].socketid :
+                  proc[wrank].node_id);
+        if (id == root_id) {
+            root_idx = i;
+            break;
+        }
+    }
+    return root_idx;
 }
 
 xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
@@ -51,13 +75,16 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     schedule->super.super.status = XCCL_INPROGRESS;
     schedule->super.fs = NULL;
     schedule->dep_id = -1;
+
     if (rank == root) {
         schedule->dep_id = 0;
     }
     coll.alg.set_by_user = 0;
     if (have_node_leaders_group) {
         assert(top_sbgp == SBGP_NODE_LEADERS);
-        coll.root = ctx->procs[wroot].node_id;
+        coll.root = find_root_by_id(ctx->procs[wroot].node_id,
+                                    &team->sbgps[SBGP_NODE_LEADERS],
+                                    ctx->procs, ROOT_ID_NODE);
         schedule->super.args[c].xccl_coll = coll;
         schedule->super.args[c].pair = team->pairs[spec.pairs.node_leaders];
         if (coll.root != team->sbgps[SBGP_NODE_LEADERS].group_rank) {
@@ -67,7 +94,9 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     }
     if (have_socket_leaders_group) {
         if (root_on_local_node) {
-            coll.root = ctx->procs[wroot].socketid;
+            coll.root = find_root_by_id(ctx->procs[wroot].socketid,
+                                        &team->sbgps[SBGP_SOCKET_LEADERS],
+                                        ctx->procs, ROOT_ID_SOCKET);
         } else {
             coll.root = 0;
         }
@@ -87,7 +116,7 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     }
     if (have_socket_group) {
         if (root_on_local_socket) {
-            coll.root = root_at_socket(root, &team->sbgps[SBGP_SOCKET]);
+            coll.root = find_root_by_rank(root, &team->sbgps[SBGP_SOCKET]);
         } else {
             coll.root = 0;
         }

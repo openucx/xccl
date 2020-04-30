@@ -42,4 +42,6 @@ static inline int sbgp_rank2team(sbgp_t *sbgp, int rank)
 {
     return sbgp->rank_map[rank];
 }
+
+int xccl_hier_compare_proc_data(const void* a, const void* b);
 #endif

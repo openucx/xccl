@@ -159,6 +159,7 @@ static void xccl_constructor(void)
     /* xccl_print_libs(&xccl_static_lib); */
     gethostname(hostname, sizeof(hostname));
     xccl_local_proc_info.node_hash = xccl_str_hash(hostname);
+    xccl_local_proc_info.pid       = getpid();
     xccl_get_bound_socket_id(&xccl_local_proc_info.socketid);
 }
 

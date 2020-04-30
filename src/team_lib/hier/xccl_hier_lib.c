@@ -68,7 +68,13 @@ static ucs_config_field_t xccl_tl_hier_context_config_table[] = {
      ucs_offsetof(xccl_tl_hier_context_config_t, bcast_sm_get_thresh),
      UCS_CONFIG_TYPE_MEMUNITS
      },
-    
+
+    {"NODE_LEADER_RANK_ID", "0",
+     "",
+     ucs_offsetof(xccl_tl_hier_context_config_t, node_leader_rank_id),
+     UCS_CONFIG_TYPE_UINT
+     },
+
     {NULL}
 };
 

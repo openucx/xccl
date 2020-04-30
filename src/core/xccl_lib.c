@@ -16,8 +16,8 @@ UCS_CONFIG_REGISTER_TABLE(xccl_lib_config_table, "XCCL", NULL, xccl_lib_config_t
 #define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{                        \
         if ((params->field_mask & XCCL_LIB_PARAM_FIELD_ ## _CAP_FIELD) && \
             !(params-> _cap & tl->params. _cap)) {                        \
-            printf("Disqualifying team %s due to %s cap\n",               \
-                   tl->name, UCS_PP_QUOTE(_CAP_FIELD));                   \
+            xccl_info("Disqualifying team %s due to %s cap",              \
+                      tl->name, UCS_PP_QUOTE(_CAP_FIELD));                \
             continue;                                                     \
         }                                                                 \
     } while(0)
