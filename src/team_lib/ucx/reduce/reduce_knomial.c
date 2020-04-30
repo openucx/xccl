@@ -122,7 +122,7 @@ xccl_status_t xccl_ucx_reduce_knomial_start(xccl_ucx_collreq_t *req)
 
     xccl_ucx_trace("knomial reduce start");
     memset(req->reduce_kn.reqs, 0, sizeof(req->reduce_kn.reqs));
-    req->reduce_kn.radix   = 4;//TODO
+    req->reduce_kn.radix   = TEAM_UCX_CTX_REQ(req)->reduce_kn_radix;
     if (req->reduce_kn.radix > group_size) {
         req->reduce_kn.radix = group_size;
     }

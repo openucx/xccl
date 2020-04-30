@@ -20,6 +20,11 @@ typedef struct xccl_team_lib_ucx_config {
 typedef struct xccl_tl_ucx_context_config {
     xccl_tl_context_config_t super;
     ucs_config_names_array_t devices;
+    unsigned                 barrier_kn_radix;
+    unsigned                 bcast_kn_radix;
+    unsigned                 reduce_kn_radix;
+    unsigned                 allreduce_kn_radix;
+    unsigned                 num_to_probe;
 } xccl_tl_ucx_context_config_t;
 
 extern xccl_team_lib_ucx_t xccl_team_lib_ucx;
