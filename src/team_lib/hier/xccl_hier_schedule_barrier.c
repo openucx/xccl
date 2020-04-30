@@ -15,13 +15,14 @@
 xccl_status_t build_barrier_schedule(xccl_hier_team_t *team,
                                      xccl_hier_barrier_spec_t spec, coll_schedule_t **sched)
 {
-    int have_node_leaders_group = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
-    int have_socket_group = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
-    int have_socket_leaders_group = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
+    int have_node_leaders_group     = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
+    int have_socket_group           = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
+    int have_socket_leaders_group   = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
 
-    int node_leaders_group_exists = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
-    int socket_group_exists = (team->sbgps[SBGP_SOCKET].status != SBGP_NOT_EXISTS);
+    int node_leaders_group_exists   = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
+    int socket_group_exists         = (team->sbgps[SBGP_SOCKET].status != SBGP_NOT_EXISTS);
     int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
+
     sbgp_type_t top_sbgp = node_leaders_group_exists ? SBGP_NODE_LEADERS :
         (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
 
