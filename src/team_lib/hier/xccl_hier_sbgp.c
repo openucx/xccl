@@ -304,10 +304,13 @@ static void print_sbgp(sbgp_t *sbgp)
 xccl_status_t sbgp_create(xccl_hier_team_t *team, sbgp_type_t type)
 {
     xccl_status_t status;
-    sbgp_t *sbgp = &team->sbgps[type];
+    sbgp_t        *sbgp = &team->sbgps[type];
+
     sbgp->hier_team = team;
-    sbgp->type = type;
-    sbgp->status= SBGP_NOT_EXISTS;
+    sbgp->type      = type;
+    sbgp->status    = SBGP_NOT_EXISTS;
+
+
     switch(type) {
     case SBGP_NODE:
         status = sbgp_create_node(sbgp);
@@ -320,12 +323,13 @@ xccl_status_t sbgp_create(xccl_hier_team_t *team, sbgp_type_t type)
         break;
     case SBGP_NODE_LEADERS:
         assert(SBGP_DISABLED != team->sbgps[SBGP_NODE].status);
-        if (team->sbgps[SBGP_NODE].status == SBGP_ENABLED) {
-            status = sbgp_create_node_leaders(sbgp);
-        }
+        status = sbgp_create_node_leaders(sbgp);
         break;
     case SBGP_SOCKET_LEADERS:
-        status = sbgp_create_socket_leaders(sbgp);
+        assert(SBGP_DISABLED != team->sbgps[SBGP_NODE].status);
+        if (team->sbgps[SBGP_NODE].status == SBGP_ENABLED) {
+            status = sbgp_create_socket_leaders(sbgp);
+        }
         break;
     default:
         status = XCCL_ERR_NOT_IMPLEMENTED;
