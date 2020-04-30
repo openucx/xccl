@@ -16,6 +16,7 @@ typedef struct xccl_team_lib_mrail_config {
     xccl_tl_id_t           replicated_tl_id;
     unsigned               replicas_num;
     unsigned               threads_num;
+    unsigned               thread_poll_cnt;
 } xccl_team_lib_mrail_config_t;
 
 typedef struct xccl_tl_mrail_context_config {
@@ -28,6 +29,7 @@ typedef struct xccl_mrail_progress_thread {
     pthread_t       tid;
     pthread_mutex_t mutex;
     pthread_cond_t  cond;
+    unsigned        poll_cnt;
     int             close;
 } xccl_mrail_progress_thread_t;
 
@@ -67,7 +69,6 @@ typedef struct xccl_mrail_team {
 typedef struct xccl_mrail_coll_req {
     xccl_tl_coll_req_t super;
     xccl_mrail_team_t  team;
-//    xccl_coll_req_h    reqs[MAX_TLS_NUMBER];
     xccl_mrail_progress_request_t reqs[MAX_TLS_NUMBER];
     size_t             n_reqs;
 } xccl_mrail_coll_req_t;

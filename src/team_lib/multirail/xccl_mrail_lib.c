@@ -42,6 +42,11 @@ static ucs_config_field_t xccl_team_lib_mrail_config_table[] = {
      UCS_CONFIG_TYPE_UINT
     },
 
+    {"ASYNC_POLL_COUNT", "3",
+     "Number of poll count for async threads\n",
+     ucs_offsetof(xccl_team_lib_mrail_config_t, thread_poll_cnt),
+     UCS_CONFIG_TYPE_UINT
+     },
 
     {NULL}
 };
@@ -63,10 +68,9 @@ static ucs_config_field_t xccl_tl_mrail_context_config_table[] = {
 };
 
 static void *progress_context_async(void *progress_thread) {
-    int                           progress_count       = 3;
-    int                           i;
     xccl_mrail_progress_thread_t  *t = progress_thread;
     xccl_mrail_progress_request_t *req;
+    int                           i;
 
     while(1) {
         pthread_mutex_lock(&t->mutex);
@@ -88,7 +92,7 @@ static void *progress_context_async(void *progress_thread) {
                 }
             }
             i++;
-        } while((i < progress_count) && (!ucs_list_is_empty(&t->list)));
+        } while((i < t->poll_cnt) && (!ucs_list_is_empty(&t->list)));
 
         pthread_mutex_unlock(&t->mutex);
     }
@@ -104,6 +108,7 @@ static xccl_status_t xccl_mrail_open(xccl_team_lib_h self,
     xccl_team_lib_mrail_config_t *cfg = ucs_derived_of(config, xccl_team_lib_mrail_config_t);
     pthread_attr_t               attr;
     int                          i;
+    int                          rc;
 
     tl->config.super.log_component.log_level = cfg->super.log_component.log_level;
     sprintf(tl->config.super.log_component.name, "%s", tl->super.name);
@@ -114,15 +119,25 @@ static xccl_status_t xccl_mrail_open(xccl_team_lib_h self,
     tl->config.replicas_num     = cfg->replicas_num;
     tl->config.threads_num      = cfg->threads_num;
 
+    if (tl->config.threads_num > 0) {
+        /* No need to progress from main thread */
+        tl->super.team_context_progress = NULL;
+    }
+
     for(i = 0; i < tl->config.threads_num; i++) {
         pthread_mutex_init(&tl->threads[i].mutex, NULL);
         pthread_cond_init (&tl->threads[i].cond,  NULL);
         ucs_list_head_init(&tl->threads[i].list);
-        tl->threads[i].close = 0;
+        tl->threads[i].close    = 0;
+        tl->threads[i].poll_cnt = cfg->thread_poll_cnt;
 
         pthread_attr_init(&attr);
-        pthread_create(&tl->threads[i].tid, &attr, progress_context_async,
-                       &tl->threads[i]);
+        rc = pthread_create(&tl->threads[i].tid, &attr, progress_context_async,
+                            &tl->threads[i]);
+        if (rc != 0) {
+            xccl_mrail_error("failed to spawn thread (%d)", rc);
+            return XCCL_ERR_NO_MESSAGE;
+        }
     }
     xccl_mrail_debug("team opened");
 
@@ -360,11 +375,8 @@ xccl_status_t xccl_mrail_context_progress(xccl_tl_context_t *team_context)
     xccl_team_lib_mrail_t *mrail     = ucs_derived_of(team_context->lib,
                                                      xccl_team_lib_mrail_t);
 
-    // TODO: if there are no progress threads then progress here 
-    if (mrail->config.threads_num == 0) {
-        for(i = 0; i < mrail_ctx->n_tls; i++) {
-            xccl_context_progress(mrail_ctx->tls[i]);
-        }
+    for(i = 0; i < mrail_ctx->n_tls; i++) {
+        xccl_context_progress(mrail_ctx->tls[i]);
     }
 
     return XCCL_OK;
