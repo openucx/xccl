@@ -19,6 +19,9 @@ extern ucs_config_field_t xccl_lib_global_config_table[];
 
 xccl_status_t xccl_team_lib_finalize(xccl_team_lib_h lib)
 {
+    if (lib->team_lib_close) {
+        lib->team_lib_close(lib);
+    }
     dlclose(lib->dl_handle);
     return XCCL_OK;
 }
