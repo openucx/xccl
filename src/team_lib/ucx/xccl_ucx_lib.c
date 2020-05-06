@@ -41,6 +41,36 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
      ucs_offsetof(xccl_tl_ucx_context_config_t, devices), UCS_CONFIG_TYPE_STRING_ARRAY
     },
 
+    {"BARRIER_KN_RADIX", "4",
+     "Radix value for knomial barrier algorithm",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, barrier_kn_radix),
+     UCS_CONFIG_TYPE_UINT
+    },
+
+    {"BCAST_KN_RADIX", "4",
+     "Radix value for knomial bcast algorithm",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, bcast_kn_radix),
+     UCS_CONFIG_TYPE_UINT
+    },
+
+    {"REDUCE_KN_RADIX", "4",
+     "Radix value for knomial reduce algorithm",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, reduce_kn_radix),
+     UCS_CONFIG_TYPE_UINT
+    },
+
+    {"ALLREDUCE_KN_RADIX", "4",
+     "Radix value for knomial allreduce algorithm",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, allreduce_kn_radix),
+     UCS_CONFIG_TYPE_UINT
+    },
+
+    {"NUM_TO_PROBE", "10",
+     "Number of p2p request tests in a single poll loop",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, num_to_probe),
+     UCS_CONFIG_TYPE_UINT
+    },
+
     {NULL}
 };
 

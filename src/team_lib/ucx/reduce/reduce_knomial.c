@@ -17,13 +17,14 @@
 
 xccl_status_t xccl_ucx_reduce_knomial_progress(xccl_ucx_collreq_t *req)
 {
-    xccl_ucx_request_t **reqs  = req->reduce_kn.reqs;
-    xccl_ucx_team_t *team      = ucs_derived_of(req->team, xccl_ucx_team_t);
-    size_t         data_size   = req->args.buffer_info.len;
-    int            group_rank  = team->super.params.oob.rank;
-    int            group_size  = team->super.params.oob.size;
-    int            root        = req->args.root;
-    int            radix       = req->reduce_kn.radix;
+    xccl_ucx_request_t **reqs     = req->reduce_kn.reqs;
+    xccl_ucx_team_t    *team      = ucs_derived_of(req->team, xccl_ucx_team_t);
+    size_t             data_size  = req->args.buffer_info.len;
+    int                group_rank = team->super.params.oob.rank;
+    int                group_size = team->super.params.oob.size;
+    int                root       = req->args.root;
+    int                radix      = req->reduce_kn.radix;
+    int                max_polls  = TEAM_UCX_CTX(team)->num_to_probe;
     int vrank = (group_rank - root + group_size) % group_size;
     int dist  = req->reduce_kn.dist;
     void *dst_buffer, *src_buffer, *scratch;
@@ -67,46 +68,25 @@ xccl_status_t xccl_ucx_reduce_knomial_progress(xccl_ucx_collreq_t *req)
         dist *= radix;
     poll:
         if (req->reduce_kn.active_reqs) {
-            int n_completed;
-            int n_polls = 0;
-            int max_polls =  TEAM_UCX_CTX(team)->num_to_probe;
-            while (n_polls++ < max_polls) {
-                n_completed = 0;
-                xccl_ucx_progress(team);
-                for (i=0; i<req->reduce_kn.active_reqs; i++) {
-                    if (REQ_PROCESSED == reqs[i]) {
-                        n_completed++;
-                        continue;
-                    }
-                    if (NULL == reqs[i] || reqs[i]->status == XCCL_UCX_REQUEST_DONE) {
-                        if (req->reduce_kn.phase == 1) {
-                            xccl_mem_component_reduce((void*)((ptrdiff_t)scratch + i*data_size),
-                                                      src_buffer, dst_buffer,
-                                                      req->args.reduce_info.count,
-                                                      req->args.reduce_info.dt,
-                                                      req->args.reduce_info.op,
-                                                      req->mem_type);
-                            req->reduce_kn.data_buf = dst_buffer;
-                            src_buffer = dst_buffer;
-                        }
-                        n_completed++;
-                        if (reqs[i]) {
-                            xccl_ucx_req_free(reqs[i]);
-                        }
-                        reqs[i] = REQ_PROCESSED;
-                    }
-                }
-                if (n_completed == req->reduce_kn.active_reqs) {
-                    req->reduce_kn.active_reqs = 0;
-                    req->reduce_kn.phase       = 0;
-                    memset(reqs, 0, req->reduce_kn.active_reqs*sizeof(*reqs));
-                    break;
-                }
-            }
-            if (req->reduce_kn.active_reqs) {
+            if (XCCL_INPROGRESS == xccl_ucx_testall((xccl_ucx_team_t *)team,
+                                                    reqs, req->reduce_kn.active_reqs)) {
                 req->reduce_kn.dist = dist;
                 return XCCL_OK;
             }
+            if (req->reduce_kn.phase == 1) {
+                xccl_mem_component_reduce_multi(src_buffer, scratch, dst_buffer,
+                                                req->reduce_kn.active_reqs,
+                                                req->args.reduce_info.count,
+                                                data_size,
+                                                req->args.reduce_info.dt,
+                                                req->args.reduce_info.op,
+                                                req->mem_type);
+                req->reduce_kn.data_buf = dst_buffer;
+                src_buffer = dst_buffer;
+            }
+            req->reduce_kn.active_reqs = 0;
+            req->reduce_kn.phase       = 0;
+            memset(reqs, 0, req->reduce_kn.active_reqs*sizeof(*reqs));
         }
     }
     xccl_mem_component_free(req->reduce_kn.scratch, req->mem_type);
@@ -122,7 +102,7 @@ xccl_status_t xccl_ucx_reduce_knomial_start(xccl_ucx_collreq_t *req)
 
     xccl_ucx_trace("knomial reduce start");
     memset(req->reduce_kn.reqs, 0, sizeof(req->reduce_kn.reqs));
-    req->reduce_kn.radix   = 4;//TODO
+    req->reduce_kn.radix   = TEAM_UCX_CTX_REQ(req)->reduce_kn_radix;
     if (req->reduce_kn.radix > group_size) {
         req->reduce_kn.radix = group_size;
     }
