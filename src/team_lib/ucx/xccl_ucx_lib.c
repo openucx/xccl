@@ -289,7 +289,7 @@ static xccl_status_t xccl_ucx_lib_query(xccl_team_lib_h lib, xccl_tl_attr_t *tl_
     char   (*devices)[16];
     int    i, rc, p;
 
-    if (tl_attr->field_mask & XCCL_TL_ATRR_FIELD_CONTEXT_CREATE_MODE) {
+    if (tl_attr->field_mask & XCCL_TL_ATTR_FIELD_CONTEXT_CREATE_MODE) {
         tl_attr->context_create_mode = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL;
     }
 

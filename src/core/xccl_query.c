@@ -6,6 +6,7 @@
 
 #include <xccl_lib.h>
 #include <xccl_team_lib.h>
+#include <xccl_context.h>
 #include <stdlib.h>
 
 xccl_status_t xccl_get_tl_list(xccl_lib_h lib, xccl_tl_id_t **tls,
@@ -60,4 +61,20 @@ void xccl_free_tl_attr(xccl_tl_attr_t *attr) {
     if (attr->field_mask & XCCL_TL_ATTR_FILED_DEVICES) {
         free(attr->devices);
     }
+}
+
+xccl_status_t xccl_ctx_query(xccl_context_h ctx, xccl_ctx_attr_t *attr)
+{
+    int i;
+    if (attr->field_mask & XCCL_CTX_ATTR_FIELD_SUPPORTED_COLLS) {
+        attr->supported_colls = 0;
+        for (i = 0; i < ctx->n_tl_ctx; i++) {
+            attr->supported_colls |= ctx->tl_ctx[i]->lib->params.coll_types;
+        }
+    }
+    return XCCL_OK;
+}
+
+void xccl_free_ctx_attr(xccl_ctx_attr_t *attr)
+{
 }

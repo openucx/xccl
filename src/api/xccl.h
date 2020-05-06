@@ -80,7 +80,7 @@ typedef struct xccl_lib_params {
     unsigned reproducible;
     unsigned thread_mode;
     uint64_t team_usage;
-    size_t   coll_types;
+    uint64_t coll_types;
 } xccl_lib_params_t;
 
 /**
@@ -177,7 +177,7 @@ xccl_status_t xccl_get_tl_list(xccl_lib_h lib, xccl_tl_id_t **tls,
 void xccl_free_tl_list(xccl_tl_id_t *tls);
 
 enum xccl_tl_attr_field {
-    XCCL_TL_ATRR_FIELD_CONTEXT_CREATE_MODE = UCS_BIT(0),
+    XCCL_TL_ATTR_FIELD_CONTEXT_CREATE_MODE = UCS_BIT(0),
     XCCL_TL_ATTR_FIELD_DEVICES_COUNT       = UCS_BIT(1),
     XCCL_TL_ATTR_FILED_DEVICES             = UCS_BIT(2)
 };
@@ -196,8 +196,19 @@ typedef struct xccl_tl_attr {
 
 xccl_status_t xccl_tl_query(xccl_lib_h lib, xccl_tl_id_t *tl,
                             xccl_tl_attr_t *tl_attr);
-
 void xccl_free_tl_attr(xccl_tl_attr_t *attr);
+
+enum xccl_ctx_attr_field {
+    XCCL_CTX_ATTR_FIELD_SUPPORTED_COLLS = UCS_BIT(0),
+};
+
+typedef struct xccl_ctx_attr {
+    uint64_t  field_mask;
+    uint64_t  supported_colls;
+} xccl_ctx_attr_t;
+
+xccl_status_t xccl_ctx_query(xccl_context_h ctx, xccl_ctx_attr_t *attr);
+void xccl_free_ctx_attr(xccl_ctx_attr_t *attr);
 
 enum xccl_context_params_field {
     XCCL_CONTEXT_PARAM_FIELD_THREAD_MODE          = UCS_BIT(0),
