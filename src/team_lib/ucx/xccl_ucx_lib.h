@@ -25,6 +25,8 @@ typedef struct xccl_tl_ucx_context_config {
     unsigned                 reduce_kn_radix;
     unsigned                 allreduce_kn_radix;
     unsigned                 num_to_probe;
+    unsigned                 alltoall_pairwise_chunk;
+    int                      alltoall_pairwise_reverse;
 } xccl_tl_ucx_context_config_t;
 
 extern xccl_team_lib_ucx_t xccl_team_lib_ucx;
@@ -116,6 +118,11 @@ typedef struct xccl_ucx_collreq {
             int                active_reqs;
             int                radix;
         } barrier;
+        struct {
+            xccl_ucx_request_t **reqs;
+            int                n_sreqs;
+            int                n_rreqs;
+        } alltoall_pairwise;
     };
 } xccl_ucx_collreq_t;
 

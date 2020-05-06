@@ -20,6 +20,8 @@ typedef struct xccl_team_lib_ucx_context {
     unsigned              bcast_kn_radix;
     unsigned              allreduce_kn_radix;
     unsigned              reduce_kn_radix;
+    unsigned              alltoall_pairwise_chunk;
+    int                   alltoall_pairwise_reverse;
 } xccl_team_lib_ucx_context_t;
 
 xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,

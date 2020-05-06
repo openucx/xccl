@@ -8,6 +8,7 @@
 #include "xccl_ucx_team.h"
 #include "xccl_ucx_context.h"
 #include "allreduce/allreduce.h"
+#include "alltoall/alltoall.h"
 #include "reduce/reduce.h"
 #include "fanout/fanout.h"
 #include "fanin/fanin.h"
@@ -71,6 +72,19 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
      UCS_CONFIG_TYPE_UINT
     },
 
+    {"ALLTOALL_PAIRWISE_CHUNK", "1",
+     "Number of peers processed concurrently in the pairwise exchange alltoall algorithm. "
+     "0 - means chunk equals to team size",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, alltoall_pairwise_chunk),
+     UCS_CONFIG_TYPE_UINT
+    },
+
+    {"ALLTOALL_PAIRWISE_REVERSE", "0",
+     "Enables reverse ordering in the pairwise exchange alltoall algorithm",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, alltoall_pairwise_reverse),
+     UCS_CONFIG_TYPE_BOOL
+    },
+
     {NULL}
 };
 
@@ -110,6 +124,18 @@ xccl_ucx_allreduce_init(xccl_coll_op_args_t *coll_args,
     xccl_ucx_collreq_t *req;
     xccl_ucx_coll_base_init(coll_args, team, &req);
     req->start = xccl_ucx_allreduce_knomial_start;
+    (*request) = (xccl_tl_coll_req_t*)&req->super;
+    return XCCL_OK;
+}
+
+static inline xccl_status_t
+xccl_ucx_alltoall_init(xccl_coll_op_args_t *coll_args,
+                       xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
+{
+    //TODO alg selection for alltoall shoud happen here
+    xccl_ucx_collreq_t *req;
+    xccl_ucx_coll_base_init(coll_args, team, &req);
+    req->start = xccl_ucx_alltoall_pairwise_start;
     (*request) = (xccl_tl_coll_req_t*)&req->super;
     return XCCL_OK;
 }
@@ -215,6 +241,8 @@ xccl_ucx_collective_init(xccl_coll_op_args_t *coll_args,
     switch (coll_args->coll_type) {
     case XCCL_ALLREDUCE:
         return xccl_ucx_allreduce_init(coll_args, request, team);
+    case XCCL_ALLTOALL:
+        return xccl_ucx_alltoall_init(coll_args, request, team);
     case XCCL_BARRIER:
         return xccl_ucx_barrier_init(coll_args, request, team);
     case XCCL_REDUCE:
@@ -320,7 +348,8 @@ xccl_team_lib_ucx_t xccl_team_lib_ucx = {
     .super.params.team_usage     = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,
     .super.params.coll_types     = XCCL_COLL_CAP_BARRIER | XCCL_COLL_CAP_FANIN |
                                    XCCL_COLL_CAP_FANOUT | XCCL_COLL_CAP_REDUCE |
-                                   XCCL_COLL_CAP_BCAST | XCCL_COLL_CAP_ALLREDUCE,
+                                   XCCL_COLL_CAP_BCAST | XCCL_COLL_CAP_ALLREDUCE |
+                                   XCCL_COLL_CAP_ALLTOALL,
     .super.ctx_create_mode       = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create   = xccl_ucx_create_context,
     .super.team_context_progress = NULL,
