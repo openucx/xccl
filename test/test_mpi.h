@@ -17,5 +17,5 @@ int xccl_mpi_test_init(int argc, char **argv,
                        xccl_collective_cap_t coll_types);
 void xccl_mpi_test_finalize(void);
 int xccl_mpi_create_comm_nb(MPI_Comm comm, xccl_team_h *team);
-
+void xccl_mpi_test_progress(void);
 #endif
