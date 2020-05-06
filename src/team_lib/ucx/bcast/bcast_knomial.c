@@ -82,7 +82,7 @@ xccl_status_t xccl_ucx_bcast_knomial_start(xccl_ucx_collreq_t *req)
     xccl_ucx_debug("knomial bcast start: group_size %d, group_rank %d, data_size %zd",
                    group_size, group_rank, data_size);
     memset(req->bcast_kn.reqs, 0, sizeof(req->bcast_kn.reqs));
-    req->bcast_kn.radix   = 4;//TODO
+    req->bcast_kn.radix   = TEAM_UCX_CTX_REQ(req)->bcast_kn_radix;
     if (req->bcast_kn.radix > req->team->params.oob.size) {
         req->bcast_kn.radix = req->team->params.oob.size;
     }

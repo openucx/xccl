@@ -204,7 +204,7 @@ xccl_status_t xccl_ucx_allreduce_knomial_start(xccl_ucx_collreq_t *req)
 {
     size_t data_size     = req->args.buffer_info.len;
 
-    req->allreduce.radix = 4; //TODO
+    req->allreduce.radix = TEAM_UCX_CTX_REQ(req)->allreduce_kn_radix;
     if (req->allreduce.radix > req->team->params.oob.size) {
         req->allreduce.radix = req->team->params.oob.size;
     }

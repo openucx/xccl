@@ -167,7 +167,7 @@ completion:
 xccl_status_t xccl_ucx_barrier_knomial_start(xccl_ucx_collreq_t *req)
 {
     size_t data_size     = req->args.buffer_info.len;
-    req->barrier.radix = 4; //TODO
+    req->barrier.radix   = TEAM_UCX_CTX_REQ(req)->barrier_kn_radix;
     if (req->barrier.radix > req->team->params.oob.size) {
         req->barrier.radix = req->team->params.oob.size;
     }

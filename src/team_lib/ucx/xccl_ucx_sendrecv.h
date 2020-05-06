@@ -14,9 +14,6 @@ void xccl_ucx_send_completion_cb(void* request, ucs_status_t status);
 void xccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
                                      ucp_tag_recv_info_t *info);
 
-#define TEAM_UCX_CTX(_team) (ucs_derived_of((_team)->super.ctx, xccl_team_lib_ucx_context_t))
-#define TEAM_UCX_WORKER(_team) TEAM_UCX_CTX(_team)->ucp_worker
-
 #define TEAM_UCX_MAKE_TAG(_tag, _rank, _context_id)                 \
     ((((uint64_t) (_tag))        << TEAM_UCX_TAG_BITS_OFFSET)  |    \
      (((uint64_t) (_rank))       << TEAM_UCX_RANK_BITS_OFFSET) |    \
