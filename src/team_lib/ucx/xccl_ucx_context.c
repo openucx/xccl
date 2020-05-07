@@ -72,11 +72,14 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
     } else {
         ctx->ucp_eps = NULL;
     }
-    ctx->num_to_probe       = cfg->num_to_probe;
-    ctx->barrier_kn_radix   = cfg->barrier_kn_radix;
-    ctx->bcast_kn_radix     = cfg->bcast_kn_radix;
-    ctx->reduce_kn_radix    = cfg->reduce_kn_radix;
-    ctx->allreduce_kn_radix = cfg->allreduce_kn_radix;
+    ctx->num_to_probe              = cfg->num_to_probe;
+    ctx->barrier_kn_radix          = cfg->barrier_kn_radix;
+    ctx->bcast_kn_radix            = cfg->bcast_kn_radix;
+    ctx->reduce_kn_radix           = cfg->reduce_kn_radix;
+    ctx->allreduce_kn_radix        = cfg->allreduce_kn_radix;
+    ctx->alltoall_pairwise_chunk   = cfg->alltoall_pairwise_chunk;
+    ctx->alltoall_pairwise_reverse = cfg->alltoall_pairwise_reverse;
+
     ctx->next_cid           = 0;
     *context = &ctx->super;
     return XCCL_OK;

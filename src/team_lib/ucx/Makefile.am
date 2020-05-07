@@ -11,6 +11,9 @@ if HAVE_UCX
 allreduce = allreduce/allreduce.h \
 	allreduce/allreduce_knomial.c
 
+alltoall = alltoall/alltoall.h \
+	alltoall/alltoall_pairwise.c
+
 reduce = reduce.h \
 	reduce/reduce_linear.c \
 	reduce/reduce_knomial.c
@@ -39,6 +42,7 @@ sources = \
 	xccl_ucx_lib.c \
 	xccl_ucx_sendrecv.h \
 	${allreduce} \
+	${alltoall} \
 	${reduce} \
 	${fanin}\
 	${fanout}\

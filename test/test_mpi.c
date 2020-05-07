@@ -201,3 +201,8 @@ void xccl_mpi_test_finalize(void) {
     xccl_lib_cleanup(lib);
     MPI_Finalize();
 }
+
+void xccl_mpi_test_progress(void)
+{
+    xccl_context_progress(team_ctx);
+}
