@@ -132,12 +132,33 @@ static inline xccl_status_t
 xccl_ucx_alltoall_init(xccl_coll_op_args_t *coll_args,
                        xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
-    //TODO alg selection for alltoall shoud happen here
     xccl_ucx_collreq_t *req;
+    xccl_status_t      status = XCCL_OK;
+
     xccl_ucx_coll_base_init(coll_args, team, &req);
-    req->start = xccl_ucx_alltoall_pairwise_start;
+    if (!coll_args->alg.set_by_user) {
+        //TODO alg selection for alltoall shoud happen here
+        if (coll_args->buffer_info.src_buffer == coll_args->buffer_info.dst_buffer) {
+            req->start = xccl_ucx_alltoall_linear_shift_start;
+        } else {
+            req->start = xccl_ucx_alltoall_pairwise_start;
+        }
+    } else {
+        switch (coll_args->alg.id) {
+            case 0:
+                req->start = xccl_ucx_alltoall_pairwise_start;
+                break;
+            case 1:
+                req->start = xccl_ucx_alltoall_linear_shift_start;
+                break;
+            default:
+                free(req);
+                req = NULL;
+                status = XCCL_ERR_INVALID_PARAM;
+        }
+    }
     (*request) = (xccl_tl_coll_req_t*)&req->super;
-    return XCCL_OK;
+    return status;
 }
 
 static inline xccl_status_t

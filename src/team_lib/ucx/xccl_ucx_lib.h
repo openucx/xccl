@@ -123,6 +123,11 @@ typedef struct xccl_ucx_collreq {
             int                n_sreqs;
             int                n_rreqs;
         } alltoall_pairwise;
+        struct {
+            xccl_ucx_request_t *reqs[2];
+            void               *scratch;
+            int                step;
+        } alltoall_linear_shift;
     };
 } xccl_ucx_collreq_t;
 

@@ -12,7 +12,8 @@ allreduce = allreduce/allreduce.h \
 	allreduce/allreduce_knomial.c
 
 alltoall = alltoall/alltoall.h \
-	alltoall/alltoall_pairwise.c
+	alltoall/alltoall_pairwise.c \
+	alltoall/alltoall_linear_shift.c
 
 reduce = reduce.h \
 	reduce/reduce_linear.c \
