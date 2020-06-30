@@ -140,8 +140,7 @@ xccl_ucx_alltoall_init(xccl_coll_op_args_t *coll_args,
         //TODO alg selection for alltoall shoud happen here
         if (coll_args->buffer_info.src_buffer == coll_args->buffer_info.dst_buffer) {
             req->start = xccl_ucx_alltoall_linear_shift_start;
-        }
-        else {
+        } else {
             req->start = xccl_ucx_alltoall_pairwise_start;
         }
     } else {

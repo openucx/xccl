@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static inline get_peer(rank, size, step)
+static inline int get_peer(rank, size, step)
 {
     return (step - rank + size)%size;
 }
