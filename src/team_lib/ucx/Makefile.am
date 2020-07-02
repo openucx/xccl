@@ -15,6 +15,9 @@ alltoall = alltoall/alltoall.h \
 	alltoall/alltoall_pairwise.c \
 	alltoall/alltoall_linear_shift.c
 
+alltoallv = alltoallv/alltoallv.h \
+	alltoallv/alltoallv_pairwise.c
+
 reduce = reduce.h \
 	reduce/reduce_linear.c \
 	reduce/reduce_knomial.c
@@ -44,6 +47,7 @@ sources = \
 	xccl_ucx_sendrecv.h \
 	${allreduce} \
 	${alltoall} \
+	${alltoallv} \
 	${reduce} \
 	${fanin}\
 	${fanout}\

@@ -128,6 +128,12 @@ typedef struct xccl_ucx_collreq {
             void               *scratch;
             int                step;
         } alltoall_linear_shift;
+        struct {
+            xccl_ucx_request_t **reqs;
+            int                n_sreqs;
+            int                n_rreqs;
+        } alltoallv_pairwise;
+
     };
 } xccl_ucx_collreq_t;
 

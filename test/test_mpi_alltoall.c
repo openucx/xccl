@@ -43,10 +43,6 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank)
     if (0 != memcmp(rbuf, rbuf_mpi, count*sizeof(int))) {
 
         fprintf(stderr, "RST CHECK FAILURE at rank %d, count %d\n", rank, count);
-        for (i = 0 ; i < count; i++) {
-            printf("rank %d (%d) xccl %d mpi %d\n", rank, i,((int*)rbuf)[i], ((int*)rbuf_mpi)[i]);
-        }
-        printf("\n");
         status = 1;
     }
 
@@ -80,6 +76,7 @@ int main (int argc, char **argv)
     for (i=0; i<count_max*size; i++) {
         sbuf[i] = rank+1;
     }
+/* regular alltoall */
     for (count = count_min; count <= count_max; count *= 2) {
         for (i=0; i<iters; i++) {
             memset(rbuf, 0, sizeof(count*size*sizeof(int)));
@@ -90,6 +87,8 @@ int main (int argc, char **argv)
         }
         count *= 2;
     }
+
+/* in-place alltoall */
     for (count = count_min; count <= count_max; count *= 2) {
         for (i=0; i<iters; i++) {
             memcpy(rbuf,     sbuf, count*size*sizeof(int));
