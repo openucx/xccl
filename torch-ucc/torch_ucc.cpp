@@ -95,6 +95,18 @@ bool ProcessGroupUCC::WorkUCP::wait() {
 ProcessGroupUCC::WorkUCC::~WorkUCC()
 {
   xccl_collective_finalize(req);
+  if (send_lengths != NULL) {
+    delete send_lengths;
+  }
+  if (recv_lengths != NULL) {
+    delete recv_lengths;
+  }
+  if (send_offsets != NULL) {
+    delete send_offsets;
+  }
+  if (recv_offsets != NULL) {
+    delete recv_offsets;
+  }
 }
 
 bool ProcessGroupUCC::WorkUCC::isCompleted()
@@ -246,8 +258,10 @@ void ProcessGroupUCC::init_xccl()
 
   lib_params.coll_types = XCCL_COLL_CAP_BCAST |
                           XCCL_COLL_CAP_ALLREDUCE |
-                          XCCL_COLL_CAP_ALLTOALL;
+                          XCCL_COLL_CAP_ALLTOALL |
+                          XCCL_COLL_CAP_ALLTOALLV;
 
+  cfg = NULL;
   st = xccl_lib_init(&lib_params, cfg, &xccl_lib);
   if (st != XCCL_OK) {
     throw std::runtime_error("Failed to init xccl lib");
@@ -433,9 +447,8 @@ std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::broadcast(std::vector<at::T
   return std::make_shared<ProcessGroupUCC::WorkUCC>(request);
 }
 
-std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allreduce(
-    std::vector<at::Tensor>& tensors,
-    const AllreduceOptions& opts)
+std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allreduce(std::vector<at::Tensor>& tensors,
+                                                               const AllreduceOptions& opts)
 {
   xccl_coll_req_h request;
   
@@ -444,15 +457,13 @@ std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allreduce(
   return std::make_shared<ProcessGroupUCC::WorkUCC>(request);
 }
 
-std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allreduce_coalesced(
-      std::vector<at::Tensor>& tensors,
-      const AllreduceCoalescedOptions& opts) {
+std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allreduce_coalesced(std::vector<at::Tensor>& tensors,
+                                                                         const AllreduceCoalescedOptions& opts) {
   throw std::runtime_error("ProcessGroupUCC does not support allreduce_coalesced");
 }
 
-std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::reduce(
-    std::vector<at::Tensor>& tensors,
-    const ReduceOptions& opts)
+std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::reduce(std::vector<at::Tensor>& tensors,
+                                                            const ReduceOptions& opts)
 {
   xccl_coll_req_h request;
   
@@ -461,17 +472,15 @@ std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::reduce(
   return std::make_shared<ProcessGroupUCC::WorkUCC>(request);
 }
 
-std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allgather(
-    std::vector<std::vector<at::Tensor>>& outputTensors,
-    std::vector<at::Tensor>& inputTensors,
-    const AllgatherOptions& opts) {
+std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allgather(std::vector<std::vector<at::Tensor>>& outputTensors,
+                                                              std::vector<at::Tensor>& inputTensors,
+                                                              const AllgatherOptions& opts) {
   throw std::runtime_error("ProcessGroupUCC does not support allgather");
 }
 
-std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allgather_base(
-    at::Tensor& outputBuffer,
-    at::Tensor& inputBuffer,
-    const AllgatherOptions& opts) {
+std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allgather_base(at::Tensor& outputBuffer,
+                                                                    at::Tensor& inputBuffer,
+                                                                    const AllgatherOptions& opts) {
   throw std::runtime_error("ProcessGroupUCC does not support allgather_base");
 }
 
@@ -488,25 +497,49 @@ std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::barrier(
   return std::make_shared<ProcessGroupUCC::WorkUCC>(request);
 }
 
-std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::gather(
-    std::vector<std::vector<at::Tensor>>& outputTensors,
-    std::vector<at::Tensor>& inputTensors,
-    const GatherOptions& opts) {
+std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::gather(std::vector<std::vector<at::Tensor>>& outputTensors,
+                                                            std::vector<at::Tensor>& inputTensors,
+                                                            const GatherOptions& opts) {
   throw std::runtime_error("ProcessGroupUCC does not support gather");
 }
 
-std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::scatter(
-    std::vector<at::Tensor>& outputTensors,
-    std::vector<std::vector<at::Tensor>>& inputTensors,
-    const ScatterOptions& opts) {
+std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::scatter(std::vector<at::Tensor>& outputTensors,
+                                                             std::vector<std::vector<at::Tensor>>& inputTensors,
+                                                             const ScatterOptions& opts) {
   throw std::runtime_error("ProcessGroupUCC does not support scatter");
 }
 
-std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::reduce_scatter(
-    std::vector<at::Tensor>& outputTensors,
-    std::vector<std::vector<at::Tensor>>& inputTensors,
-    const ReduceScatterOptions& opts) {
+std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::reduce_scatter(std::vector<at::Tensor>& outputTensors,
+                                                                    std::vector<std::vector<at::Tensor>>& inputTensors,
+                                                                    const ReduceScatterOptions& opts) {
   throw std::runtime_error("ProcessGroupUCC does not support reduce_scatter");
+}
+
+
+int64_t computeLengthsAndOffsets(int group_size,
+                                 const std::vector<int64_t>& split_sizes,
+                                 const at::Tensor& tensor,
+                                 uint32_t* lengths,
+                                 uint32_t* offsets)
+{
+  bool equal_splits = false;
+  int64_t dim0_size = tensor.size(0);
+  int64_t row_size = (dim0_size ? tensor.numel() / dim0_size : 1);
+  int64_t split_size = 0;
+  int64_t offset = 0;
+
+  if (split_sizes.size() == 0) {
+    equal_splits = true;
+    split_size = tensor.size(0) / group_size;
+  }
+
+  for (int i = 0; i < group_size; i++) {
+    int64_t length = row_size * (equal_splits ? split_size : split_sizes[i]);
+    lengths[i] = length;
+    offsets[i] = offset;
+    offset += length;
+  }
+  return offset;
 }
 
 std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::alltoall_base(at::Tensor& outputTensor,
@@ -519,19 +552,42 @@ std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::alltoall_base(at::Tensor& o
   xccl_coll_op_args_t coll_args;
 
   if (outputSplitSizes.size() != 0 || inputSplitSizes.size() != 0) {
-    throw std::runtime_error("ProcessGroupUCC does not support alltoallv");
+    coll_args.coll_type              = XCCL_ALLTOALL;
+    coll_args.buffer_info.src_buffer = inputTensor.data_ptr();
+    coll_args.buffer_info.dst_buffer = outputTensor.data_ptr();
+    coll_args.buffer_info.len        = (inputTensor.element_size() * inputTensor.numel()) / size_;
+    coll_args.alg.set_by_user        = 0;
+    coll_args.tag                    = 123;
+    xccl_collective_init(&coll_args, &request, xccl_team);
+    xccl_collective_post(request);
+    return std::make_shared<ProcessGroupUCC::WorkUCC>(request);
+  } else {
+    uint32_t *send_lengths, *recv_lengths;
+    uint32_t *send_offsets, *recv_offsets;
+
+    send_lengths = new uint32_t[size_]; recv_lengths = new uint32_t[size_];
+    send_offsets = new uint32_t[size_]; recv_offsets = new uint32_t[size_];
+
+    computeLengthsAndOffsets(size_, inputSplitSizes, inputTensor, send_lengths, send_offsets);
+    computeLengthsAndOffsets(size_, outputSplitSizes, outputTensor, recv_lengths, recv_offsets);
+
+    coll_args.coll_type = XCCL_ALLTOALLV;
+    coll_args.buffer_info.src_buffer = inputTensor.data_ptr();
+    coll_args.buffer_info.src_displacements = send_offsets;
+    coll_args.buffer_info.src_counts        = send_lengths;
+    coll_args.buffer_info.src_datatype      = xccl_type_map.at(inputTensor.scalar_type());
+    coll_args.buffer_info.dst_buffer        = outputTensor.data_ptr();
+    coll_args.buffer_info.dst_displacements = send_offsets;
+    coll_args.buffer_info.dst_counts        = send_lengths;
+    coll_args.buffer_info.dst_datatype      = xccl_type_map.at(outputTensor.scalar_type());
+    coll_args.alg.set_by_user               = 0;
+    coll_args.tag                           = 123;
+    xccl_collective_init(&coll_args, &request, xccl_team);
+    xccl_collective_post(request);
+    return std::make_shared<ProcessGroupUCC::WorkUCC>(request, send_lengths, recv_lengths,
+                                                      send_offsets, recv_offsets);
   }
 
-  coll_args.coll_type              = XCCL_ALLTOALL;
-  coll_args.buffer_info.src_buffer = inputTensor.data_ptr();
-  coll_args.buffer_info.dst_buffer = outputTensor.data_ptr();
-  coll_args.buffer_info.len        = (inputTensor.element_size() * inputTensor.numel()) / size_;
-  coll_args.alg.set_by_user        = 0;
-  coll_args.tag                    = 123;
-  xccl_collective_init(&coll_args, &request, xccl_team);
-  xccl_collective_post(request);
-
-  return std::make_shared<ProcessGroupUCC::WorkUCC>(request);
 }
 
 std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::alltoall(std::vector<at::Tensor>& outputTensors,

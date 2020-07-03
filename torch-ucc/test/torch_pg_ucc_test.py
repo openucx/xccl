@@ -29,7 +29,7 @@ print("World size {}, rank {}".format(size, rank))
 dist.init_process_group(args.backend, rank=rank, world_size=size)
 
 t = torch.zeros([size]) + rank
-
+t2 = torch.zeros([size])
 use_cuda = args.use_cuda and torch.cuda.is_available()
 
 if (args.backend == "nccl") or use_cuda:
@@ -48,7 +48,11 @@ elif args.op == "allreduce":
 elif args.op == "reduce":
     dist.reduce(t, 0, op=dist.ReduceOp.SUM)
 elif args.op == "alltoall":
-    dist.all_to_all_single(t, t)
+    dist.all_to_all_single(t2, t)
+elif args.op == "alltoallv":
+    out_split =[1]*size
+    in_split = [1]*size
+    dist.all_to_all_single(t2, t, out_split, in_split)
 
 else:
     print("Incorrect operation")
