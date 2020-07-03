@@ -300,6 +300,8 @@ static inline int xccl_range_to_rank(xccl_ep_range_t range, int rank)
     case XCCL_EP_RANGE_CB:
         r = range.cb.cb(rank, range.cb.cb_ctx);
         break;
+    default:
+        r = -1;
     }
     return r;
 }
@@ -476,6 +478,8 @@ static inline size_t xccl_dt_size(xccl_dt_t dt) {
     case XCCL_DT_INT128:
     case XCCL_DT_UINT128:
         return 16;
+    default:
+        return 0;
     }
     return 0;
 }

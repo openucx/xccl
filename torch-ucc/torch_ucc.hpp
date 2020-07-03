@@ -41,7 +41,16 @@ class ProcessGroupUCC : public ProcessGroup {
 
   class WorkUCC : public ProcessGroup::Work {
    public:
-    WorkUCC(xccl_coll_req_h request):req(request) {}
+    WorkUCC(xccl_coll_req_h request, uint32_t *sl, uint32_t *rl, uint32_t *so, uint32_t *ro)
+                                     :req(request),
+                                     send_lengths(sl), recv_lengths(rl),
+                                     send_offsets(so), recv_offsets(ro) {}
+ 
+    WorkUCC(xccl_coll_req_h request):req(request)
+    {
+      send_lengths = recv_lengths = NULL;
+      send_offsets = recv_offsets = NULL;
+    }
 
     virtual ~WorkUCC();
     bool isCompleted() override;
@@ -50,6 +59,10 @@ class ProcessGroupUCC : public ProcessGroup {
 
    protected:
     xccl_coll_req_h req;
+    uint32_t     *send_lengths;
+    uint32_t     *recv_lengths;
+    uint32_t     *send_offsets;
+    uint32_t     *recv_offsets;
     friend class ProcessGroupUCC;
   };
 
