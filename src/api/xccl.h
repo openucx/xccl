@@ -55,6 +55,7 @@ typedef enum {
     XCCL_ALLREDUCE,
     XCCL_REDUCE,
     XCCL_ALLTOALL,
+    XCCL_ALLTOALLV,
     XCCL_FANIN,
     XCCL_FANOUT,
     XCCL_FANOUT_GET,
@@ -67,6 +68,7 @@ typedef enum {
     XCCL_COLL_CAP_ALLREDUCE  = UCS_BIT(XCCL_ALLREDUCE),
     XCCL_COLL_CAP_REDUCE     = UCS_BIT(XCCL_REDUCE),
     XCCL_COLL_CAP_ALLTOALL   = UCS_BIT(XCCL_ALLTOALL),
+    XCCL_COLL_CAP_ALLTOALLV  = UCS_BIT(XCCL_ALLTOALLV),
     XCCL_COLL_CAP_FANIN      = UCS_BIT(XCCL_FANIN),
     XCCL_COLL_CAP_FANOUT     = UCS_BIT(XCCL_FANOUT),
     XCCL_COLL_CAP_FANOUT_GET = UCS_BIT(XCCL_FANOUT_GET),
@@ -406,9 +408,15 @@ typedef struct xccl_reduce_info {
 } xccl_reduce_info_t;
 
 typedef struct xccl_coll_buffer_info {
-    void   *src_buffer;
-    void   *dst_buffer;
-    size_t len;
+    void      *src_buffer;
+    uint32_t  *src_counts;
+    uint32_t  *src_displacements;
+    xccl_dt_t src_datatype;
+    void      *dst_buffer;
+    uint32_t  *dst_counts;
+    uint32_t  *dst_displacements;
+    xccl_dt_t dst_datatype;
+    size_t    len;
 } xccl_coll_buffer_info_t;
 
 typedef struct xccl_coll_get_info {
