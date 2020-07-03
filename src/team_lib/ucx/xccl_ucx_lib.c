@@ -7,6 +7,7 @@
 #include "xccl_ucx_lib.h"
 #include "xccl_ucx_team.h"
 #include "xccl_ucx_context.h"
+#include "allgather/allgather.h"
 #include "allreduce/allreduce.h"
 #include "alltoall/alltoall.h"
 #include "alltoallv/alltoallv.h"
@@ -196,6 +197,32 @@ xccl_ucx_alltoallv_init(xccl_coll_op_args_t *coll_args,
 }
 
 static inline xccl_status_t
+xccl_ucx_allgather_init(xccl_coll_op_args_t *coll_args,
+                        xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
+{
+    xccl_ucx_collreq_t *req;
+    xccl_status_t      status = XCCL_OK;
+
+    xccl_ucx_coll_base_init(coll_args, team, &req);
+    if (!coll_args->alg.set_by_user) {
+        //TODO alg selection for allgather should happen here
+        req->start = xccl_ucx_allgather_ring_start;
+    } else {
+        switch (coll_args->alg.id) {
+            case 0:
+                req->start = xccl_ucx_allgather_ring_start;
+                break;
+            default:
+                free(req);
+                req = NULL;
+                status = XCCL_ERR_INVALID_PARAM;
+        }
+    }
+    (*request) = (xccl_tl_coll_req_t*)&req->super;
+    return status;
+}
+
+static inline xccl_status_t
 xccl_ucx_reduce_init(xccl_coll_op_args_t *coll_args,
                      xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
@@ -294,6 +321,8 @@ xccl_ucx_collective_init(xccl_coll_op_args_t *coll_args,
                          xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     switch (coll_args->coll_type) {
+    case XCCL_ALLGATHER:
+        return xccl_ucx_allgather_init(coll_args, request, team);
     case XCCL_ALLREDUCE:
         return xccl_ucx_allreduce_init(coll_args, request, team);
     case XCCL_ALLTOALL:
@@ -406,7 +435,8 @@ xccl_team_lib_ucx_t xccl_team_lib_ucx = {
     .super.params.coll_types     = XCCL_COLL_CAP_BARRIER | XCCL_COLL_CAP_FANIN |
                                    XCCL_COLL_CAP_FANOUT | XCCL_COLL_CAP_REDUCE |
                                    XCCL_COLL_CAP_BCAST | XCCL_COLL_CAP_ALLREDUCE |
-                                   XCCL_COLL_CAP_ALLTOALL | XCCL_COLL_CAP_ALLTOALLV,
+                                   XCCL_COLL_CAP_ALLTOALL | XCCL_COLL_CAP_ALLTOALLV |
+                                   XCCL_COLL_CAP_ALLGATHER,
     .super.ctx_create_mode       = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create   = xccl_ucx_create_context,
     .super.team_context_progress = NULL,

@@ -133,6 +133,10 @@ typedef struct xccl_ucx_collreq {
             int                n_sreqs;
             int                n_rreqs;
         } alltoallv_pairwise;
+        struct {
+            xccl_ucx_request_t *reqs[2];
+            int                step;
+        } allgather_ring;
 
     };
 } xccl_ucx_collreq_t;
