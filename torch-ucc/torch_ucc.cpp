@@ -95,18 +95,6 @@ bool ProcessGroupUCC::WorkUCP::wait() {
 ProcessGroupUCC::WorkUCC::~WorkUCC()
 {
   xccl_collective_finalize(req);
-  if (send_lengths != NULL) {
-    delete send_lengths;
-  }
-  if (recv_lengths != NULL) {
-    delete recv_lengths;
-  }
-  if (send_offsets != NULL) {
-    delete send_offsets;
-  }
-  if (recv_offsets != NULL) {
-    delete recv_offsets;
-  }
 }
 
 bool ProcessGroupUCC::WorkUCC::isCompleted()
@@ -114,6 +102,7 @@ bool ProcessGroupUCC::WorkUCC::isCompleted()
   xccl_status_t st;
 
   st = xccl_collective_test(req);
+  
   return st != XCCL_INPROGRESS;
 }
 
@@ -122,10 +111,19 @@ bool ProcessGroupUCC::WorkUCC::isSuccess() const
   return true;
 }
 
-bool ProcessGroupUCC::WorkUCC::wait() {
+bool ProcessGroupUCC::WorkUCC::wait()
+{
   xccl_status_t st;
 
   st = xccl_collective_wait(req);
+
+  if (args.coll_type == XCCL_ALLGATHER) {
+    for (size_t i = 0; i < output_data_vec.size(); ++i) {
+      (output_data_vec)[i].copy_(flat_tensor[i]);
+    }
+
+  }
+
   return st == XCCL_OK;
 }
 
@@ -474,8 +472,28 @@ std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::reduce(std::vector<at::Tens
 
 std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allgather(std::vector<std::vector<at::Tensor>>& outputTensors,
                                                               std::vector<at::Tensor>& inputTensors,
-                                                              const AllgatherOptions& opts) {
-  throw std::runtime_error("ProcessGroupUCC does not support allgather");
+                                                              const AllgatherOptions& opts)
+{
+  auto req     = std::make_shared<ProcessGroupUCC::WorkUCC>();
+  auto &tensor = inputTensors[0];
+  xccl_coll_op_args_t coll_args;
+  xccl_coll_req_h     request;
+
+  req->flat_tensor = newLikeFlat(outputTensors[0]);
+  req->output_data_vec = (outputTensors[0]);
+  coll_args.coll_type              = XCCL_ALLGATHER;
+  coll_args.buffer_info.src_buffer = tensor.data_ptr();
+  coll_args.buffer_info.dst_buffer = req->flat_tensor.data_ptr();
+  coll_args.buffer_info.len        = tensor.numel() * tensor.element_size() * size_;
+  coll_args.alg.set_by_user        = 0;
+  coll_args.tag                    = 123;
+
+  xccl_collective_init(&coll_args, &request, xccl_team);
+  xccl_collective_post(request);
+  req->args = coll_args;
+  req->req = request;
+
+  return req;
 }
 
 std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::allgather_base(at::Tensor& outputBuffer,
@@ -548,46 +566,47 @@ std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::alltoall_base(at::Tensor& o
                                                                    std::vector<int64_t>& inputSplitSizes,
                                                                    const AllToAllOptions& opts)
 {
-  xccl_coll_req_h request;
+  auto req = std::make_shared<ProcessGroupUCC::WorkUCC>();
+  xccl_coll_req_h     request;
   xccl_coll_op_args_t coll_args;
 
-  if (outputSplitSizes.size() != 0 || inputSplitSizes.size() != 0) {
+  if ((outputSplitSizes.size() == 0) || (inputSplitSizes.size() == 0)) {
     coll_args.coll_type              = XCCL_ALLTOALL;
     coll_args.buffer_info.src_buffer = inputTensor.data_ptr();
     coll_args.buffer_info.dst_buffer = outputTensor.data_ptr();
-    coll_args.buffer_info.len        = (inputTensor.element_size() * inputTensor.numel()) / size_;
+    coll_args.buffer_info.len        = inputTensor.element_size() * inputTensor.numel() / size_;
     coll_args.alg.set_by_user        = 0;
     coll_args.tag                    = 123;
-    xccl_collective_init(&coll_args, &request, xccl_team);
-    xccl_collective_post(request);
-    return std::make_shared<ProcessGroupUCC::WorkUCC>(request);
   } else {
-    uint32_t *send_lengths, *recv_lengths;
-    uint32_t *send_offsets, *recv_offsets;
-
-    send_lengths = new uint32_t[size_]; recv_lengths = new uint32_t[size_];
-    send_offsets = new uint32_t[size_]; recv_offsets = new uint32_t[size_];
+    req->scratch.resize(4 * size_);
+    uint32_t *send_lengths = req->scratch.data();
+    uint32_t *recv_lengths = (uint32_t*)((ptrdiff_t)send_lengths + 1*size_*sizeof(uint32_t));
+    uint32_t *send_offsets = (uint32_t*)((ptrdiff_t)send_lengths + 2*size_*sizeof(uint32_t));
+    uint32_t *recv_offsets = (uint32_t*)((ptrdiff_t)send_lengths + 3*size_*sizeof(uint32_t));
 
     computeLengthsAndOffsets(size_, inputSplitSizes, inputTensor, send_lengths, send_offsets);
     computeLengthsAndOffsets(size_, outputSplitSizes, outputTensor, recv_lengths, recv_offsets);
 
-    coll_args.coll_type = XCCL_ALLTOALLV;
-    coll_args.buffer_info.src_buffer = inputTensor.data_ptr();
+    coll_args.coll_type                     = XCCL_ALLTOALLV;
+    coll_args.buffer_info.src_buffer        = inputTensor.data_ptr();
     coll_args.buffer_info.src_displacements = send_offsets;
     coll_args.buffer_info.src_counts        = send_lengths;
     coll_args.buffer_info.src_datatype      = xccl_type_map.at(inputTensor.scalar_type());
     coll_args.buffer_info.dst_buffer        = outputTensor.data_ptr();
-    coll_args.buffer_info.dst_displacements = send_offsets;
-    coll_args.buffer_info.dst_counts        = send_lengths;
+    coll_args.buffer_info.dst_displacements = recv_offsets;
+    coll_args.buffer_info.dst_counts        = recv_lengths;
     coll_args.buffer_info.dst_datatype      = xccl_type_map.at(outputTensor.scalar_type());
     coll_args.alg.set_by_user               = 0;
     coll_args.tag                           = 123;
-    xccl_collective_init(&coll_args, &request, xccl_team);
-    xccl_collective_post(request);
-    return std::make_shared<ProcessGroupUCC::WorkUCC>(request, send_lengths, recv_lengths,
-                                                      send_offsets, recv_offsets);
   }
 
+  xccl_collective_init(&coll_args, &request, xccl_team);
+  xccl_collective_post(request);
+
+  req->args = coll_args;
+  req->req  = request;
+
+  return req;
 }
 
 std::shared_ptr<ProcessGroup::Work> ProcessGroupUCC::alltoall(std::vector<at::Tensor>& outputTensors,

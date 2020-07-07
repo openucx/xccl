@@ -37,7 +37,7 @@ xccl_status_t xccl_ucx_alltoall_pairwise_progress(xccl_ucx_collreq_t *req)
     xccl_ucx_request_t **reqs = req->alltoall_pairwise.reqs;
     int                 chunk = TEAM_UCX_CTX_REQ(req)->alltoall_pairwise_chunk;
     int               reverse = TEAM_UCX_CTX_REQ(req)->alltoall_pairwise_reverse;
-    int             max_polls = TEAM_UCX_CTX(team)->num_to_probe;    
+    int             max_polls = TEAM_UCX_CTX(team)->num_to_probe;
     int            total_reqs = (chunk > group_size - 1 || chunk <= 0) ?
         group_size - 1 : chunk;
     int step, peer, released_slot, n_polls;
