@@ -28,7 +28,8 @@ torch.cuda.set_device(rank)
 print("World size {}, rank {}".format(size, rank))
 dist.init_process_group(args.backend, rank=rank, world_size=size)
 
-t = torch.zeros([size]) + rank
+t = torch.zeros([size]) + rank + 1
+t1 = torch.zeros([size])
 t2 = torch.zeros([size])
 use_cuda = args.use_cuda and torch.cuda.is_available()
 
@@ -53,11 +54,13 @@ elif args.op == "alltoallv":
     out_split =[1]*size
     in_split = [1]*size
     dist.all_to_all_single(t2, t, out_split, in_split)
+elif args.op == "allgather":
+    dist.all_gather([t1, t2], t)
 
 else:
     print("Incorrect operation")
     sys.exit(1)
 
-dist.barrier()
-print('rank ', rank, ':', t)
+#dist.barrier()
+print('rank ', rank, ':', t, ":", t1, ":", t2)
 dist.destroy_process_group()

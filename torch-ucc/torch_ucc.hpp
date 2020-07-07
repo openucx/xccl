@@ -41,16 +41,8 @@ class ProcessGroupUCC : public ProcessGroup {
 
   class WorkUCC : public ProcessGroup::Work {
    public:
-    WorkUCC(xccl_coll_req_h request, uint32_t *sl, uint32_t *rl, uint32_t *so, uint32_t *ro)
-                                     :req(request),
-                                     send_lengths(sl), recv_lengths(rl),
-                                     send_offsets(so), recv_offsets(ro) {}
- 
-    WorkUCC(xccl_coll_req_h request):req(request)
-    {
-      send_lengths = recv_lengths = NULL;
-      send_offsets = recv_offsets = NULL;
-    }
+    WorkUCC(xccl_coll_req_h request): req(request){}
+    WorkUCC(){}
 
     virtual ~WorkUCC();
     bool isCompleted() override;
@@ -58,11 +50,11 @@ class ProcessGroupUCC : public ProcessGroup {
     bool wait() override;
 
    protected:
-    xccl_coll_req_h req;
-    uint32_t     *send_lengths;
-    uint32_t     *recv_lengths;
-    uint32_t     *send_offsets;
-    uint32_t     *recv_offsets;
+    xccl_coll_req_h         req;
+    xccl_coll_op_args_t     args;
+    std::vector<uint32_t>   scratch;
+    std::vector<at::Tensor> output_data_vec;
+    at::Tensor              flat_tensor;
     friend class ProcessGroupUCC;
   };
 

@@ -63,7 +63,7 @@ xccl_status_t xccl_ucx_allgather_ring_start(xccl_ucx_collreq_t *req)
     ptrdiff_t rbuf       = (ptrdiff_t)req->args.buffer_info.dst_buffer;
 
     if (sbuf != rbuf) {
-        xccl_ucx_send_recv((void*)(sbuf + data_size*group_rank), data_size,
+        xccl_ucx_send_recv((void*)(sbuf), data_size,
                             group_rank, req->tag,
                             (void*)(rbuf + data_size*group_rank), data_size,
                             group_rank, req->tag,
