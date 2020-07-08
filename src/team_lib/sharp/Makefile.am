@@ -21,6 +21,7 @@ component_install = xccl_team_lib_sharp.la
 xccl_team_lib_sharp_la_SOURCES =$(sources)
 xccl_team_lib_sharp_la_CPPFLAGS = $(AM_CPPFLAGS) $(SHARP_CPPFLAGS)
 xccl_team_lib_sharp_la_LDFLAGS = -module -avoid-version $(SHARP_LDFLAGS)
+xccl_team_lib_sharp_la_LIBADD = $(XCCL_TOP_BUILDDIR)/src/libxccl.la
 
 pkglib_LTLIBRARIES = $(component_install)
 endif

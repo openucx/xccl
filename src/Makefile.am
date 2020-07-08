@@ -3,6 +3,7 @@
 #
 
 SUBDIRS =              \
+    .                  \
 	team_lib/hier      \
 	team_lib/multirail
 

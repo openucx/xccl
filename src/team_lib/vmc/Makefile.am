@@ -18,5 +18,6 @@ component_install = xccl_team_lib_vmc.la
 xccl_team_lib_vmc_la_SOURCES =$(sources)
 xccl_team_lib_vmc_la_CPPFLAGS = $(AM_CPPFLAGS) $(VMC_CPPFLAGS)
 xccl_team_lib_vmc_la_LDFLAGS = -module -avoid-version  $(VMC_LDFLAGS)
+xccl_team_lib_vmc_la_LIBADD = $(XCCL_TOP_BUILDDIR)/src/libxccl.la
 pkglib_LTLIBRARIES = $(component_install)
 endif
