@@ -28,5 +28,6 @@ component_install = xccl_team_lib_hier.la
 xccl_team_lib_hier_la_SOURCES =$(sources)
 xccl_team_lib_hier_la_CPPFLAGS = $(AM_CPPFLAGS)
 xccl_team_lib_hier_la_LDFLAGS = -module -avoid-version
+xccl_team_lib_hier_la_LIBADD = $(XCCL_TOP_BUILDDIR)/src/libxccl.la
 pkglib_LTLIBRARIES = $(component_install)
 

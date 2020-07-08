@@ -36,6 +36,8 @@ use_cuda = args.use_cuda and torch.cuda.is_available()
 if (args.backend == "nccl") or use_cuda:
     print("Using cuda tensor")
     t = t.cuda()
+    t1 = t1.cuda()
+    t2 = t2.cuda()
 
 if args.op == "p2p":
     if rank == 0:

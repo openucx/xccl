@@ -102,12 +102,12 @@ AC_MSG_RESULT([VMC support: $vmc_happy])
 AC_ARG_WITH([cuda],
             AC_HELP_STRING([--with-cuda=PATH], [Path to non-standard CUDA installation]),
             [AS_IF([test -d $withval/lib64], [cuda_libdir="lib64"], [cuda_libdir="lib"])
-             CUDA_CFLAGS="-I$withval/include"
-             CUDA_LDFLAGS="-L$withval/$cuda_libdir"
+             AC_SUBST(CUDA_CPPFLAGS, "-I$withval/include")
+             AC_SUBST(CUDA_LDFLAGS, "-L$withval/$cuda_libdir")
              cuda_happy="yes"],
             [cuda_happy="no"])
 AM_CONDITIONAL([HAVE_CUDA], [test "x$cuda_happy" != xno])
-AC_MSG_RESULT([CUDA support: $cuda_happy])
+AC_MSG_RESULT([CUDA support: $cuda_happy; $CUDA_CPPFLAGS $CUDA_LDFLAGS])
 
 includes="-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core"
 CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes"

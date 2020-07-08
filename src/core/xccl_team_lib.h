@@ -36,8 +36,6 @@ typedef struct xccl_tl_context_config {
 
 extern ucs_config_field_t xccl_tl_context_config_table[];
 
-
-
 typedef struct xccl_tl_mem_handle*   xccl_tl_mem_h;
 typedef struct xccl_team_lib {
     char*                          name;
