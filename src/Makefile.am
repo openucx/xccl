@@ -47,6 +47,7 @@ libxccl_la_SOURCES =       \
 	core/xccl_query.c      \
 	core/xccl_global_opts.c\
 	core/xccl_team_lib.c   \
+	core/xccl_schedule.c   \
 	utils/socketid.c       \
 	utils/mem_component.c
 
