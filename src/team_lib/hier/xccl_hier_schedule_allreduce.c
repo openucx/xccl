@@ -135,6 +135,7 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
         return XCCL_ERR_NO_MEMORY;
     }
     schedule->tasks = (xccl_hier_task_t*)malloc(8*sizeof(xccl_hier_task_t));
+    schedule->dep = 0;
     coll.root = 0;
     coll.alg.set_by_user = 0;
 
@@ -186,7 +187,7 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
         c++;
     }
 
-    ucc_schedule_init(&schedule->super);
+    ucc_schedule_init(&schedule->super, team->super.ctx);
     for (i = 0; i < c; i++) {
         ucc_coll_task_init(&schedule->tasks[i].super);
         schedule->tasks[i].super.handlers[UCC_EVENT_PROGRESS]  = hier_seq_task_progress_handler;

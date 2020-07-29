@@ -206,7 +206,7 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
     }
 
     schedule->tasks = (xccl_hier_task_t*)malloc(8*sizeof(xccl_hier_task_t));
-    ucc_schedule_init(&schedule->super);
+    ucc_schedule_init(&schedule->super, team->super.ctx);
 
     // schedule->super.super.hier_team = team;
     // schedule->super.super.type = XCCL_COLL_SCHED_SINGLE_DEP;

@@ -1,5 +1,12 @@
+#ifndef XCCL_SCHEDULE_H
+#define XCCL_SCHEDULE_H
+
 #include <api/xccl.h>
 #include <string.h>
+
+#if defined(CENTRAL_PROGRESS) && !defined(PTRARRAY) && !defined(LFDSA)
+#error DEFINE EITHER "PTRARRAY" or "LFDSA"
+#endif
 
 #define MAX_LISTENERS 16
 
@@ -48,9 +55,12 @@ typedef struct ucc_coll_task {
     ucc_task_event_handler_p handlers[UCC_EVENT_LAST];
 } ucc_coll_task_t;
 
+typedef struct xccl_tl_context xccl_tl_context_t;
 typedef struct ucc_schedule {
     ucc_coll_task_t    super;
     int                n_completed_tasks;
+    xccl_tl_context_t  *tl_ctx;
+    volatile int busy;
 } ucc_schedule_t;
 
 void ucc_event_manager_init(ucc_event_manager_t *em);
@@ -60,7 +70,10 @@ void ucc_event_manager_subscribe(ucc_event_manager_t *em,
 void ucc_event_manager_notify(ucc_event_manager_t *em, ucc_event_t event);
 void ucc_coll_task_init(ucc_coll_task_t *task);
 void schedule_completed_handler(ucc_coll_task_t *task);
-void ucc_schedule_init(ucc_schedule_t *schedule);
+void ucc_schedule_init(ucc_schedule_t *schedule, xccl_tl_context_t *tl_ctx);
 void ucc_schedule_add_task(ucc_schedule_t *schedule, ucc_coll_task_t *task);
 void ucc_schedule_start(ucc_schedule_t *schedule);
 ucc_status_t ucc_schedule_progress(ucc_schedule_t *schedule);
+
+
+#endif

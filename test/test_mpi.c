@@ -1,8 +1,9 @@
 #include "test_mpi.h"
+#include <assert.h>
 
 xccl_team_h xccl_world_team;
 static xccl_lib_h     lib;
-static xccl_context_h team_ctx;
+xccl_context_h team_ctx;
 
 typedef struct xccl_test_oob_allgather_req {
     xccl_ep_range_t range;
@@ -138,9 +139,10 @@ int xccl_mpi_test_init(int argc, char **argv,
     uint64_t i;
     int      j;
     xccl_tl_id_t *tl_ids;
-    unsigned     tl_count;
+    unsigned     tl_count, provided;
 
-    MPI_Init(&argc, &argv);
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+    assert(provided == MPI_THREAD_MULTIPLE);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 

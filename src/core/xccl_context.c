@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include <xccl_context.h>
+#include <xccl_progress_queue.h>
 #include <xccl_ucs.h>
 #include <ucs/sys/math.h>
 #include <stdlib.h>
@@ -62,6 +63,7 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
             tlib = lib->libs[tl_index];
             if (tlib->team_context_create(tlib, &ctx->params, config->configs[tl_index], &tl_ctx) == XCCL_OK) {
                 ctx->tl_ctx[ctx->n_tl_ctx++] = tl_ctx;
+                xccl_ctx_progress_queue_init(&tl_ctx->pq);
             }
         }
     }
@@ -87,6 +89,9 @@ xccl_status_t xccl_context_progress(xccl_context_h context)
             if (status != XCCL_OK) {
                 return status;
             }
+#ifdef CENTRAL_PROGRESS
+            xccl_ctx_progress_queue(tl_ctx);
+#endif
         }
     }
 

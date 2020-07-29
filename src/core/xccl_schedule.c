@@ -1,4 +1,6 @@
 #include <xccl_schedule.h>
+#include <xccl_team_lib.h>
+#include <xccl_progress_queue.h>
 
 void ucc_event_manager_init(ucc_event_manager_t *em)
 {
@@ -44,11 +46,13 @@ void schedule_completed_handler(ucc_coll_task_t *task)
     }
 }
 
-void ucc_schedule_init(ucc_schedule_t *schedule)
+void ucc_schedule_init(ucc_schedule_t *schedule, xccl_tl_context_t *tl_ctx)
 {
     ucc_coll_task_init(&schedule->super);
     schedule->super.handlers[UCC_EVENT_COMPLETED] = schedule_completed_handler;
     schedule->n_completed_tasks = 0;
+    schedule->busy = 0;
+    schedule->tl_ctx = tl_ctx;
 }
 
 
@@ -61,6 +65,9 @@ void ucc_schedule_add_task(ucc_schedule_t *schedule, ucc_coll_task_t *task)
 void ucc_schedule_start(ucc_schedule_t *schedule)
 {
     schedule->super.state = UCC_TASK_STATE_INPROGRESS;
+#ifdef CENTRAL_PROGRESS
+    xccl_schedule_enqueue(schedule->tl_ctx->pq, schedule);
+#endif
 }
 ucc_status_t ucc_schedule_progress(ucc_schedule_t *schedule)
 {

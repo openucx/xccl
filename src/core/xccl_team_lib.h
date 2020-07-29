@@ -76,9 +76,11 @@ typedef struct xccl_team_lib {
     xccl_status_t              (*global_mem_unmap)(xccl_tl_mem_h memh_p);
 } xccl_team_lib_t;
 
+typedef struct xccl_progress_queue xccl_progress_queue_t;
 typedef struct xccl_tl_context {
     xccl_team_lib_t       *lib;
     xccl_context_params_t params;
+    xccl_progress_queue_t *pq;
 } xccl_tl_context_t;
 
 typedef struct xccl_tl_team {
