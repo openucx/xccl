@@ -6,6 +6,7 @@
 #include "test_mpi.h"
 #include <pthread.h>
 
+int use_mpi = 0;
 void* do_allreduce(void *arg) {
     const int count = 32;
     xccl_coll_req_h request;
@@ -67,6 +68,31 @@ void* do_allreduce(void *arg) {
     return NULL;
 }
 
+void* do_mpi_allreduce(void *arg) {
+    const int count = 32;
+    xccl_coll_req_h request;
+    int rank, size, i, status = 0, status_global, j;
+    MPI_Comm comm = (MPI_Comm)arg;
+    int sbuf[count], rbuf[count];
+    int iters = 10000;
+    int check = 0;
+    char *var = getenv("XCCL_TEST_ITERS");
+    if (var) iters = atoi(var);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    for (i=0; i<count; i++) {
+        rbuf[i] = 0;
+        sbuf[i] = rank+1+12345 + i;
+    }
+    for (i=0; i<iters; i++) {
+        memset(rbuf, 0, sizeof(rbuf));
+        MPI_Allreduce(sbuf, rbuf, count, MPI_INT, MPI_SUM, comm);
+    }
+
+    return NULL;
+}
+
 
 int main (int argc, char **argv) {
     char *var;
@@ -76,15 +102,22 @@ int main (int argc, char **argv) {
     if (var) {
         nthreads = atoi(var);
     }
+    var = getenv("XCCL_TEST_USE_MPI");
+    if (var) use_mpi = atoi(var);
+
     xccl_team_h *teams;
     teams = malloc(nthreads*sizeof(*teams));
+
+    MPI_Comm *comms = malloc(sizeof(*comms)*nthreads);
     for (i=0; i<nthreads; i++) {
         xccl_mpi_create_comm(MPI_COMM_WORLD, &teams[i]);
+        MPI_Comm_dup(MPI_COMM_WORLD, &comms[i]);
     }
     double t1 = MPI_Wtime();
     pthread_t *threads = malloc(nthreads*sizeof(*threads));
     for (i=0; i<nthreads; i++) {
-        pthread_create(&threads[i], NULL, do_allreduce, teams[i]);
+        pthread_create(&threads[i], NULL, (use_mpi ? do_mpi_allreduce : do_allreduce),
+                       (use_mpi ? ((void*)comms[i]) : ((void*)teams[i])));
     }
     void *retval;
     for (i=0; i<nthreads; i++) {
@@ -93,6 +126,7 @@ int main (int argc, char **argv) {
     double elapsed = MPI_Wtime() - t1;
     for (i=0; i<nthreads; i++) {
         xccl_team_destroy(teams[i]);
+        MPI_Comm_free(&comms[i]);
     }
     double avg;
     MPI_Reduce(&elapsed, &avg, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);

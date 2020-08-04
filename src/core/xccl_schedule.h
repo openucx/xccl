@@ -4,15 +4,15 @@
 #include <api/xccl.h>
 #include <string.h>
 
-#if defined(CENTRAL_PROGRESS) && !defined(PTRARRAY) && !defined(LFDSA)
+#if !defined(PTRARRAY) && !defined(LFDSA)
 #error DEFINE EITHER "PTRARRAY" or "LFDSA"
 #endif
 
 #define MAX_LISTENERS 16
 
 typedef enum {
-    UCC_EVENT_PROGRESS = 0,
-    UCC_EVENT_COMPLETED,
+    UCC_EVENT_COMPLETED = 0,
+    UCC_EVENT_SCHEDULE_STARTED,
     UCC_EVENT_LAST
 } ucc_event_t;
 
@@ -53,14 +53,17 @@ typedef struct ucc_coll_task {
     ucc_event_manager_t      em;
     ucc_task_state_t         state;
     ucc_task_event_handler_p handlers[UCC_EVENT_LAST];
+    ucc_status_t (*progress)(struct ucc_coll_task *self);
+    struct ucc_schedule *schedule;
+    volatile int busy;
 } ucc_coll_task_t;
 
 typedef struct xccl_tl_context xccl_tl_context_t;
 typedef struct ucc_schedule {
     ucc_coll_task_t    super;
     int                n_completed_tasks;
+    int                n_tasks;
     xccl_tl_context_t  *tl_ctx;
-    volatile int busy;
 } ucc_schedule_t;
 
 void ucc_event_manager_init(ucc_event_manager_t *em);

@@ -220,12 +220,8 @@ static xccl_status_t xccl_hier_collective_post(xccl_tl_coll_req_t *request)
 static xccl_status_t xccl_hier_collective_test(xccl_tl_coll_req_t *request)
 {
     xccl_seq_schedule_t *schedule = ucs_container_of(request, xccl_seq_schedule_t, req);
-#ifdef CENTRAL_PROGRESS
     return schedule->super.super.state == UCC_TASK_STATE_COMPLETED ? XCCL_OK :
         XCCL_INPROGRESS;
-#else
-    return ucc_schedule_progress(&schedule->super);
-#endif
     // coll_schedule_t *schedule = ucs_derived_of(request, coll_schedule_t);
     /* coll_schedule_progress(schedule); */
 }

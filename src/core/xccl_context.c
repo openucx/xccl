@@ -89,9 +89,7 @@ xccl_status_t xccl_context_progress(xccl_context_h context)
             if (status != XCCL_OK) {
                 return status;
             }
-#ifdef CENTRAL_PROGRESS
             xccl_ctx_progress_queue(tl_ctx);
-#endif
         }
     }
 

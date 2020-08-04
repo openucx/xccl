@@ -14,6 +14,7 @@
 #include <utils/xccl_log.h>
 #include <assert.h>
 #include <string.h>
+#include "xccl_schedule.h"
 
 typedef struct xccl_tl_context  xccl_tl_context_t;
 typedef struct xccl_tl_team     xccl_tl_team_t;

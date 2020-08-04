@@ -35,13 +35,14 @@ void ucc_coll_task_init(ucc_coll_task_t *task)
 {
     task->state = UCC_TASK_STATE_NOT_READY;
     ucc_event_manager_init(&task->em);
+    task->busy = 0;
 }
 
 void schedule_completed_handler(ucc_coll_task_t *task)
 {
     ucc_schedule_t *self = (ucc_schedule_t*)task;
     self->n_completed_tasks += 1;
-    if (self->n_completed_tasks == self->super.em.listeners_size[UCC_EVENT_PROGRESS]) {
+    if (self->n_completed_tasks == self->n_tasks) {
         self->super.state = UCC_TASK_STATE_COMPLETED;
     }
 }
@@ -51,26 +52,20 @@ void ucc_schedule_init(ucc_schedule_t *schedule, xccl_tl_context_t *tl_ctx)
     ucc_coll_task_init(&schedule->super);
     schedule->super.handlers[UCC_EVENT_COMPLETED] = schedule_completed_handler;
     schedule->n_completed_tasks = 0;
-    schedule->busy = 0;
     schedule->tl_ctx = tl_ctx;
+    schedule->n_tasks = 0;
 }
 
 
 void ucc_schedule_add_task(ucc_schedule_t *schedule, ucc_coll_task_t *task)
 {
-    ucc_event_manager_subscribe(&schedule->super.em, UCC_EVENT_PROGRESS, task);
     ucc_event_manager_subscribe(&task->em, UCC_EVENT_COMPLETED, &schedule->super);
+    task->schedule = schedule;
+    schedule->n_tasks++;
 }
 
 void ucc_schedule_start(ucc_schedule_t *schedule)
 {
     schedule->super.state = UCC_TASK_STATE_INPROGRESS;
-#ifdef CENTRAL_PROGRESS
-    xccl_schedule_enqueue(schedule->tl_ctx->pq, schedule);
-#endif
-}
-ucc_status_t ucc_schedule_progress(ucc_schedule_t *schedule)
-{
-    ucc_event_manager_notify(&schedule->super.em, UCC_EVENT_PROGRESS);
-    return (schedule->super.state == UCC_TASK_STATE_COMPLETED) ? XCCL_OK: XCCL_INPROGRESS;
+    ucc_event_manager_notify(&schedule->super.em, UCC_EVENT_SCHEDULE_STARTED);
 }

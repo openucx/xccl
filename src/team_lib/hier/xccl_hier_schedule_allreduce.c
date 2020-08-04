@@ -90,7 +90,7 @@ xccl_status_t build_allreduce_schedule(xccl_hier_team_t *team, xccl_coll_op_args
     return XCCL_OK;
 }
 
-void hier_seq_task_progress_handler(ucc_coll_task_t *task)
+ucc_status_t hier_seq_task_progress_handler(ucc_coll_task_t *task)
 {
     const int n_polls = 10;
     xccl_status_t status;
@@ -109,12 +109,14 @@ void hier_seq_task_progress_handler(ucc_coll_task_t *task)
             task->state = UCC_TASK_STATE_COMPLETED;
         }
     }
+    return task->state == UCC_TASK_STATE_COMPLETED ? UCC_OK : UCC_INPROGRESS;
 }
 
 void hier_seq_task_completed_handler(ucc_coll_task_t *task)
 {
     /* start task if completion event received */
     task->state = UCC_TASK_STATE_INPROGRESS;
+    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
 }
 
 xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
@@ -190,11 +192,16 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
     ucc_schedule_init(&schedule->super, team->super.ctx);
     for (i = 0; i < c; i++) {
         ucc_coll_task_init(&schedule->tasks[i].super);
-        schedule->tasks[i].super.handlers[UCC_EVENT_PROGRESS]  = hier_seq_task_progress_handler;
+        schedule->tasks[i].super.progress  = hier_seq_task_progress_handler;
         schedule->tasks[i].super.handlers[UCC_EVENT_COMPLETED] = hier_seq_task_completed_handler;
         schedule->tasks[i].req = NULL;
         if (i > 0) {
             ucc_event_manager_subscribe(&schedule->tasks[i-1].super.em, UCC_EVENT_COMPLETED, &schedule->tasks[i].super);
+        } else {
+            //i == 0
+            schedule->tasks[i].super.handlers[UCC_EVENT_SCHEDULE_STARTED] = hier_seq_task_completed_handler;
+            ucc_event_manager_subscribe(&schedule->super.super.em, UCC_EVENT_SCHEDULE_STARTED,
+                                        &schedule->tasks[i].super);
         }
         ucc_schedule_add_task(&schedule->super, &schedule->tasks[i].super);
     }
