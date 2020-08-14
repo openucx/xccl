@@ -7,21 +7,22 @@
 #include "xccl_ucx_lib.h"
 
 typedef struct xccl_team_lib_ucx_context {
-    xccl_tl_context_t     super;
-    ucp_ep_h              *ucp_eps;
-    ucp_address_t         *worker_address;
-    int                   ucx_inited;
-    ucp_context_h         ucp_context;
-    ucp_worker_h          ucp_worker;
-    size_t                ucp_addrlen;
-    int                   next_cid;
-    unsigned              num_to_probe;
-    unsigned              barrier_kn_radix;
-    unsigned              bcast_kn_radix;
-    unsigned              allreduce_kn_radix;
-    unsigned              reduce_kn_radix;
-    unsigned              alltoall_pairwise_chunk;
-    int                   alltoall_pairwise_reverse;
+    xccl_tl_context_t super;
+    ucp_ep_h          *ucp_eps;
+    ucp_address_t     *worker_address;
+    int               ucx_inited;
+    ucp_context_h     ucp_context;
+    ucp_worker_h      ucp_worker;
+    size_t            ucp_addrlen;
+    int               next_cid;
+    unsigned          num_to_probe;
+    unsigned          barrier_kn_radix;
+    unsigned          bcast_kn_radix;
+    unsigned          allreduce_kn_radix;
+    unsigned          allreduce_alg_id;
+    unsigned          reduce_kn_radix;
+    unsigned          alltoall_pairwise_chunk;
+    int               alltoall_pairwise_reverse;
 } xccl_team_lib_ucx_context_t;
 
 xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,

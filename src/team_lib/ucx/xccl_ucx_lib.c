@@ -62,6 +62,12 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
      UCS_CONFIG_TYPE_UINT
     },
 
+    {"ALLREDUCE_ALG_ID", "1",
+     "Allreduce algorithm id"
+     "0 - knomial allreduce 1 - knomial scatter reduce allgather",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, allreduce_alg_id),
+     UCS_CONFIG_TYPE_UINT},
+
     {"ALLREDUCE_KN_RADIX", "4",
      "Radix value for knomial allreduce algorithm",
      ucs_offsetof(xccl_tl_ucx_context_config_t, allreduce_kn_radix),
@@ -123,11 +129,39 @@ xccl_ucx_allreduce_init(xccl_coll_op_args_t *coll_args,
                         xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce should happen here
-    xccl_ucx_collreq_t *req;
+    xccl_ucx_collreq_t          *req;
+    xccl_status_t               status;
+    xccl_team_lib_ucx_context_t *ctx;
+    int                         alg_id;
+     
     xccl_ucx_coll_base_init(coll_args, team, &req);
-    req->start = xccl_ucx_allreduce_knomial_start;
-    (*request) = (xccl_tl_coll_req_t*)&req->super;
-    return XCCL_OK;
+    ctx = ucs_derived_of(team->ctx, xccl_team_lib_ucx_context_t); 
+    
+    if (coll_args->alg.set_by_user) {
+        alg_id = coll_args->alg.id;
+    } else {
+        alg_id = ctx->allreduce_alg_id;
+    }
+
+    xccl_ucx_debug("starting allreduce: algid %d", alg_id);
+    switch (alg_id) {
+        case 0:
+            req->start = xccl_ucx_allreduce_knomial_start;
+            break;
+        case 1:
+            req->start = xccl_ucx_allreduce_sra_start;
+            break;
+        default:
+            free(req);
+            req = NULL;
+            status = XCCL_ERR_INVALID_PARAM;
+    }
+
+    if (req != NULL) {
+        (*request) = (xccl_tl_coll_req_t*)&req->super;
+    }
+
+    return status;
 }
 
 static inline xccl_status_t
