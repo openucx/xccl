@@ -1,12 +1,7 @@
 #include "allreduce.h"
+#include "allreduce_knomial.h"
 #include "xccl_ucx_lib.h"
 #include "xccl_ucx_sendrecv.h"
-
-enum {
-    KN_BASE,
-    KN_PROXY,
-    KN_EXTRA
-};
 
 enum {
     SRA_KNOMIAL_SCATTER_REDUCE_START,
@@ -14,7 +9,6 @@ enum {
     SRA_KNOMIAL_ALLGATHER_START,
     SRA_KNOMIAL_ALLGATHER_PROGRESS,
 };
-
 
 static inline int get_peer(int rank, int k, int radix_pow, int step_size)
 {
@@ -78,32 +72,6 @@ static inline int compute_block_count(int count, int radix, int rank, int step)
     return block_count;
 }
 
-#define CALC_POW_K_SUP(_size, _radix, _pow_k_sup, _full_tree_size) do{  \
-        int pk = 1;                                                     \
-        int fs = _radix;                                                \
-        while (fs < _size) {                                            \
-            pk++; fs*=_radix;                                           \
-        }                                                               \
-        _pow_k_sup = pk;                                                \
-        _full_tree_size = (fs != _size) ? fs/_radix : fs;               \
-        if ((fs != _size) && (_size / _full_tree_size == 1))            \
-            _pow_k_sup--;                                               \
-    }while(0)
-
-#define KN_RECURSIVE_SETUP(__radix, __myrank, __size, __pow_k_sup,      \
-                           __full_tree_size, __n_full_subtrees,         \
-                           __full_size, __node_type) do{                \
-        CALC_POW_K_SUP(__size, __radix, __pow_k_sup, __full_tree_size); \
-        __n_full_subtrees = __size / __full_tree_size;                  \
-        __full_size = __n_full_subtrees*__full_tree_size;               \
-        __node_type = __myrank >= __full_size ? KN_EXTRA :              \
-            (__size > __full_size && __myrank < __size - __full_size ?  \
-             KN_PROXY : KN_BASE);                                       \
-    }while(0)
-
-#define KN_RECURSIVE_GET_PROXY(__myrank, __full_size) (__myrank - __full_size)
-#define KN_RECURSIVE_GET_EXTRA(__myrank, __full_size) (__myrank + __full_size)
-
 void get_sra_knomial_offset_and_seglen(int count, size_t dt_size, int myrank,
                                        int radix, int group_size, ptrdiff_t *offset,
                                        int *seglen)
@@ -161,23 +129,6 @@ ptrdiff_t get_sra_knomial_offset(int count, size_t dt_size, int myrank,
                                       &offset, NULL);
     return offset;
 }
-
-enum {
-    PHASE_0,
-    PHASE_1,
-    PHASE_EXTRA,
-    PHASE_PROXY,
-};
-
-#define CHECK_PHASE(_p) case _p: goto _p; break;
-#define GOTO_PHASE(_phase) do{                  \
-        switch (_phase) {                       \
-            CHECK_PHASE(PHASE_EXTRA);           \
-            CHECK_PHASE(PHASE_PROXY);           \
-            CHECK_PHASE(PHASE_1);               \
-        case PHASE_0: break;                    \
-        };                                      \
-    } while(0)
 
 #define RESTORE_STATE() do{                              \
         iteration   = req->allreduce_sra.iteration;      \
@@ -346,10 +297,6 @@ completion:
 
 xccl_status_t xccl_ucx_scatter_reduce_knomial_start(xccl_ucx_collreq_t *req)
 {
-    req->allreduce_sra.radix = TEAM_UCX_CTX_REQ(req)->allreduce_kn_radix;
-    if (req->allreduce_sra.radix > req->team->params.oob.size) {
-        req->allreduce_sra.radix = req->team->params.oob.size;
-    }
     memset(req->allreduce_sra.reqs, 0, sizeof(req->allreduce_sra.reqs));
 
     req->allreduce_sra.phase          = PHASE_0;
@@ -536,8 +483,9 @@ xccl_status_t xccl_ucx_allreduce_sra_start(xccl_ucx_collreq_t *req)
         radix = req->team->params.oob.size;
     }
 
-    /* if dst buffers is too small for scatter reduce use radix 2 */
-    if ((count + radix - 1)/radix*(radix-1) > count) {
+    /* if dst buffer is too small for scatter reduce use radix 2 */
+    if (((count + radix - 1)/radix*(radix-1) > count) ||
+        ((radix - 1) > count)) {
         radix = 2;
     }
 

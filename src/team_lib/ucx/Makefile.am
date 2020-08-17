@@ -12,6 +12,8 @@ allgather = allgather/allgather.h \
 	allgather/allgather_ring.c
 
 allreduce = allreduce/allreduce.h \
+    allreduce/allreduce_knomial.h \
+    allreduce/allreduce.c \
 	allreduce/allreduce_knomial.c \
     allreduce/allreduce_sra.c
 

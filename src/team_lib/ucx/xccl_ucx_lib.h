@@ -153,5 +153,6 @@ typedef struct xccl_ucx_collreq {
     };
 } xccl_ucx_collreq_t;
 
+typedef xccl_status_t (*xccl_ucx_coll_start_fn_p)(xccl_ucx_collreq_t*);
 
 #endif
