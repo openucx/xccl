@@ -29,11 +29,16 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int *scount, int *rcount,
         .alg.set_by_user = 0,
         .tag  = 123, //todo
     };
+    fprintf(stderr, "rank %d: collective init\n", rank);
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
+    fprintf(stderr, "rank %d: collective post\n", rank);
     XCCL_CHECK(xccl_collective_post(request));
+    fprintf(stderr, "rank %d: collective wait\n", rank);
     XCCL_CHECK(xccl_collective_wait(request));
+    fprintf(stderr, "rank %d: collective finalize\n", rank);
     XCCL_CHECK(xccl_collective_finalize(request));
 
+    fprintf(stderr, "rank %d: MPI alltoallv\n", rank);
     MPI_Ialltoallv(sbuf, scount, sdispl, MPI_INT, rbuf_mpi, rcount, rdispl, MPI_INT, MPI_COMM_WORLD, &mpi_req);
 
     completed = 0;
@@ -42,11 +47,13 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int *scount, int *rcount,
         xccl_mpi_test_progress();
     }
 
+    fprintf(stderr, "rank %d: memcmp\n", rank);
     if (0 != memcmp(rbuf, rbuf_mpi, total_count*sizeof(int))) {
         fprintf(stderr, "RST CHECK FAILURE at rank %d, count %d\n", rank, total_count);
         status = 1;
     }
 
+    fprintf(stderr, "rank %d: allreduce\n", rank);
     MPI_Allreduce(&status, &status_global, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
     return status_global;
 }

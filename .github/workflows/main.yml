@@ -25,7 +25,7 @@ jobs:
       run: |
         source /tmp/${HPCX_PKG_NAME}/hpcx-init.sh; hpcx_load
         ./autogen.sh
-        ./configure --prefix=$PWD/install --with-ucx=/tmp/ucx/install
+        ./configure --prefix=$PWD/install --with-ucx=/tmp/ucx/install --enable-debug
         make -j`nproc` install
     - name: Build XCCL tests
       run: |
