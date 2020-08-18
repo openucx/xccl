@@ -132,7 +132,7 @@ xccl_ucx_allreduce_init(xccl_coll_op_args_t *coll_args,
     xccl_status_t               status;
     xccl_team_lib_ucx_context_t *ctx;
     int                         alg_id;
-     
+
     status = xccl_ucx_coll_base_init(coll_args, team, &req);
     if (status != XCCL_OK) {
         return status;
@@ -146,8 +146,9 @@ xccl_ucx_allreduce_init(xccl_coll_op_args_t *coll_args,
             } else {
                 alg_id = XCCL_UCX_ALLREDUCE_ALG_SRA;
             }
+        } else {
+            alg_id = ctx->allreduce_alg_id;
         }
-        alg_id = ctx->allreduce_alg_id;
     } else {
         alg_id = coll_args->alg.id;
     }

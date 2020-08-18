@@ -169,6 +169,12 @@ xccl_status_t xccl_ucx_scatter_reduce_knomial_progress(xccl_ucx_collreq_t *req)
                                       radix, myrank, iteration);
     GOTO_PHASE(req->allreduce_sra.phase);
 
+    if ((req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) ||
+        (KN_PROXY == node_type)) {
+        xccl_mem_component_alloc(&req->allreduce_sra.scratch,
+                                 data_size, req->mem_type);
+    }
+
     if (KN_EXTRA == node_type) {
         peer = KN_RECURSIVE_GET_PROXY(myrank, full_size);
         xccl_ucx_send_nb(req->args.buffer_info.src_buffer, data_size, peer,
@@ -177,8 +183,6 @@ xccl_status_t xccl_ucx_scatter_reduce_knomial_progress(xccl_ucx_collreq_t *req)
     }
 
     if (KN_PROXY == node_type) {
-        xccl_mem_component_alloc(&req->allreduce_sra.scratch,
-                                 data_size, req->mem_type);
         peer = KN_RECURSIVE_GET_EXTRA(myrank, full_size);
         xccl_ucx_recv_nb(req->allreduce_sra.scratch, data_size, peer,
                         (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
@@ -287,7 +291,8 @@ PHASE_1:
     req->allreduce_sra.radix_mask_pow = radix_pow / radix;
 PHASE_PROXY:
 completion:
-    if (KN_PROXY == node_type) {
+    if ((req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) ||
+        (KN_PROXY == node_type)) {
         xccl_mem_component_free(req->allreduce_sra.scratch, req->mem_type);
     }
 
@@ -472,12 +477,6 @@ xccl_status_t xccl_ucx_allreduce_sra_start(xccl_ucx_collreq_t *req)
 {
     int radix = TEAM_UCX_CTX_REQ(req)->allreduce_kn_radix;
     int count = req->args.reduce_info.count;
-
-    /* TODO: add support for inplace */
-    if (req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) {
-        xccl_ucx_error("sra knomial allreduce doesn't support inplace mode");
-        return XCCL_ERR_NOT_IMPLEMENTED;
-    }
 
     if (radix > req->team->params.oob.size) {
         radix = req->team->params.oob.size;
