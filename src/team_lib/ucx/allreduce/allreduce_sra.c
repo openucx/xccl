@@ -250,7 +250,7 @@ PHASE_EXTRA:
         if (active_reqs) {
 PHASE_1:
             if (XCCL_INPROGRESS == xccl_ucx_testall((xccl_ucx_team_t *)team,
-                                                       reqs, active_reqs)) {
+                                                    reqs, active_reqs)) {
                 SAVE_STATE(PHASE_1);
                 return XCCL_INPROGRESS;
             }
@@ -266,15 +266,10 @@ PHASE_1:
             local_seg_offset  = compute_seg_offset(block_count, step_radix, local_seg_index);
             void *local_data  = (void*)((ptrdiff_t)src_buffer + (size_t)local_seg_offset*dt_size);
             void *reduce_data = req->allreduce_sra.scratch;
-            xccl_mem_component_reduce(local_data, dst_buffer, reduce_data,
-                                      local_seg_count, req->args.reduce_info.dt,
-                                      req->args.reduce_info.op, req->mem_type);
-            for(k = 1; k < active_reqs/2; k++) {
-                xccl_mem_component_reduce((void*)((ptrdiff_t)dst_buffer + (size_t)k*local_seg_count*dt_size),
-                                          reduce_data, reduce_data,
-                                          local_seg_count, req->args.reduce_info.dt,
-                                          req->args.reduce_info.op, req->mem_type);
-            }
+            xccl_mem_component_reduce_multi(local_data, dst_buffer, reduce_data,
+                                            active_reqs/2, local_seg_count,
+                                            local_seg_count*dt_size, req->args.reduce_info.dt,
+                                            req->args.reduce_info.op, req->mem_type);
             radix_pow *= radix;
         }
     }
@@ -286,15 +281,15 @@ PHASE_1:
                        data_size, myrank, req->tag,
                        (xccl_ucx_team_t *)req->team);
 //prepare for allgather
+    if ((req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) ||
+        (KN_PROXY == node_type)) {
+        xccl_mem_component_free(req->allreduce_sra.scratch, req->mem_type);
+    }
     req->args.buffer_info.src_buffer = (void*)((ptrdiff_t)req->args.buffer_info.dst_buffer + offset);
     req->allreduce_sra.iteration = pow_k_sup - 1;
     req->allreduce_sra.radix_mask_pow = radix_pow / radix;
 PHASE_PROXY:
 completion:
-    if ((req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) ||
-        (KN_PROXY == node_type)) {
-        xccl_mem_component_free(req->allreduce_sra.scratch, req->mem_type);
-    }
 
     return XCCL_OK;
 }
