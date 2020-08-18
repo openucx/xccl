@@ -77,6 +77,7 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
     ctx->bcast_kn_radix            = cfg->bcast_kn_radix;
     ctx->reduce_kn_radix           = cfg->reduce_kn_radix;
     ctx->allreduce_kn_radix        = cfg->allreduce_kn_radix;
+    ctx->allreduce_alg_id          = cfg->allreduce_alg_id;
     ctx->alltoall_pairwise_chunk   = cfg->alltoall_pairwise_chunk;
     ctx->alltoall_pairwise_reverse = cfg->alltoall_pairwise_reverse;
 

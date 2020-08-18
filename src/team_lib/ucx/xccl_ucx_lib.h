@@ -24,6 +24,7 @@ typedef struct xccl_tl_ucx_context_config {
     unsigned                 bcast_kn_radix;
     unsigned                 reduce_kn_radix;
     unsigned                 allreduce_kn_radix;
+    unsigned                 allreduce_alg_id;
     unsigned                 num_to_probe;
     unsigned                 alltoall_pairwise_chunk;
     int                      alltoall_pairwise_reverse;
@@ -77,6 +78,17 @@ typedef struct xccl_ucx_collreq {
             int                radix;
             void               *scratch;
         } allreduce;
+        struct {
+            xccl_ucx_request_t *reqs[MAX_REQS];
+            int                allreduce_stage;
+            int                phase;
+            int                iteration;
+            int                radix_mask_pow;
+            int                active_reqs;
+            int                radix;
+            int                step_radix;
+            void               *scratch;
+        } allreduce_sra;
         struct {
             xccl_ucx_request_t *reqs[2];
             int                step;
@@ -141,5 +153,6 @@ typedef struct xccl_ucx_collreq {
     };
 } xccl_ucx_collreq_t;
 
+typedef xccl_status_t (*xccl_ucx_coll_start_fn_p)(xccl_ucx_collreq_t*);
 
 #endif
