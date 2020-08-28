@@ -102,6 +102,11 @@ xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
     xccl_status_t     status;
     ucs_memory_type_t mem_type;
 
+    /* TODO: where to handle MPI_INPLACE? */
+    if ((ptrdiff_t)coll_args->buffer_info.src_buffer == 0x1) {
+        coll_args->buffer_info.src_buffer = coll_args->buffer_info.dst_buffer;
+    }
+
     status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
                                      &mem_type);
     if (status != XCCL_OK) {
