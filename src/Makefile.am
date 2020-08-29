@@ -43,6 +43,7 @@ libxccl_la_SOURCES =       \
 	core/xccl_context.c    \
 	core/xccl_team.c       \
 	core/xccl_collective.c \
+	core/tasks_pool.c      \
 	core/xccl_mm.c         \
 	core/xccl_query.c      \
 	core/xccl_global_opts.c\

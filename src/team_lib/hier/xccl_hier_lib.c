@@ -169,7 +169,7 @@ static inline xccl_status_t
 xccl_hier_barrier_init(xccl_coll_op_args_t *coll_args,
                        xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
-    coll_schedule_t *schedule;
+	xccl_seq_schedule_t *schedule;
     xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
     xccl_hier_barrier_spec_t spec = {
         .pairs              = {
@@ -184,10 +184,10 @@ xccl_hier_barrier_init(xccl_coll_op_args_t *coll_args,
                               XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
         },
     };
-    build_barrier_schedule(ucs_derived_of(team, xccl_hier_team_t),
+    build_barrier_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
                            spec, &schedule);
-    schedule->super.lib = &xccl_team_lib_hier.super;
-    (*request) = &schedule->super;
+    schedule->req.lib = &xccl_team_lib_hier.super;
+    (*request) = &schedule->req;
     return XCCL_OK;
 }
 

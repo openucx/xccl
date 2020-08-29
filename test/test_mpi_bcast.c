@@ -43,7 +43,9 @@ int main (int argc, char **argv) {
 
         XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
         XCCL_CHECK(xccl_collective_post(request));
-        XCCL_CHECK(xccl_collective_wait(request));
+        while (XCCL_OK != xccl_collective_test(request)) {
+                xccl_context_progress(team_ctx);
+            }
         XCCL_CHECK(xccl_collective_finalize(request));
 
         MPI_Bcast(buf_mpi, count, MPI_INT, r, MPI_COMM_WORLD);

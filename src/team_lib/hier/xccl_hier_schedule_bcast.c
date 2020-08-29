@@ -288,6 +288,7 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
         if (i != dep_id) {
             ucc_event_manager_subscribe(&schedule->tasks[dep_id].super.em, UCC_EVENT_COMPLETED, &schedule->tasks[i].super);
         } else {
+            schedule->tasks[i].super.handlers[UCC_EVENT_SCHEDULE_STARTED] = hier_bcast_task_completed_handler;
             ucc_event_manager_subscribe(&schedule->super.super.em, UCC_EVENT_SCHEDULE_STARTED,
                                         &schedule->tasks[i].super);
         }
