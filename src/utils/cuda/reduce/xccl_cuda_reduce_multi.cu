@@ -40,7 +40,7 @@ DO_CUDA_REDUCE_MULTI_WITH_OP(LXOR, DO_OP_LXOR)
 DO_CUDA_REDUCE_MULTI_WITH_OP(BXOR, DO_OP_BXOR)
 
 #define DO_LAUNCH_KERNEL(NAME, type, src1, src2, dest, count, size, stride, stream) do { \
-        XCCL_REDUCE_MULTI_CUDA_ ## NAME<type> <<<(count + 255)/256, 256, 0, stream>>>(src1, src2, dest, count, size, stride); \
+        XCCL_REDUCE_MULTI_CUDA_ ## NAME<type> <<<(size + 255)/256, 256, 0, stream>>>(src1, src2, dest, count, size, stride); \
     } while(0)
 
 #define DO_DT_REDUCE_INT(type, op, src1_p, src2_p, dest_p, count, size, stride, stream) do { \
@@ -119,7 +119,7 @@ xccl_status_t xccl_cuda_reduce_multi_impl(void *sbuf1, void *sbuf2, void *rbuf,
     {
         case XCCL_DT_INT16:
             DO_DT_REDUCE_INT(int16_t, op, sbuf1, sbuf2, rbuf, count, size, ld, stream);
-            break;     
+            break;
         case XCCL_DT_INT32:
             DO_DT_REDUCE_INT(int32_t, op, sbuf1, sbuf2, rbuf, count, size, ld, stream);
             break;
