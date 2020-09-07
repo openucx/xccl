@@ -116,5 +116,6 @@ void xccl_lib_cleanup(xccl_lib_h lib_p)
     if (lib_p->libs) {
         free(lib_p->libs);
     }
+    xccl_mem_component_free_cache();
     free(lib_p);
 }

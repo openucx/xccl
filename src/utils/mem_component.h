@@ -55,4 +55,7 @@ xccl_status_t
 xccl_mem_component_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf, size_t count,
                                 size_t size, size_t stride, xccl_dt_t dtype,
                                 xccl_op_t op, ucs_memory_type_t mem_type);
+
+void xccl_mem_component_free_cache();
+
 void xccl_mem_component_finalize();

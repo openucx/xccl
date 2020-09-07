@@ -117,6 +117,10 @@ xccl_mem_component_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf, size_t cou
 {
     int i;
 
+    if (size == 0) {
+        return XCCL_OK;
+    }
+
     if (mem_type == UCS_MEMORY_TYPE_HOST) {
         xccl_dt_reduce(sbuf1, sbuf2, rbuf, size, dtype, op);
         for (i = 1; i < count; i++) {
@@ -160,15 +164,26 @@ xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type)
     return XCCL_OK;
 }
 
+void xccl_mem_component_free_cache()
+{
+    int mt;
+
+    for(mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
+        if (mem_components[mt] != NULL) {
+            if ((mem_components[mt]->cache.buf) &&
+                (!mem_components[mt]->cache.used)) {
+                mem_components[mt]->mem_free(mem_components[mt]->cache.buf);
+            }
+        }
+    }
+}
+
 void xccl_mem_component_finalize()
 {
     int mt;
 
     for(mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
         if (mem_components[mt] != NULL) {
-            if (mem_components[mt]->cache.buf) {
-                mem_components[mt]->mem_free(mem_components[mt]->cache.buf);
-            }
             dlclose(mem_components[mt]->dlhandle);
         }
     }
