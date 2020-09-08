@@ -6,6 +6,7 @@
 #include "utils/xccl_log.h"
 
 static xccl_mem_component_t *mem_components[UCS_MEMORY_TYPE_LAST];
+extern xccl_config_t xccl_lib_global_config;
 
 xccl_status_t xccl_mem_component_init(const char* components_path)
 {
@@ -27,8 +28,8 @@ xccl_status_t xccl_mem_component_init(const char* components_path)
         handle = dlopen(mem_comp_path, RTLD_LAZY);
         if (handle) {
             mem_components[mt] = (xccl_mem_component_t*)dlsym(handle, "xccl_cuda_mem_component");
-            mem_components[mt]->dlhandle = handle;
-            mem_components[mt]->cache.size = 1 << 12;
+            mem_components[mt]->dlhandle   = handle;
+            mem_components[mt]->cache.size = xccl_lib_global_config.mem_component_cache_size;
             mem_components[mt]->cache.used = 0; 
             mem_components[mt]->cache.buf  = NULL;
             xccl_debug("%s mem component found", ucs_memory_type_names[mt]);

@@ -21,6 +21,9 @@ typedef struct xccl_config {
 
     /* Team libraries path */
     char                       *team_lib_path;
+
+    /* Size of internal memory component cache */
+    size_t                     mem_component_cache_size;
 } xccl_config_t;
 
 #endif
