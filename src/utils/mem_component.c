@@ -6,6 +6,7 @@
 #include "utils/xccl_log.h"
 
 static xccl_mem_component_t *mem_components[UCS_MEMORY_TYPE_LAST];
+extern xccl_config_t xccl_lib_global_config;
 
 xccl_status_t xccl_mem_component_init(const char* components_path)
 {
@@ -27,8 +28,8 @@ xccl_status_t xccl_mem_component_init(const char* components_path)
         handle = dlopen(mem_comp_path, RTLD_LAZY);
         if (handle) {
             mem_components[mt] = (xccl_mem_component_t*)dlsym(handle, "xccl_cuda_mem_component");
-            mem_components[mt]->dlhandle = handle;
-            mem_components[mt]->cache.size = 1 << 12;
+            mem_components[mt]->dlhandle   = handle;
+            mem_components[mt]->cache.size = xccl_lib_global_config.mem_component_cache_size;
             mem_components[mt]->cache.used = 0; 
             mem_components[mt]->cache.buf  = NULL;
             xccl_debug("%s mem component found", ucs_memory_type_names[mt]);
@@ -117,6 +118,10 @@ xccl_mem_component_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf, size_t cou
 {
     int i;
 
+    if (size == 0) {
+        return XCCL_OK;
+    }
+
     if (mem_type == UCS_MEMORY_TYPE_HOST) {
         xccl_dt_reduce(sbuf1, sbuf2, rbuf, size, dtype, op);
         for (i = 1; i < count; i++) {
@@ -160,15 +165,26 @@ xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type)
     return XCCL_OK;
 }
 
+void xccl_mem_component_free_cache()
+{
+    int mt;
+
+    for(mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
+        if (mem_components[mt] != NULL) {
+            if ((mem_components[mt]->cache.buf) &&
+                (!mem_components[mt]->cache.used)) {
+                mem_components[mt]->mem_free(mem_components[mt]->cache.buf);
+            }
+        }
+    }
+}
+
 void xccl_mem_component_finalize()
 {
     int mt;
 
     for(mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
         if (mem_components[mt] != NULL) {
-            if (mem_components[mt]->cache.buf) {
-                mem_components[mt]->mem_free(mem_components[mt]->cache.buf);
-            }
             dlclose(mem_components[mt]->dlhandle);
         }
     }

@@ -1,8 +1,9 @@
 #include <xccl_global_opts.h>
 
 xccl_config_t xccl_lib_global_config = {
-    .log_component = {UCS_LOG_LEVEL_WARN, "XCCL"},
-    .team_lib_path = ""
+    .log_component            = {UCS_LOG_LEVEL_WARN, "XCCL"},
+    .team_lib_path            = "",
+    .mem_component_cache_size = 4096
 };
 
 ucs_config_field_t xccl_lib_global_config_table[] = {
@@ -17,6 +18,11 @@ ucs_config_field_t xccl_lib_global_config_table[] = {
   "Specifies team libraries location",
   ucs_offsetof(xccl_config_t, team_lib_path),
   UCS_CONFIG_TYPE_STRING},
+
+  {"MEM_COMPONENT_CACHE_SIZE", "4096",
+  "Size of memory component preallocated buffer size",
+  ucs_offsetof(xccl_config_t, mem_component_cache_size),
+  UCS_CONFIG_TYPE_MEMUNITS},
 
   NULL
 };
