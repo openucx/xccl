@@ -32,6 +32,7 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
     ucp_ep_params_t     ep_params;
     ucp_config_t        *ucp_config;
     ucs_status_t        status;
+    ucp_worker_attr_t   worker_attr;
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
 
     status = ucp_config_read(config->env_prefix, NULL, &ucp_config);
@@ -59,10 +60,27 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
     assert(UCS_OK == status);
 
     worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
-    worker_params.thread_mode = UCS_THREAD_MODE_SINGLE;
+    switch (params->thread_mode) {
+        case XCCL_THREAD_MODE_SINGLE:
+            worker_params.thread_mode = UCS_THREAD_MODE_SINGLE;
+            break;
+        case XCCL_THREAD_MODE_MULTIPLE:
+            worker_params.thread_mode = UCS_THREAD_MODE_MULTI;
+            break;
+        default:
+            xccl_ucx_warn("Incorrect value of context thread mode, using single");
+            worker_params.thread_mode = UCS_THREAD_MODE_SINGLE;
+    }
     status = ucp_worker_create(ctx->ucp_context, &worker_params,
                                &ctx->ucp_worker);
     assert(UCS_OK == status);
+    if (params->thread_mode == XCCL_THREAD_MODE_MULTIPLE) {
+        worker_attr.field_mask = UCP_WORKER_ATTR_FIELD_THREAD_MODE;
+        ucp_worker_query(ctx->ucp_worker, &worker_attr);
+        if (worker_attr.thread_mode != UCS_THREAD_MODE_MULTI) {
+            xccl_ucx_warn("Thread mode multiple is not supported");
+        }
+    }
 
     status = ucp_worker_get_address(ctx->ucp_worker, &ctx->worker_address,
                                     &ctx->ucp_addrlen);
