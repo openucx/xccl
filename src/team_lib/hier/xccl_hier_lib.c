@@ -105,7 +105,6 @@ xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
                          xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
-//    coll_schedule_t *schedule;
     xccl_seq_schedule_t *schedule;
     xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
     xccl_hier_allreduce_spec_t spec = {
@@ -123,8 +122,6 @@ xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
     };
     build_allreduce_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
                                   spec, &schedule);
-    // build_allreduce_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
-    //                          spec, &schedule);
     schedule->req.lib = &xccl_team_lib_hier.super;
     (*request) = &schedule->req;
     return XCCL_OK;
@@ -138,8 +135,6 @@ xccl_hier_bcast_init(xccl_coll_op_args_t *coll_args,
     xccl_seq_schedule_t *schedule;
     xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
 
-    // if (!ctx->use_sm_get_bcast ||
-    //     coll_args->buffer_info.len < ctx->bcast_sm_get_thresh) {
     xccl_hier_bcast_spec_t spec = {
         .use_sm_fanout_get  = 0,
         .pairs              = {
@@ -156,10 +151,6 @@ xccl_hier_bcast_init(xccl_coll_op_args_t *coll_args,
     };
     build_bcast_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
                               spec, &schedule);
-    // } else {
-    //     build_bcast_schedule_sm_get(ucs_derived_of(team, xccl_hier_team_t),
-    //                                 &schedule, (*coll_args));
-    // }
     schedule->req.lib = &xccl_team_lib_hier.super;
     (*request) = &schedule->req;
     return XCCL_OK;
@@ -212,9 +203,6 @@ static xccl_status_t xccl_hier_collective_post(xccl_tl_coll_req_t *request)
     schedule->tasks[schedule->dep].super.state = UCC_INPROGRESS;
     ucc_schedule_start(&schedule->super);
     return XCCL_OK;
-//    ucc_schedule_t *schedule = ucs_containerof()
-    // coll_schedule_t *schedule = ucs_derived_of(request, coll_schedule_t);
-    // return coll_schedule_progress(schedule);
 }
 
 static xccl_status_t xccl_hier_collective_test(xccl_tl_coll_req_t *request)
@@ -222,8 +210,6 @@ static xccl_status_t xccl_hier_collective_test(xccl_tl_coll_req_t *request)
     xccl_seq_schedule_t *schedule = ucs_container_of(request, xccl_seq_schedule_t, req);
     return schedule->super.super.state == UCC_TASK_STATE_COMPLETED ? XCCL_OK :
         XCCL_INPROGRESS;
-    // coll_schedule_t *schedule = ucs_derived_of(request, coll_schedule_t);
-    /* coll_schedule_progress(schedule); */
 }
 
 static xccl_status_t xccl_hier_collective_wait(xccl_tl_coll_req_t *request)

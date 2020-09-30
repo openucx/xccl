@@ -39,6 +39,7 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
     xccl_team_lib_t *tlib;
     xccl_tl_context_t *tl_ctx;
     int tl_index;
+    xccl_status_t status;
 
     ctx->lib = lib;
     memcpy(&ctx->params, params, sizeof(xccl_context_params_t));
@@ -62,7 +63,10 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
             tlib = lib->libs[tl_index];
             if (tlib->team_context_create(tlib, &ctx->params, config->configs[tl_index], &tl_ctx) == XCCL_OK) {
                 ctx->tl_ctx[ctx->n_tl_ctx++] = tl_ctx;
-                xccl_ctx_progress_queue_init(&tl_ctx->pq);
+                status = xccl_ctx_progress_queue_init(&tl_ctx->pq,params->thread_mode);
+                if(status != XCCL_OK){
+                    return status;
+                }
             }
         }
     }
@@ -77,35 +81,46 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
 
 xccl_status_t xccl_context_progress(xccl_context_h context) {
     xccl_tl_context_t *tl_ctx;
-    xccl_status_t status;
+    xccl_status_t team_progress_status, xccl_progress_status;
     int i;
 
     for (i = 0; i < context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
         if (tl_ctx->lib->team_context_progress) {
-            status = tl_ctx->lib->team_context_progress(tl_ctx);
-            if (status != XCCL_OK) {
-                return status;
+            team_progress_status = tl_ctx->lib->team_context_progress(tl_ctx);
+            if (team_progress_status != XCCL_OK) {
+                return team_progress_status;
             }
-            xccl_ctx_progress_queue(tl_ctx);
+            xccl_progress_status = xccl_ctx_progress_queue(tl_ctx);
+            if(xccl_progress_status != XCCL_OK){
+                return xccl_progress_status;
+            }
         }
     }
 
     return XCCL_OK;
 }
 
-void xccl_context_destroy(xccl_context_h context) {
+xccl_status_t xccl_context_destroy(xccl_context_h context) {
     xccl_tl_context_t *tl_ctx;
     int i;
+    xccl_status_t xccl_progress_queue_status, team_context_status;
 
     for (i = 0; i < context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
-        xccl_ctx_progress_queue_destroy(&tl_ctx->pq);
-        tl_ctx->lib->team_context_destroy(tl_ctx);
+        xccl_progress_queue_status = xccl_ctx_progress_queue_destroy(tl_ctx->pq);
+        if(xccl_progress_queue_status != XCCL_OK){
+            return xccl_progress_queue_status;
+        }
+        team_context_status = tl_ctx->lib->team_context_destroy(tl_ctx);
+        if(team_context_status != XCCL_OK){
+
+        }
     }
 
     free(context->tl_ctx);
     free(context);
+    return XCCL_OK;
 }
 
 xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,

@@ -346,7 +346,7 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
 
 xccl_status_t xccl_context_progress(xccl_context_h context);
 
-void xccl_context_destroy(xccl_context_h context);
+xccl_status_t xccl_context_destroy(xccl_context_h context);
 
 enum xccl_team_params_field {
     XCCL_TEAM_PARAM_FIELD_EP_RANGE = UCS_BIT(0),

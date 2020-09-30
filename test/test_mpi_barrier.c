@@ -28,7 +28,7 @@ do_barrier(xccl_team_h team) {
 int main (int argc, char **argv) {
     int rank, size, i, sleep_us;
 
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BARRIER));
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BARRIER,XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 

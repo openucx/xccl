@@ -4,7 +4,7 @@ xccl_config_t xccl_lib_global_config = {
     .log_component            = {UCS_LOG_LEVEL_WARN, "XCCL"},
     .team_lib_path            = "",
     .mem_component_cache_size = 4096,
-    .tasks_pool_size = 8192
+    .tasks_pool_size          = 8192
 };
 
 ucs_config_field_t xccl_lib_global_config_table[] = {

@@ -44,11 +44,12 @@ libxccl_la_SOURCES =       \
 	core/xccl_team.c       \
 	core/xccl_collective.c \
 	core/tasks_pool.c      \
+	core/tasks_queue.c      \
 	core/xccl_mm.c         \
 	core/xccl_query.c      \
 	core/xccl_global_opts.c\
 	core/xccl_team_lib.c   \
-    core/xccl_progress_queue.c \
+	core/xccl_progress_queue.c \
 	core/xccl_schedule.c   \
 	utils/socketid.c       \
 	utils/mem_component.c

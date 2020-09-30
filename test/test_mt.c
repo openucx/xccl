@@ -98,7 +98,7 @@ void *do_mpi_allreduce(void *arg) {
 int main(int argc, char **argv) {
     char *var;
     int nthreads = 2, i;
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLREDUCE));
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLREDUCE,XCCL_THREAD_MODE_MULTIPLE));
     var = getenv("XCCL_TEST_NTHREADS");
     if (var) {
         nthreads = atoi(var);

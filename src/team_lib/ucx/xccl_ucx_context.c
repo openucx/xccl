@@ -24,9 +24,9 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
                                       xccl_tl_context_t **context)
 {
     xccl_team_lib_ucx_context_t *ctx  =
-        (xccl_team_lib_ucx_context_t *)malloc(sizeof(*ctx));
+            (xccl_team_lib_ucx_context_t *)malloc(sizeof(*ctx));
     xccl_tl_ucx_context_config_t *cfg =
-        ucs_derived_of(config, xccl_tl_ucx_context_config_t);
+            ucs_derived_of(config, xccl_tl_ucx_context_config_t);
     ucp_params_t        ucp_params;
     ucp_worker_params_t worker_params;
     ucp_ep_params_t     ep_params;
@@ -52,7 +52,7 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
         ucp_params.field_mask |= UCP_PARAM_FIELD_ESTIMATED_NUM_EPS;
         ucp_params.estimated_num_eps = params->oob.size;
     }
-    
+
     //TODO: need to fix for case of multiple devices
     ucp_config_modify(ucp_config, "NET_DEVICES", cfg->devices.names[0]);
     status = ucp_init(&ucp_params, ucp_config, &ctx->ucp_context);

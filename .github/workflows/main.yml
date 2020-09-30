@@ -55,3 +55,4 @@ jobs:
         mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allgather
         mpirun -x XCCL_TEAM_UCX_ALLTOALL_PAIRWISE_CHUNK=0 --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoall
         mpirun -x XCCL_TEAM_UCX_ALLTOALL_PAIRWISE_CHUNK=0 --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoallv
+        mpirun --oversubscribe -x XCCL_TEST_TLS=hier -x XCCL_TEST_NTHREADS=1 -x XCCL_TEST_ITERS=5 -x XCCL_TEST_CHECK=1 -np 2 -H localhost:8 --bind-to socket -mca coll ^hcoll ./test/test_mpi_mt

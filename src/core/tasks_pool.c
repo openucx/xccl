@@ -1,6 +1,8 @@
 #include "tasks_pool.h"
 
-xccl_status_t tasks_pool_init(context *ctx) {
+xccl_status_t tasks_pool_init(xccl_progress_queue_t* handle) {
+    handle->ctx = (void*) malloc(sizeof(xccl_tasks_pool_t));
+    xccl_tasks_pool_t* ctx = (xccl_tasks_pool_t*) handle->ctx;
     ctx->deque_size = (xccl_lib_global_config.tasks_pool_size / LINE_SIZE) + 1;
     ctx->tasks = (ucc_coll_task_t ***) calloc(2 * ctx->deque_size, sizeof(ucc_coll_task_t **));
     if (ctx->tasks == NULL) {
@@ -14,29 +16,32 @@ xccl_status_t tasks_pool_init(context *ctx) {
     if (ctx->tasks[ctx->deque_size] == NULL) {
         return XCCL_ERR_NO_MEMORY;
     }
-    ctx->increase_pool_locks[0] = 0;
-    ctx->increase_pool_locks[1] = 0;
-    ctx->linked_list_locks[0] = 0;
-    ctx->linked_list_locks[1] = 0;
-    ctx->linked_lists[0] = NULL;
-    ctx->linked_lists[1] = NULL;
-    ctx->which_pool = 0;
+    ucs_spinlock_init(&(ctx->increase_pool_locks[0]), 0);
+    ucs_spinlock_init(&(ctx->increase_pool_locks[1]), 0);
+    ucs_spinlock_init(&(ctx->linked_list_lock), 0);
+    ctx->linked_list_head              = NULL;
+    ctx->linked_list_tail              = NULL;
+    ctx->which_pool                    = 0;
+    handle->api.progress_queue_enqueue = &tasks_pool_insert;
+    handle->api.progress_queue_dequeue = &tasks_pool_pop;
+    handle->api.progress_queue_cleanup = &tasks_pool_cleanup;
     return XCCL_OK;
 }
 
-xccl_status_t increase_tasks(context *ctx, int i) {
-    while (!__sync_bool_compare_and_swap(&(ctx->increase_pool_locks[i / ctx->deque_size]), 0, 1)) {};
+xccl_status_t increase_tasks(xccl_tasks_pool_t *ctx, int i) {
+    ucs_spin_lock(&ctx->increase_pool_locks[i / ctx->deque_size]);
     if (ctx->tasks[i] == 0) {
         ctx->tasks[i] = (ucc_coll_task_t **) calloc(LINE_SIZE, sizeof(ucc_coll_task_t *));
         if (ctx->tasks[i] == NULL) {
             return XCCL_ERR_NO_MEMORY;
         }
     }
-    while (!__sync_bool_compare_and_swap(&(ctx->increase_pool_locks[i / ctx->deque_size]), 1, 0)) {};
+    ucs_spin_unlock(&ctx->increase_pool_locks[i / ctx->deque_size]);
     return XCCL_OK;
 }
 
-xccl_status_t tasks_pool_insert(context *ctx, ucc_coll_task_t *task) {
+xccl_status_t tasks_pool_insert(xccl_progress_queue_t *handle, ucc_coll_task_t *task) {
+    xccl_tasks_pool_t *ctx = (xccl_tasks_pool_t*) handle->ctx;
     int i, j;
     int which_pool = task->was_progressed ^(ctx->which_pool & 1);
     int iteration_start = which_pool * ctx->deque_size;
@@ -46,27 +51,29 @@ xccl_status_t tasks_pool_insert(context *ctx, ucc_coll_task_t *task) {
             if (status != XCCL_OK) {
                 return status;
             }
-            return tasks_pool_insert(ctx, task);
+            return tasks_pool_insert(handle, task);
         }
         for (j = 0; j < LINE_SIZE; j++) {
+            /* TODO: Change atomics to UCS once release v1.9.1 is out */
             if (__sync_bool_compare_and_swap(&(ctx->tasks[i][j]), 0, task)) {
                 return XCCL_OK;
             }
         }
     }
-    while (!__sync_bool_compare_and_swap(&(ctx->linked_list_locks[which_pool]), 0, 1)) {};
-    if (ctx->linked_lists[which_pool] == NULL) {
-        ctx->linked_lists[which_pool] = task;
-        task->next = NULL;
+    ucs_spin_lock(&ctx->linked_list_lock);
+    if (ctx->linked_list_head == NULL) {
+        ctx->linked_list_head = task;
     } else {
-        task->next = ctx->linked_lists[which_pool];
-        ctx->linked_lists[which_pool] = task;
+        ctx->linked_list_tail->next = task;
     }
-    while (!__sync_bool_compare_and_swap(&(ctx->linked_list_locks[which_pool]), 1, 0)) {};
+    ctx->linked_list_tail = task;
+    task->next = NULL;
+    ucs_spin_unlock(&ctx->linked_list_lock);
     return XCCL_OK;
 }
 
-xccl_status_t tasks_pool_pop(context *ctx, ucc_coll_task_t **popped_task_ptr, int is_first_call) {
+xccl_status_t tasks_pool_pop(xccl_progress_queue_t *handle, ucc_coll_task_t **popped_task_ptr, int is_first_call) {
+    xccl_tasks_pool_t *ctx = (xccl_tasks_pool_t*) handle->ctx;
     int i, j;
     int curr_which_pool = ctx->which_pool;
     int which_pool = curr_which_pool & 1;
@@ -77,6 +84,7 @@ xccl_status_t tasks_pool_pop(context *ctx, ucc_coll_task_t **popped_task_ptr, in
             for (j = 0; j < LINE_SIZE; j++) {
                 popped_task = ctx->tasks[i][j];
                 if (popped_task != 0) {
+                    /* TODO: Change atomics to UCS once release v1.9.1 is out */
                     if (__sync_bool_compare_and_swap(&(ctx->tasks[i][j]), popped_task, 0)) {
                         *popped_task_ptr = popped_task;
                         popped_task->was_progressed = 1;
@@ -90,33 +98,40 @@ xccl_status_t tasks_pool_pop(context *ctx, ucc_coll_task_t **popped_task_ptr, in
         } else {
             /* switch between main pool to secondary pool*/
             if (is_first_call) {
+                /* TODO: Change atomics to UCS once release v1.9.1 is out */
                 __sync_bool_compare_and_swap(&(ctx->which_pool), curr_which_pool, curr_which_pool + 1);
-                return tasks_pool_pop(ctx, popped_task_ptr, 0);
+                return tasks_pool_pop(handle, popped_task_ptr, 0);
             }
             *popped_task_ptr = popped_task;
             return XCCL_OK;
         }
     }
-    while (!__sync_bool_compare_and_swap(&(ctx->linked_list_locks[which_pool]), 0, 1)) {};
-    if (ctx->linked_lists[which_pool] != NULL) {
-        popped_task = ctx->linked_lists[which_pool];
-        ctx->linked_lists[which_pool] = ctx->linked_lists[which_pool]->next;
+    ucs_spin_lock(&ctx->linked_list_lock);
+    if (ctx->linked_list_head != NULL) {
+        popped_task = ctx->linked_list_head;
+        ctx->linked_list_head = ctx->linked_list_head->next;
     }
-    while (!__sync_bool_compare_and_swap(&(ctx->linked_list_locks[which_pool]), 1, 0)) {};
+    ucs_spin_unlock(&ctx->linked_list_lock);
     if ((popped_task == NULL) && is_first_call) {
+        /* TODO: Change atomics to UCS once release v1.9.1 is out */
         __sync_bool_compare_and_swap(&(ctx->which_pool), curr_which_pool, curr_which_pool + 1);
-        return tasks_pool_pop(ctx, popped_task_ptr, 0);
+        return tasks_pool_pop(handle, popped_task_ptr, 0);
     }
     *popped_task_ptr = popped_task;
     popped_task->was_progressed = 1;
     return XCCL_OK;
 }
 
-xccl_status_t tasks_pool_cleanup(context *ctx) {
+xccl_status_t tasks_pool_cleanup(xccl_progress_queue_t *handle) {
+    xccl_tasks_pool_t *ctx = (xccl_tasks_pool_t*) handle->ctx;
     int i;
     for (i = 0; i < 2 * ctx->deque_size; i++) {
         free(ctx->tasks[i]);
     }
     free(ctx->tasks);
+    ucs_spinlock_destroy(&ctx->increase_pool_locks[0]);
+    ucs_spinlock_destroy(&ctx->increase_pool_locks[1]);
+    ucs_spinlock_destroy(&ctx->linked_list_lock);
+    free(ctx);
     return XCCL_OK;
 }

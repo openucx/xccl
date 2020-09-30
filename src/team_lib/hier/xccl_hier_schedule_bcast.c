@@ -297,11 +297,6 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
     schedule->dep = dep_id;
     (*sched) = schedule;
 
-    // if (coll.buffer_info.len > pipeline_thresh) {
-    //     make_fragmented_schedule(&schedule->super.super, sched, coll.buffer_info,
-    //                              pipeline_thresh, 1, ctx->bcast_pipeline_depth);
-    // }
-
     return XCCL_OK;
 }
 
