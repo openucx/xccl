@@ -53,13 +53,13 @@ find_root_by_id(int root_id, sbgp_t *sbgp, xccl_hier_proc_data_t *proc, int id_t
 xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
                                    xccl_hier_bcast_spec_t spec, coll_schedule_t **sched)
 {
-    int have_node_leaders_group = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
-    int have_socket_group = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
+    int have_node_leaders_group   = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
+    int have_socket_group         = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
-    int node_leaders_group_exists = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
+    int have_node_group           = (team->sbgps[SBGP_NODE].status == SBGP_ENABLED);
+
+    int node_leaders_group_exists   = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
     int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
-    sbgp_type_t top_sbgp = node_leaders_group_exists ? SBGP_NODE_LEADERS :
-        (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
     int root = coll.root, c = 0;
     int rank = team->super.params.oob.rank;
     int wroot = xccl_hier_team_rank2ctx(team, root);
@@ -81,7 +81,6 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     }
     coll.alg.set_by_user = 0;
     if (have_node_leaders_group) {
-        assert(top_sbgp == SBGP_NODE_LEADERS);
         coll.root = find_root_by_id(ctx->procs[wroot].node_id,
                                     &team->sbgps[SBGP_NODE_LEADERS],
                                     ctx->procs, ROOT_ID_NODE);
@@ -134,7 +133,23 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
         }
         c++;
     }
-
+    if (team->no_socket && have_node_group) {
+        if (root_on_local_node) {
+            coll.root = find_root_by_rank(root, &team->sbgps[SBGP_NODE]);
+        } else {
+            coll.root = 0;
+        }
+        schedule->super.args[c].xccl_coll = coll;
+        if (spec.use_sm_fanout_get) {
+            xccl_hier_error("SM Fanout get bcast is not supported with unbound processes");
+            abort();
+        }
+        schedule->super.args[c].pair = team->pairs[spec.pairs.node];
+        if (coll.root != team->sbgps[SBGP_NODE].group_rank) {
+            schedule->dep_id = c;
+        }
+        c++;
+    }
     assert(schedule->dep_id >= 0);
     schedule->dep_satisfied = 0;
     schedule->super.n_colls = c;
@@ -186,6 +201,7 @@ static xccl_status_t coll_schedule_progress_bcast_sm_get(coll_schedule_t *sched)
                                        XCCL_HIER_PAIR_NODE_LEADERS_UCX,
                     .socket          = XCCL_HIER_PAIR_SOCKET_SHMSEG,
                     .socket_leaders  = XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG,
+                    .node            = XCCL_HIER_PAIR_NODE_UCX,
                 },
                 .socket_memh         = schedule->sock_memh,
                 .socket_leaders_memh = schedule->sock_leaders_memh,
