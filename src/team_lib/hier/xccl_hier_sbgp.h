@@ -7,7 +7,6 @@
 #define XCCL_HIER_SBGP_H_
 #include "xccl_team_lib.h"
 typedef enum sbgp_type_t {
-    SBGP_UNDEF = 0,
     SBGP_NUMA,
     SBGP_SOCKET,
     SBGP_NODE,
@@ -37,6 +36,18 @@ typedef struct sbgp_t {
 extern char* sbgp_type_str[SBGP_LAST];
 xccl_status_t sbgp_create(xccl_hier_team_t *team, sbgp_type_t type);
 xccl_status_t sbgp_cleanup(sbgp_t *sbgp);
+
+static const char* sbgp_status_str(sbgp_status_t status) {
+    switch(status) {
+    case SBGP_DISABLED:
+        return "SBGP_DISABLED";
+    case SBGP_ENABLED:
+        return "SBGP_ENABLED";
+    case SBGP_NOT_EXISTS:
+        return "SBGP_NOT_EXIST";
+    }
+    return NULL;
+}
 
 static inline int sbgp_rank2team(sbgp_t *sbgp, int rank)
 {

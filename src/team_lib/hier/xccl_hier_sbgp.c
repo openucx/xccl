@@ -284,7 +284,7 @@ static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp)
     return XCCL_OK;
 }
 
-char* sbgp_type_str[SBGP_LAST] = {"undef", "numa", "socket", "node", "node_leaders",
+char* sbgp_type_str[SBGP_LAST] = {"numa", "socket", "node", "node_leaders",
                                   "socket_leaders", "numa_leaders", "flat"};
 
 static void print_sbgp(sbgp_t *sbgp)

@@ -105,7 +105,14 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
                           XCCL_TL_UCX, XCCL_HIER_PAIR_SOCKET_LEADERS_UCX);
     xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
                           XCCL_TL_UCX, XCCL_HIER_PAIR_NODE_LEADERS_UCX);
-    
+
+    for (i=0; i<SBGP_LAST; i++) {
+        printf("sbgp %s, status %s, group_size %d, rank %d\n",
+               sbgp_type_str[i], sbgp_status_str(hier_team->sbgps[i].status),
+               hier_team->sbgps[i].group_size,
+               hier_team->sbgps[i].group_rank);
+    }
+
     if (ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled) {
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET], hier_team,
                               XCCL_TL_SHMSEG, XCCL_HIER_PAIR_SOCKET_SHMSEG);

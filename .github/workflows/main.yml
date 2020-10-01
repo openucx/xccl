@@ -19,11 +19,11 @@ jobs:
     - name: Get UCX
       run: git clone ${OPEN_UCX_LINK} /tmp/ucx
     - name: Build UCX
-      run: cd /tmp/ucx && ./autogen.sh && ./contrib/configure-release --without-java --disable-numa --prefix $PWD/install && make -j install
+      run: cd /tmp/ucx && ./autogen.sh && ./contrib/configure-release-mt --without-java --disable-numa --prefix $PWD/install && make -j install
     - uses: actions/checkout@v1
     - name: Build
       run: |
-        source /tmp/${HPCX_PKG_NAME}/hpcx-init.sh; hpcx_load
+        source /tmp/${HPCX_PKG_NAME}/hpcx-mt-init.sh; hpcx_load
         ./autogen.sh
         ./configure --prefix=$PWD/install --with-ucx=/tmp/ucx/install
         make -j`nproc` install
@@ -36,22 +36,22 @@ jobs:
         make -C test
     - name: Test run
       run: |
-        source /tmp/${HPCX_PKG_NAME}/hpcx-init.sh; hpcx_load
+        source /tmp/${HPCX_PKG_NAME}/hpcx-mt-init.sh; hpcx_load
         export LD_LIBRARY_PATH=/tmp/ucx/install/lib:$LD_LIBRARY_PATH
-        mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
-        mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
-        mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
 
-        mpirun --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=3 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
-        mpirun --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=4 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
-        mpirun --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=5 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=3 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=4 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEAM_HIER_NODE_LEADER_RANK_ID=5 -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
 
-        mpirun --oversubscribe -x XCCL_TEAM_UCX_ALLREDUCE_ALG_ID=0 -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
-        mpirun --oversubscribe -x XCCL_TEAM_UCX_ALLREDUCE_ALG_ID=1 -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
-        mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
-        mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
-        mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoall
-        mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoallv
-        mpirun --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allgather
-        mpirun -x XCCL_TEAM_UCX_ALLTOALL_PAIRWISE_CHUNK=0 --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoall
-        mpirun -x XCCL_TEAM_UCX_ALLTOALL_PAIRWISE_CHUNK=0 --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoallv
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEAM_UCX_ALLREDUCE_ALG_ID=0 -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEAM_UCX_ALLREDUCE_ALG_ID=1 -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoall
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoallv
+        mpirun --report-bindings --tag-output --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allgather
+        mpirun --report-bindings --tag-output -x XCCL_TEAM_UCX_ALLTOALL_PAIRWISE_CHUNK=0 --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoall
+        mpirun --report-bindings --tag-output -x XCCL_TEAM_UCX_ALLTOALL_PAIRWISE_CHUNK=0 --oversubscribe -x XCCL_TEST_TLS=ucx -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_alltoallv
