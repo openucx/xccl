@@ -36,22 +36,22 @@ nobase_dist_libxccl_la_HEADERS = \
 
 noinst_HEADERS = core/xccl_team_lib.h
 
-libxccl_la_SOURCES =       \
-	core/xccl_init.c       \
-	core/xccl_finalize.c   \
-	core/xccl_lib.c        \
-	core/xccl_context.c    \
-	core/xccl_team.c       \
-	core/xccl_collective.c \
-	core/tasks_pool.c      \
-	core/tasks_queue.c      \
-	core/xccl_mm.c         \
-	core/xccl_query.c      \
-	core/xccl_global_opts.c\
-	core/xccl_team_lib.c   \
-	core/xccl_progress_queue.c \
-	core/xccl_schedule.c   \
-	utils/socketid.c       \
+libxccl_la_SOURCES =                  \
+	core/xccl_init.c                  \
+	core/xccl_finalize.c              \
+	core/xccl_lib.c                   \
+	core/xccl_context.c               \
+	core/xccl_team.c                  \
+	core/xccl_collective.c            \
+	core/xccl_lock_free_tasks_queue.c \
+	core/xccl_tasks_queue.c           \
+	core/xccl_mm.c                    \
+	core/xccl_query.c                 \
+	core/xccl_global_opts.c           \
+	core/xccl_team_lib.c              \
+	core/xccl_progress_queue.c        \
+	core/xccl_schedule.c              \
+	utils/socketid.c                  \
 	utils/mem_component.c
 
 libxccl_ladir = $(includedir)

@@ -43,17 +43,27 @@ void hier_seq_barrier_task_completed_handler(ucc_coll_task_t *task) {
 
 xccl_status_t build_barrier_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
                                           xccl_hier_allreduce_spec_t spec, xccl_seq_schedule_t **sched) {
-    int have_node_leaders_group = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
-    int have_socket_group = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
+    int have_node_leaders_group   = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
+    int have_socket_group         = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
+    int have_node_group           = (team->sbgps[SBGP_NODE].status == SBGP_ENABLED);
 
-    int node_leaders_group_exists = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
-    int socket_group_exists = (team->sbgps[SBGP_SOCKET].status != SBGP_NOT_EXISTS);
+    int node_leaders_group_exists   = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
+    int socket_group_exists         = (team->sbgps[SBGP_SOCKET].status != SBGP_NOT_EXISTS);
     int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
+    int node_group_exists           = (team->sbgps[SBGP_NODE].status != SBGP_NOT_EXISTS);
 
-    sbgp_type_t top_sbgp = node_leaders_group_exists ? SBGP_NODE_LEADERS :
-                           (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
-
+    sbgp_type_t top_sbgp;
+    if (node_leaders_group_exists) {
+        top_sbgp = SBGP_NODE_LEADERS;
+    } else if (socket_leaders_group_exists) {
+        top_sbgp = SBGP_SOCKET_LEADERS;
+    } else if (socket_group_exists) {
+        top_sbgp = SBGP_SOCKET;
+    } else {
+        assert(node_group_exists);
+        top_sbgp = SBGP_NODE;
+    }
 
     xccl_seq_schedule_t *schedule = (xccl_seq_schedule_t *) malloc(sizeof(*schedule));
     if (schedule == NULL) {
@@ -89,6 +99,20 @@ xccl_status_t build_barrier_task_schedule(xccl_hier_team_t *team, xccl_coll_op_a
         c++;
     }
 
+    if (team->no_socket && have_node_group) {
+        assert(c == 0);
+        /* !have_socket_group && ! have_socket_leaders_group */
+        if (top_sbgp == SBGP_NODE) {
+            coll.coll_type = XCCL_BARRIER;
+            schedule->tasks[c].xccl_coll = coll;
+        } else {
+            coll.coll_type = XCCL_FANIN;
+            schedule->tasks[c].xccl_coll = coll;
+        }
+        schedule->tasks[c].pair = team->pairs[spec.pairs.node];
+        c++;
+    }
+
     if (have_node_leaders_group) {
         assert(top_sbgp == SBGP_NODE_LEADERS);
         coll.coll_type = XCCL_BARRIER;
@@ -108,6 +132,13 @@ xccl_status_t build_barrier_task_schedule(xccl_hier_team_t *team, xccl_coll_op_a
         coll.coll_type = XCCL_FANOUT;
         schedule->tasks[c].xccl_coll = coll;
         schedule->tasks[c].pair = team->pairs[spec.pairs.socket];
+        c++;
+    }
+
+    if (team->no_socket && have_node_group  && top_sbgp != SBGP_NODE) {
+        coll.coll_type = XCCL_FANOUT;
+        schedule->tasks[c].xccl_coll = coll;
+        schedule->tasks[c].pair = team->pairs[spec.pairs.node];
         c++;
     }
 

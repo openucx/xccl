@@ -25,8 +25,8 @@ typedef struct xccl_config {
     /* Size of internal memory component cache */
     size_t                     mem_component_cache_size;
 
-    /* Maximum number of active tasks that will be simultaneously in the progress queue. Any number of tasks beyond this size will suffer from slower performance  */
-    int tasks_pool_size;
+    /* Maximum number of concurrent active tasks without slowing down performance */
+    int lf_tasks_queue_size;
 } xccl_config_t;
 
 #endif

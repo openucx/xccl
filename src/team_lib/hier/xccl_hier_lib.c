@@ -118,6 +118,7 @@ xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
             .socket_leaders = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
                               XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
                               XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+            .node           = XCCL_HIER_PAIR_NODE_UCX,
         },
     };
     build_allreduce_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
@@ -147,6 +148,7 @@ xccl_hier_bcast_init(xccl_coll_op_args_t *coll_args,
             .socket_leaders = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
                                 XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
                                 XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+            .node           = XCCL_HIER_PAIR_NODE_UCX,
         },
     };
     build_bcast_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
@@ -173,6 +175,7 @@ xccl_hier_barrier_init(xccl_coll_op_args_t *coll_args,
             .socket_leaders = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
                               XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
                               XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+            .node           = XCCL_HIER_PAIR_NODE_UCX,
         },
     };
     build_barrier_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),

@@ -90,22 +90,33 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
 
     for (i=0; i<SBGP_LAST; i++) {
         hier_team->sbgps[i].status = SBGP_DISABLED;
+        hier_team->sbgps[i].status = SBGP_NOT_EXISTS;
     }
-
+    hier_team->no_socket = 0;
+    for (i=0; i<size; i++) {
+        if (ctx->procs[xccl_hier_team_rank2ctx(hier_team, i)].socketid < 0) {
+            hier_team->no_socket = 1;
+            break;
+        }
+    }
     /* SBGP_NODE has to be always created first, it is used to
        create other sbgps: socket and socket_leaders */
     sbgp_create(hier_team, SBGP_NODE);
-    sbgp_create(hier_team, SBGP_SOCKET);
     sbgp_create(hier_team, SBGP_NODE_LEADERS);
-    sbgp_create(hier_team, SBGP_SOCKET_LEADERS);
-
-    xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET], hier_team,
-                          XCCL_TL_UCX, XCCL_HIER_PAIR_SOCKET_UCX);
-    xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET_LEADERS], hier_team,
-                          XCCL_TL_UCX, XCCL_HIER_PAIR_SOCKET_LEADERS_UCX);
+    if (!hier_team->no_socket) {
+        sbgp_create(hier_team, SBGP_SOCKET);
+        sbgp_create(hier_team, SBGP_SOCKET_LEADERS);
+        xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET], hier_team,
+                              XCCL_TL_UCX, XCCL_HIER_PAIR_SOCKET_UCX);
+        xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET_LEADERS], hier_team,
+                              XCCL_TL_UCX, XCCL_HIER_PAIR_SOCKET_LEADERS_UCX);
+    } else {
+        xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE], hier_team,
+                              XCCL_TL_UCX, XCCL_HIER_PAIR_NODE_UCX);
+    }
     xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
                           XCCL_TL_UCX, XCCL_HIER_PAIR_NODE_LEADERS_UCX);
-    
+
     if (ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled) {
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET], hier_team,
                               XCCL_TL_SHMSEG, XCCL_HIER_PAIR_SOCKET_SHMSEG);

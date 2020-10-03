@@ -16,7 +16,7 @@
 static xccl_status_t find_tlib_by_name(xccl_lib_t *lib, const char *tlib_name,
                                        int *tl_index) {
     int i;
-    for (i = 0; i < lib->n_libs_opened; i++) {
+    for (i=0; i<lib->n_libs_opened; i++) {
         if (0 == strcmp(tlib_name, lib->libs[i]->name)) {
             *tl_index = i;
             return XCCL_OK;
@@ -29,17 +29,18 @@ static xccl_status_t find_tlib_by_name(xccl_lib_t *lib, const char *tlib_name,
 xccl_status_t xccl_context_create(xccl_lib_h lib,
                                   const xccl_context_params_t *params,
                                   const xccl_context_config_t *config,
-                                  xccl_context_h *context) {
-    xccl_context_t *ctx = malloc(sizeof(xccl_context_t));
-    int num_tls = ucs_popcount(params->tls);
-    uint64_t default_tls = XCCL_TL_ALL;
-    uint64_t tls = 0;
+                                  xccl_context_h *context)
+{
+    xccl_context_t    *ctx              = malloc(sizeof(xccl_context_t));
+    int               num_tls           = ucs_popcount(params->tls);
+    uint64_t          default_tls       = XCCL_TL_ALL;
+    uint64_t          tls               = 0;
     xccl_context_config_t *dfl_config = NULL;
-    uint64_t i;
-    xccl_team_lib_t *tlib;
+    uint64_t          i;
+    xccl_team_lib_t   *tlib;
     xccl_tl_context_t *tl_ctx;
-    int tl_index;
-    xccl_status_t status;
+    int               tl_index;
+    xccl_status_t     status;
 
     ctx->lib = lib;
     memcpy(&ctx->params, params, sizeof(xccl_context_params_t));
@@ -50,7 +51,7 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
         tls = default_tls;
     }
 
-    ctx->tl_ctx = (xccl_tl_context_t **) malloc(sizeof(xccl_tl_context_t * ) * num_tls);
+    ctx->tl_ctx = (xccl_tl_context_t**)malloc(sizeof(xccl_tl_context_t*)*num_tls);
     ctx->n_tl_ctx = 0;
 
     if (config == NULL) {
@@ -79,21 +80,22 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
     return XCCL_OK;
 }
 
-xccl_status_t xccl_context_progress(xccl_context_h context) {
+xccl_status_t xccl_context_progress(xccl_context_h context)
+{
     xccl_tl_context_t *tl_ctx;
-    xccl_status_t team_progress_status, xccl_progress_status;
-    int i;
+    xccl_status_t     status;
+    int               i;
 
     for (i = 0; i < context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
         if (tl_ctx->lib->team_context_progress) {
-            team_progress_status = tl_ctx->lib->team_context_progress(tl_ctx);
-            if (team_progress_status != XCCL_OK) {
-                return team_progress_status;
+            status = tl_ctx->lib->team_context_progress(tl_ctx);
+                if (status != XCCL_OK) {
+                return status;
             }
-            xccl_progress_status = xccl_ctx_progress_queue(tl_ctx);
-            if(xccl_progress_status != XCCL_OK){
-                return xccl_progress_status;
+            status = xccl_ctx_progress_queue(tl_ctx);
+            if(status != XCCL_OK){
+                return status;
             }
         }
     }
@@ -101,20 +103,21 @@ xccl_status_t xccl_context_progress(xccl_context_h context) {
     return XCCL_OK;
 }
 
-xccl_status_t xccl_context_destroy(xccl_context_h context) {
+xccl_status_t xccl_context_destroy(xccl_context_h context)
+{
     xccl_tl_context_t *tl_ctx;
-    int i;
-    xccl_status_t xccl_progress_queue_status, team_context_status;
+    int               i;
+    xccl_status_t     status;
 
     for (i = 0; i < context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
-        xccl_progress_queue_status = xccl_ctx_progress_queue_destroy(tl_ctx->pq);
-        if(xccl_progress_queue_status != XCCL_OK){
-            return xccl_progress_queue_status;
+        status = xccl_ctx_progress_queue_destroy(tl_ctx->pq);
+        if(status != XCCL_OK){
+            return status;
         }
-        team_context_status = tl_ctx->lib->team_context_destroy(tl_ctx);
-        if(team_context_status != XCCL_OK){
-
+        status = tl_ctx->lib->team_context_destroy(tl_ctx);
+        if(status != XCCL_OK){
+            return status;
         }
     }
 
@@ -125,29 +128,30 @@ xccl_status_t xccl_context_destroy(xccl_context_h context) {
 
 xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,
                                        const char *filename,
-                                       xccl_context_config_t **config_p) {
+                                       xccl_context_config_t **config_p)
+{
     xccl_tl_context_t *tl_ctx;
-    int i;
+    int               i;
     char full_prefix[128] = "XCCL_";
     ucs_status_t status;
     xccl_context_config_t *config;
-    int env_prefix_len;
+    int                   env_prefix_len;
 
-    config = (xccl_context_config_t *) malloc(sizeof(xccl_context_config_t));
+    config          = (xccl_context_config_t*)malloc(sizeof(xccl_context_config_t));
     if (config == NULL) {
         goto err_config;
     }
 
-    config->configs = (xccl_tl_context_config_t **) malloc(lib->n_libs_opened * sizeof(xccl_tl_context_config_t * ));
+    config->configs = (xccl_tl_context_config_t**)malloc(lib->n_libs_opened * sizeof(xccl_tl_context_config_t*));
     if (config->configs == NULL) {
         goto err_configs;
     }
 
-    for (i = 0; i < lib->n_libs_opened; i++) {
+    for(i = 0; i < lib->n_libs_opened; i++) {
         if (lib->libs[i]->tl_context_config.table == NULL) {
             continue;
         }
-        config->configs[i] = (xccl_tl_context_config_t *) malloc(lib->libs[i]->tl_context_config.size);
+        config->configs[i] = (xccl_tl_context_config_t*)malloc(lib->libs[i]->tl_context_config.size);
         if (config->configs[i] == NULL) {
             goto err_config_i;
         }
@@ -168,25 +172,25 @@ xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,
                                              0);
     }
     config->n_tl_cfg = lib->n_libs_opened;
-    config->lib = lib;
+    config->lib      = lib;
     *config_p = config;
 
     return XCCL_OK;
 
-    err_prefix:
+err_prefix:
     free(config->configs[i]);
 
-    err_config_i:
-    for (i = i - 1; i >= 0; i--) {
+err_config_i:
+    for(i = i - 1;i >= 0; i--) {
         free(config->configs[i]);
         if (config->configs[i]->env_prefix != NULL) {
             free(config->configs[i]->env_prefix);
         }
     }
-    err_configs:
+err_configs:
     free(config->configs);
 
-    err_config:
+err_config:
     free(config);
 
     return XCCL_ERR_NO_MEMORY;
@@ -194,10 +198,12 @@ xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,
 
 xccl_status_t xccl_context_config_modify(xccl_tl_id_t *tl_id,
                                          xccl_context_config_t *config,
-                                         const char *name, const char *value) {
+                                         const char *name, const char *value)
+{
     int i;
 
-    for (i = 0; i < config->n_tl_cfg; i++) {
+    for(i = 0; i < config->n_tl_cfg; i++)
+    {
         if (config->lib->libs[i]->id == *tl_id) {
             return ucs_config_parser_set_value(config->configs[i],
                                                config->lib->libs[i]->tl_context_config.table,
@@ -209,10 +215,11 @@ xccl_status_t xccl_context_config_modify(xccl_tl_id_t *tl_id,
 }
 
 
-void xccl_context_config_release(xccl_context_config_t *config) {
+void xccl_context_config_release(xccl_context_config_t *config)
+{
     int i;
 
-    for (i = 0; i < config->lib->n_libs_opened; i++) {
+    for(i = 0; i < config->lib->n_libs_opened; i++) {
         ucs_config_parser_release_opts(config->configs[i],
                                        config->lib->libs[i]->tl_context_config.table);
         if (config->configs[i]->env_prefix != NULL) {

@@ -72,7 +72,7 @@ int main (int argc, char **argv)
 
     count_max = (msglen_max + sizeof(int) - 1)/sizeof(int);
     count_min = (msglen_min + sizeof(int) - 1)/sizeof(int);
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLTOALL,XCCL_THREAD_MODE_SINGLE));
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLTOALL, XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 

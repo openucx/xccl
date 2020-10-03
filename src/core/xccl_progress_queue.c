@@ -1,8 +1,8 @@
 #include <xccl_progress_queue.h>
 #include <xccl_team_lib.h>
 #include <xccl_schedule.h>
-#include <tasks_pool.h>
-#include <tasks_queue.h>
+#include <xccl_lock_free_tasks_queue.h>
+#include <xccl_tasks_queue.h>
 
 
 xccl_status_t xccl_ctx_progress_queue_init(xccl_progress_queue_t **q, unsigned thread_mode) {
@@ -13,7 +13,7 @@ xccl_status_t xccl_ctx_progress_queue_init(xccl_progress_queue_t **q, unsigned t
             status = tasks_queue_init(pq);
             break;
         case XCCL_THREAD_MODE_MULTIPLE:
-            status = tasks_pool_init(pq);
+            status = lf_tasks_queue_init(pq);
             break;
         default:
             status = tasks_queue_init(pq);
@@ -33,17 +33,7 @@ xccl_status_t xccl_task_enqueue(xccl_progress_queue_t *q,
 }
 
 xccl_status_t xccl_ctx_progress_queue(xccl_tl_context_t *tl_ctx) {
-    ucc_coll_task_t *popped_task;
-    xccl_status_t status = (tl_ctx->pq->api.progress_queue_dequeue)(tl_ctx->pq,&popped_task,1);
-    if (status != XCCL_OK) {
-        return status;
-    }
-    if (popped_task) {
-        if (XCCL_OK != popped_task->progress(popped_task)) {
-            return (tl_ctx->pq->api.progress_queue_enqueue)(tl_ctx->pq,popped_task);
-        }
-    }
-    return XCCL_OK;
+    return (tl_ctx->pq->api.progress_queue_progress_tasks)(tl_ctx->pq);
 }
 
 xccl_status_t xccl_ctx_progress_queue_destroy(xccl_progress_queue_t *q) {

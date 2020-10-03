@@ -49,19 +49,25 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
     int have_node_leaders_group     = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
     int have_socket_group           = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group   = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
+    int have_node_group             = (team->sbgps[SBGP_NODE].status == SBGP_ENABLED);
     int node_leaders_group_exists   = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
     int socket_group_exists         = (team->sbgps[SBGP_SOCKET].status != SBGP_NOT_EXISTS);
     int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
-    sbgp_type_t top_sbgp            = node_leaders_group_exists ? SBGP_NODE_LEADERS :
-                                      (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
-    int i,c = 0;
+    int node_group_exists           = (team->sbgps[SBGP_NODE].status != SBGP_NOT_EXISTS);
 
-//    while(1){
-//        sleep(3);
-//    }
-    printf("node_leaders size - %i \n",team->sbgps[SBGP_NODE_LEADERS].group_size);
-    printf("socket_group size - %i \n",team->sbgps[SBGP_SOCKET].group_size);
-    printf("socket_leaders_leaders size - %i \n",team->sbgps[SBGP_SOCKET_LEADERS].group_size);
+    sbgp_type_t top_sbgp;
+    if (node_leaders_group_exists) {
+        top_sbgp = SBGP_NODE_LEADERS;
+    } else if (socket_leaders_group_exists) {
+        top_sbgp = SBGP_SOCKET_LEADERS;
+    } else if (socket_group_exists) {
+        top_sbgp = SBGP_SOCKET;
+    } else {
+        assert(node_group_exists);
+        top_sbgp = SBGP_NODE;
+    }
+
+    int i,c = 0;
 
     xccl_seq_schedule_t *schedule = (xccl_seq_schedule_t *)malloc(sizeof(*schedule));
     if (schedule == NULL) {
@@ -98,6 +104,21 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
         coll.buffer_info.src_buffer = coll.buffer_info.dst_buffer;
     }
 
+    if (team->no_socket && have_node_group) {
+        assert(c == 0);
+        /* !have_socket_group && ! have_socket_leaders_group */
+        if (top_sbgp == SBGP_NODE) {
+            coll.coll_type = XCCL_ALLREDUCE;
+            schedule->tasks[c].xccl_coll = coll;
+        } else {
+            coll.coll_type = XCCL_REDUCE;
+            schedule->tasks[c].xccl_coll = coll;
+        }
+        schedule->tasks[c].pair = team->pairs[spec.pairs.node];
+        c++;
+        coll.buffer_info.src_buffer = coll.buffer_info.dst_buffer;
+    }
+
     if (have_node_leaders_group) {
         assert(top_sbgp == SBGP_NODE_LEADERS);
         coll.coll_type = XCCL_ALLREDUCE;
@@ -120,7 +141,12 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
         c++;
     }
 
-    printf("c is %i\n",c);
+    if (team->no_socket && have_node_group  && top_sbgp != SBGP_NODE) {
+        coll.coll_type = XCCL_BCAST;
+        schedule->tasks[c].xccl_coll = coll;
+        schedule->tasks[c].pair = team->pairs[spec.pairs.node];
+        c++;
+    }
 
     ucc_schedule_init(&schedule->super, team->super.ctx);
     for (i = 0; i < c; i++) {

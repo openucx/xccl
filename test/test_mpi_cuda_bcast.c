@@ -15,7 +15,7 @@ int main (int argc, char **argv) {
     char *local_rank;
 
     xccl_coll_req_h request;    
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BCAST,XCCL_THREAD_MODE_SINGLE));
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BCAST, XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
