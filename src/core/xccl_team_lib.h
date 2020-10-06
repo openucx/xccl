@@ -43,6 +43,7 @@ typedef struct xccl_team_lib {
     xccl_tl_id_t                   id;
     int                            priority;
     xccl_lib_params_t              params;
+    uint64_t                       mem_types;
     xccl_context_create_mode_t     ctx_create_mode;
     void*                          dl_handle;
     ucs_config_global_list_entry_t team_lib_config;

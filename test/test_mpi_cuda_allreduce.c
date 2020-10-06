@@ -24,6 +24,7 @@ int main (int argc, char **argv) {
     if (local_rank) {
         cudaSetDevice(atoi(local_rank));
     }
+
     cudaStreamCreate(&stream);
 
     sbuf_host = (int*)malloc(msg_size);

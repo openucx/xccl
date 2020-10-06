@@ -5,6 +5,7 @@
 #include "xccl_vmc_lib.h"
 #include <stdio.h>
 #include <vmc.h>
+#include <ucs/memory/memory_type.h>
 
 static ucs_config_field_t xccl_tl_vmc_context_config_table[] = {
     {"", "", NULL,
@@ -189,6 +190,8 @@ xccl_team_lib_vmc_t xccl_team_lib_vmc = {
     .super.params.thread_mode    = XCCL_THREAD_MODE_SINGLE | XCCL_THREAD_MODE_MULTIPLE,
     .super.params.team_usage     = XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
     .super.params.coll_types     = XCCL_COLL_CAP_BCAST,
+    .super.mem_types             = UCS_BIT(UCS_MEMORY_TYPE_HOST) |
+                                   UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode       = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create   = xccl_vmc_create_context,
     .super.team_context_destroy  = xccl_vmc_destroy_context,

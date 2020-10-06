@@ -6,6 +6,7 @@
 #include "config.h"
 
 #include "xccl_mrail_lib.h"
+#include <ucs/memory/memory_type.h>
 #include <pthread.h>
 
 static const char *xccl_tl_names[] = {
@@ -221,7 +222,7 @@ xccl_mrail_context_create(xccl_team_lib_t *lib, xccl_context_params_t *params,
     int                            i;
     int                            n_devs;
 
-    xccl_mrail_debug("Entering context create");
+    xccl_mrail_debug("context create");
     cfg = ucs_derived_of(config, xccl_tl_mrail_context_config_t);
     n_devs = cfg->devices.count;
     if (mrail->config.replicated_tl_id == XCCL_TL_MRAIL) {
@@ -256,7 +257,6 @@ xccl_mrail_context_create(xccl_team_lib_t *lib, xccl_context_params_t *params,
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
     *context = &ctx->super;
 
-    xccl_mrail_debug("Exiting context create");
     return XCCL_OK;
 
 free_tls:
@@ -275,14 +275,13 @@ xccl_status_t xccl_mrail_context_destroy(xccl_tl_context_t *team_context)
     xccl_mrail_context_t *ctx = ucs_derived_of(team_context, xccl_mrail_context_t);
     int                  i;
 
-    xccl_mrail_debug("Entering context destroy");
+    xccl_mrail_debug("context destroy");
     for(i = 0; i < ctx->n_tls; i++) {
         xccl_context_destroy(ctx->tls[i]);
     }
     xccl_lib_cleanup(ctx->tl);
 
     free(ctx);
-    xccl_mrail_debug("Exiting context destroy");
     return XCCL_OK;
 }
 
@@ -572,6 +571,8 @@ xccl_team_lib_mrail_t xccl_team_lib_mrail = {
     .super.params.coll_types     = XCCL_COLL_CAP_BARRIER   |
                                    XCCL_COLL_CAP_BCAST     |
                                    XCCL_COLL_CAP_ALLREDUCE,
+    .super.mem_types             = UCS_BIT(UCS_MEMORY_TYPE_HOST) |
+                                   UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode       = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create   = xccl_mrail_context_create,
     .super.team_context_destroy  = xccl_mrail_context_destroy,

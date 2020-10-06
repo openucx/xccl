@@ -9,6 +9,7 @@
 #include <api/xccl.h>
 #include <xccl_context.h>
 #include <xccl_team_lib.h>
+#include <ucs/memory/memory_type.h>
 
 #define XCCL_CHECK_TEAM(_team)                                                    \
     do {                                                                          \
@@ -20,7 +21,7 @@
 
 typedef struct xccl_team {
     xccl_context_t *ctx;
-    int            coll_team_id[XCCL_COLL_LAST];
+    int            coll_team_id[XCCL_COLL_LAST][UCS_MEMORY_TYPE_LAST];
     int            n_teams;
     xccl_status_t  status;
     xccl_tl_team_t *tl_teams[1];

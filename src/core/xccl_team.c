@@ -7,6 +7,7 @@
 #include "config.h"
 
 #include <xccl_team.h>
+#include <ucs/memory/memory_type.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -60,7 +61,7 @@ xccl_status_t xccl_team_create_post(xccl_context_h context,
 
 xccl_status_t xccl_team_create_test(xccl_team_t *team)
 {
-    int i, c;
+    int i, c, m;
     xccl_tl_context_t *tl_ctx;
     for (i=0; i<team->n_teams; i++) {
         tl_ctx = team->tl_teams[i]->ctx;
@@ -70,12 +71,14 @@ xccl_status_t xccl_team_create_test(xccl_team_t *team)
     }
     qsort(team->tl_teams, team->n_teams, sizeof(xccl_tl_team_t*),
           compare_teams_by_priority);
-    for (c = 0; c < XCCL_COLL_LAST; c++) {
-        for (i=0; i<team->n_teams; i++) {
-            if (team->tl_teams[i]->ctx->lib->params.coll_types &
-                UCS_BIT(c)) {
-                team->coll_team_id[c] = i;
-                break;
+    for (m = 0; m < UCS_MEMORY_TYPE_LAST; m++) {
+        for (c = 0; c < XCCL_COLL_LAST; c++) {
+            for (i=0; i<team->n_teams; i++) {
+                if ((team->tl_teams[i]->ctx->lib->params.coll_types & UCS_BIT(c)) &&
+                    (team->tl_teams[i]->ctx->lib->mem_types & UCS_BIT(m))) {
+                    team->coll_team_id[c][m] = i;
+                    break;
+                }
             }
         }
     }
