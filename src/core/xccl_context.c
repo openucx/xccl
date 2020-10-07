@@ -90,7 +90,7 @@ xccl_status_t xccl_context_progress(xccl_context_h context)
         tl_ctx = context->tl_ctx[i];
         if (tl_ctx->lib->team_context_progress) {
             status = tl_ctx->lib->team_context_progress(tl_ctx);
-                if (status != XCCL_OK) {
+            if (status != XCCL_OK) {
                 return status;
             }
             status = xccl_ctx_progress_queue(tl_ctx);

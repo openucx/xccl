@@ -10,7 +10,7 @@ typedef struct xccl_progress_queue xccl_progress_queue_t;
 typedef struct progress_queue_api{
     xccl_status_t (*progress_queue_enqueue)(xccl_progress_queue_t*, ucc_coll_task_t*);
     xccl_status_t (*progress_queue_progress_tasks)(xccl_progress_queue_t*);
-    xccl_status_t (*progress_queue_cleanup)(xccl_progress_queue_t*);
+    xccl_status_t (*progress_queue_destroy)(xccl_progress_queue_t*);
 } progress_queue_api_t;
 
 struct xccl_progress_queue {

@@ -37,7 +37,7 @@ xccl_status_t xccl_ctx_progress_queue(xccl_tl_context_t *tl_ctx) {
 }
 
 xccl_status_t xccl_ctx_progress_queue_destroy(xccl_progress_queue_t *q) {
-    xccl_status_t status = (q->api.progress_queue_cleanup)(q);
+    xccl_status_t status = (q->api.progress_queue_destroy)(q);
     if (status != XCCL_OK) {
         return status;
     }
