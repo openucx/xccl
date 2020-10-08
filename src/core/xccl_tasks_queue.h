@@ -17,7 +17,7 @@ typedef struct xccl_tasks_queue {
 
 xccl_status_t tasks_queue_init(xccl_progress_queue_t *handle);
 
-xccl_status_t tasks_queue_insert(xccl_progress_queue_t *handle, ucc_coll_task_t *task);
+xccl_status_t tasks_queue_insert(xccl_progress_queue_t *handle, xccl_coll_task_t *task);
 
 xccl_status_t tasks_queue_progress(xccl_progress_queue_t *handle);
 

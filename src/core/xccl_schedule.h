@@ -8,76 +8,58 @@
 #define MAX_LISTENERS 16
 
 typedef enum {
-    UCC_EVENT_COMPLETED = 0,
-    UCC_EVENT_SCHEDULE_STARTED,
-    UCC_EVENT_LAST
-} ucc_event_t;
+    XCCL_EVENT_COMPLETED = 0,
+    XCCL_EVENT_SCHEDULE_STARTED,
+    XCCL_EVENT_LAST
+} xccl_event_t;
 
 typedef enum {
-    UCC_TASK_STATE_NOT_READY,
-    UCC_TASK_STATE_INPROGRESS,
-    UCC_TASK_STATE_COMPLETED
-} ucc_task_state_t;
+    XCCL_TASK_STATE_NOT_READY,
+    XCCL_TASK_STATE_INPROGRESS,
+    XCCL_TASK_STATE_COMPLETED
+} xccl_task_state_t;
 
-typedef enum {
-    /* Operation completed successfully */
-    UCC_OK                              =   0,
+typedef struct xccl_coll_task xccl_coll_task_t;
 
-    /* Operation is posted and is in progress */
-    UCC_INPROGRESS                      =   1,
+typedef void (*xccl_task_event_handler_p)(xccl_coll_task_t *task);
 
-    /* Operation initialized but not posted */
-    UCC_OPERATION_INITIALIZED           =   2,
-    UCC_ERR_OP_NOT_SUPPORTED            =   3,
-    UCC_ERR_NOT_IMPLEMENTED             =   4,
-    UCC_ERR_INVALID_PARAM               =   5,
-    UCC_ERR_NO_MEMORY                   =   6,
-    UCC_ERR_NO_RESOURCE                 =   7,
+typedef struct xccl_event_manager {
+    xccl_coll_task_t  *listeners[XCCL_EVENT_LAST][MAX_LISTENERS];
+    int listeners_size[XCCL_EVENT_LAST];
+} xccl_event_manager_t;
 
-    UCC_ERR_LAST                        = -100,
-} ucc_status_t;
-
-typedef struct ucc_coll_task ucc_coll_task_t;
-
-typedef void (*ucc_task_event_handler_p)(ucc_coll_task_t *task);
-
-typedef struct ucc_event_manager {
-    ucc_coll_task_t  *listeners[UCC_EVENT_LAST][MAX_LISTENERS];
-    int listeners_size[UCC_EVENT_LAST];
-} ucc_event_manager_t;
-
-typedef struct ucc_coll_task {
-    ucc_event_manager_t      em;
-    ucc_task_state_t         state;
-    ucc_task_event_handler_p handlers[UCC_EVENT_LAST];
-    ucc_status_t (*progress)(struct ucc_coll_task *self);
-    struct ucc_schedule *schedule;
+typedef struct xccl_coll_task {
+    xccl_event_manager_t      em;
+    xccl_task_state_t         state;
+    xccl_task_event_handler_p handlers[XCCL_EVENT_LAST];
+    xccl_status_t (*progress)(struct xccl_coll_task *self);
+    struct xccl_schedule *schedule;
     volatile int busy;
     /* used for progress queue */
-    ucc_coll_task_t* next;
+    xccl_coll_task_t* next;
     ucs_list_link_t  list_elem;
     int              was_progressed;
-} ucc_coll_task_t;
+} xccl_coll_task_t;
 
 typedef struct xccl_tl_context xccl_tl_context_t;
-typedef struct ucc_schedule {
-    ucc_coll_task_t    super;
+typedef struct xccl_schedule {
+    xccl_coll_task_t    super;
     int                n_completed_tasks;
     int                n_tasks;
     xccl_tl_context_t  *tl_ctx;
-} ucc_schedule_t;
+} xccl_schedule_t;
 
-void ucc_event_manager_init(ucc_event_manager_t *em);
-void ucc_event_manager_subscribe(ucc_event_manager_t *em,
-                                 ucc_event_t event,
-                                 ucc_coll_task_t *task);
-void ucc_event_manager_notify(ucc_event_manager_t *em, ucc_event_t event);
-void ucc_coll_task_init(ucc_coll_task_t *task);
-void schedule_completed_handler(ucc_coll_task_t *task);
-void ucc_schedule_init(ucc_schedule_t *schedule, xccl_tl_context_t *tl_ctx);
-void ucc_schedule_add_task(ucc_schedule_t *schedule, ucc_coll_task_t *task);
-void ucc_schedule_start(ucc_schedule_t *schedule);
-ucc_status_t ucc_schedule_progress(ucc_schedule_t *schedule);
+void xccl_event_manager_init(xccl_event_manager_t *em);
+void xccl_event_manager_subscribe(xccl_event_manager_t *em,
+                                 xccl_event_t event,
+                                 xccl_coll_task_t *task);
+void xccl_event_manager_notify(xccl_event_manager_t *em, xccl_event_t event);
+void xccl_coll_task_init(xccl_coll_task_t *task);
+void schedule_completed_handler(xccl_coll_task_t *task);
+void xccl_schedule_init(xccl_schedule_t *schedule, xccl_tl_context_t *tl_ctx);
+void xccl_schedule_add_task(xccl_schedule_t *schedule, xccl_coll_task_t *task);
+void xccl_schedule_start(xccl_schedule_t *schedule);
+xccl_status_t xccl_schedule_progress(xccl_schedule_t *schedule);
 
 
 #endif

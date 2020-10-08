@@ -1,6 +1,5 @@
 #include "xccl_tasks_queue.h"
 
-
 xccl_status_t tasks_queue_init(xccl_progress_queue_t *handle) {
     handle->ctx = (void *) malloc(sizeof(xccl_tasks_queue_t));
     xccl_tasks_queue_t *ctx = (xccl_tasks_queue_t *) handle->ctx;
@@ -12,7 +11,7 @@ xccl_status_t tasks_queue_init(xccl_progress_queue_t *handle) {
     return XCCL_OK;
 }
 
-xccl_status_t tasks_queue_insert(xccl_progress_queue_t *handle, ucc_coll_task_t *task) {
+xccl_status_t tasks_queue_insert(xccl_progress_queue_t *handle, xccl_coll_task_t *task) {
     xccl_tasks_queue_t *ctx = (xccl_tasks_queue_t *) handle->ctx;
     ucs_list_add_tail(&ctx->list, &task->list_elem);
     return XCCL_OK;
@@ -20,7 +19,7 @@ xccl_status_t tasks_queue_insert(xccl_progress_queue_t *handle, ucc_coll_task_t 
 
 xccl_status_t tasks_queue_progress(xccl_progress_queue_t *handle) {
     xccl_tasks_queue_t *ctx = (xccl_tasks_queue_t *) handle->ctx;
-    ucc_coll_task_t *task, *tmp;
+    xccl_coll_task_t *task, *tmp;
     ucs_list_for_each_safe(task, tmp, &ctx->list, list_elem)
     {
         if (task->progress(task) == XCCL_OK) {

@@ -203,15 +203,15 @@ xccl_hier_collective_init(xccl_coll_op_args_t *coll_args,
 static xccl_status_t xccl_hier_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_seq_schedule_t *schedule = ucs_container_of(request, xccl_seq_schedule_t, req);
-    schedule->tasks[schedule->dep].super.state = UCC_INPROGRESS;
-    ucc_schedule_start(&schedule->super);
+    schedule->tasks[schedule->dep].super.state = XCCL_INPROGRESS;
+    xccl_schedule_start(&schedule->super);
     return XCCL_OK;
 }
 
 static xccl_status_t xccl_hier_collective_test(xccl_tl_coll_req_t *request)
 {
     xccl_seq_schedule_t *schedule = ucs_container_of(request, xccl_seq_schedule_t, req);
-    return schedule->super.super.state == UCC_TASK_STATE_COMPLETED ? XCCL_OK :
+    return schedule->super.super.state == XCCL_TASK_STATE_COMPLETED ? XCCL_OK :
         XCCL_INPROGRESS;
 }
 

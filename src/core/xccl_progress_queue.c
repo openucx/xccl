@@ -16,7 +16,7 @@ xccl_status_t xccl_ctx_progress_queue_init(xccl_progress_queue_t **q, unsigned t
             status = lf_tasks_queue_init(pq);
             break;
         default:
-            status = tasks_queue_init(pq);
+            status = XCCL_ERR_INVALID_PARAM;
             break;
     }
     if (status != XCCL_OK) {
@@ -27,7 +27,7 @@ xccl_status_t xccl_ctx_progress_queue_init(xccl_progress_queue_t **q, unsigned t
 }
 
 xccl_status_t xccl_task_enqueue(xccl_progress_queue_t *q,
-                                ucc_coll_task_t *task) {
+                                xccl_coll_task_t *task) {
     task->was_progressed = 0;
     return (q->api.progress_queue_enqueue)(q,task);
 }

@@ -58,6 +58,7 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     int have_socket_group = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
     int have_node_group           = (team->sbgps[SBGP_NODE].status == SBGP_ENABLED);
+
     int node_leaders_group_exists = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
     int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
     int root = coll.root, c = 0;
@@ -168,14 +169,14 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     return XCCL_OK;
 }
 
-ucc_status_t hier_bcast_task_progress_handler(ucc_coll_task_t *task)
+xccl_status_t hier_bcast_task_progress_handler(xccl_coll_task_t *task)
 {
     const int n_polls = 10;
     xccl_status_t status;
     int i;
 
     xccl_hier_task_t *self = (xccl_hier_task_t*)task;
-    for (i = 0; (i < n_polls) && (task->state == UCC_TASK_STATE_INPROGRESS); i++) {
+    for (i = 0; (i < n_polls) && (task->state == XCCL_TASK_STATE_INPROGRESS); i++) {
         if (!self->req) {
             status = xccl_collective_init(&self->xccl_coll, &self->req, self->pair->team);
             status = xccl_collective_post(self->req);
@@ -183,17 +184,17 @@ ucc_status_t hier_bcast_task_progress_handler(ucc_coll_task_t *task)
         status = xccl_collective_test(self->req);
         if (status == XCCL_OK) {
             xccl_collective_finalize(self->req);
-            ucc_event_manager_notify(&task->em, UCC_EVENT_COMPLETED);
-            task->state = UCC_TASK_STATE_COMPLETED;
+            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+            task->state = XCCL_TASK_STATE_COMPLETED;
         }
     }
-    return task->state == UCC_TASK_STATE_COMPLETED ? UCC_OK : UCC_INPROGRESS;
+    return task->state == XCCL_TASK_STATE_COMPLETED ? XCCL_OK : XCCL_INPROGRESS;
 }
 
-void hier_bcast_task_completed_handler(ucc_coll_task_t *task)
+void hier_bcast_task_completed_handler(xccl_coll_task_t *task)
 {
     /* start task if completion event received */
-    task->state = UCC_TASK_STATE_INPROGRESS;
+    task->state = XCCL_TASK_STATE_INPROGRESS;
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
 }
 
@@ -223,7 +224,7 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
     }
 
     schedule->tasks = (xccl_hier_task_t*)malloc(8*sizeof(xccl_hier_task_t));
-    ucc_schedule_init(&schedule->super, team->super.ctx);
+    xccl_schedule_init(&schedule->super, team->super.ctx);
 
     // schedule->super.super.hier_team = team;
     // schedule->super.super.type = XCCL_COLL_SCHED_SINGLE_DEP;
@@ -244,7 +245,7 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
                                     ctx->procs, ROOT_ID_NODE);
         schedule->tasks[c].xccl_coll = coll;
         schedule->tasks[c].pair      = team->pairs[spec.pairs.node_leaders];
-        ucc_coll_task_init(&schedule->tasks[c].super);
+        xccl_coll_task_init(&schedule->tasks[c].super);
 
         if (coll.root != team->sbgps[SBGP_NODE_LEADERS].group_rank) {
             dep_id = c;
@@ -268,7 +269,7 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
             schedule->tasks[c].xccl_coll.get_info.local_buffer = coll.buffer_info.dst_buffer;
         }
         schedule->tasks[c].pair = team->pairs[spec.pairs.socket_leaders];
-        ucc_coll_task_init(&schedule->tasks[c].super);
+        xccl_coll_task_init(&schedule->tasks[c].super);
 
         if (coll.root != team->sbgps[SBGP_SOCKET_LEADERS].group_rank) {
             dep_id = c;
@@ -290,7 +291,7 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
             schedule->tasks[c].xccl_coll.get_info.local_buffer = coll.buffer_info.dst_buffer;
         }
         schedule->tasks[c].pair = team->pairs[spec.pairs.socket];
-        ucc_coll_task_init(&schedule->tasks[c].super);
+        xccl_coll_task_init(&schedule->tasks[c].super);
         if (coll.root != team->sbgps[SBGP_SOCKET].group_rank) {
             dep_id = c;
         }
@@ -299,16 +300,16 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
 
     for (i = 0; i < c; i++) {
         schedule->tasks[i].super.progress  = hier_bcast_task_progress_handler;
-        schedule->tasks[i].super.handlers[UCC_EVENT_COMPLETED] = hier_bcast_task_completed_handler;
+        schedule->tasks[i].super.handlers[XCCL_EVENT_COMPLETED] = hier_bcast_task_completed_handler;
         schedule->tasks[i].req = NULL;
         if (i != dep_id) {
-            ucc_event_manager_subscribe(&schedule->tasks[dep_id].super.em, UCC_EVENT_COMPLETED, &schedule->tasks[i].super);
+            xccl_event_manager_subscribe(&schedule->tasks[dep_id].super.em, XCCL_EVENT_COMPLETED, &schedule->tasks[i].super);
         } else {
-            schedule->tasks[i].super.handlers[UCC_EVENT_SCHEDULE_STARTED] = hier_bcast_task_completed_handler;
-            ucc_event_manager_subscribe(&schedule->super.super.em, UCC_EVENT_SCHEDULE_STARTED,
+            schedule->tasks[i].super.handlers[XCCL_EVENT_SCHEDULE_STARTED] = hier_bcast_task_completed_handler;
+            xccl_event_manager_subscribe(&schedule->super.super.em, XCCL_EVENT_SCHEDULE_STARTED,
                                         &schedule->tasks[i].super);
         }
-        ucc_schedule_add_task(&schedule->super, &schedule->tasks[i].super);
+        xccl_schedule_add_task(&schedule->super, &schedule->tasks[i].super);
     }
     schedule->dep = dep_id;
     (*sched) = schedule;

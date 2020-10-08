@@ -4,15 +4,15 @@ xccl_status_t lf_tasks_queue_init(xccl_progress_queue_t *handle) {
     handle->ctx = (void *) malloc(sizeof(xccl_lf_tasks_queue_t));
     xccl_lf_tasks_queue_t *ctx = (xccl_lf_tasks_queue_t *) handle->ctx;
 
-    ctx->tasks = (ucc_coll_task_t ***) calloc(NUM_POOLS, sizeof(ucc_coll_task_t **));
+    ctx->tasks = (xccl_coll_task_t ***) calloc(NUM_POOLS, sizeof(xccl_coll_task_t **));
     if (ctx->tasks == NULL) {
         return XCCL_ERR_NO_MEMORY;
     }
-    ctx->tasks[0] = (ucc_coll_task_t **) calloc(LINE_SIZE, sizeof(ucc_coll_task_t *));
+    ctx->tasks[0] = (xccl_coll_task_t **) calloc(LINE_SIZE, sizeof(xccl_coll_task_t *));
     if (ctx->tasks[0] == NULL) {
         return XCCL_ERR_NO_MEMORY;
     }
-    ctx->tasks[1] = (ucc_coll_task_t **) calloc(LINE_SIZE, sizeof(ucc_coll_task_t *));
+    ctx->tasks[1] = (xccl_coll_task_t **) calloc(LINE_SIZE, sizeof(xccl_coll_task_t *));
     if (ctx->tasks[1] == NULL) {
         return XCCL_ERR_NO_MEMORY;
     }
@@ -30,7 +30,7 @@ xccl_status_t lf_tasks_queue_init(xccl_progress_queue_t *handle) {
 }
 
 
-xccl_status_t lf_tasks_queue_insert(xccl_progress_queue_t *handle, ucc_coll_task_t *task) {
+xccl_status_t lf_tasks_queue_insert(xccl_progress_queue_t *handle, xccl_coll_task_t *task) {
     xccl_lf_tasks_queue_t *ctx = (xccl_lf_tasks_queue_t *) handle->ctx;
     int i, j;
     xccl_status_t status;
@@ -49,7 +49,7 @@ xccl_status_t lf_tasks_queue_insert(xccl_progress_queue_t *handle, ucc_coll_task
 
 xccl_status_t lf_tasks_queue_progress(xccl_progress_queue_t *handle) {
     xccl_lf_tasks_queue_t *ctx = (xccl_lf_tasks_queue_t *) handle->ctx;
-    ucc_coll_task_t *popped_task;
+    xccl_coll_task_t *popped_task;
     xccl_status_t status = lf_tasks_queue_pop(ctx, &popped_task, 1);
     if (status != XCCL_OK) {
         return status;
@@ -62,11 +62,11 @@ xccl_status_t lf_tasks_queue_progress(xccl_progress_queue_t *handle) {
     return XCCL_OK;
 }
 
-xccl_status_t lf_tasks_queue_pop(xccl_lf_tasks_queue_t *ctx, ucc_coll_task_t **popped_task_ptr, int is_first_call) {
+xccl_status_t lf_tasks_queue_pop(xccl_lf_tasks_queue_t *ctx, xccl_coll_task_t **popped_task_ptr, int is_first_call) {
     int i, j;
     int curr_which_pool = ctx->which_pool;
     int which_pool = curr_which_pool & 1;
-    ucc_coll_task_t *popped_task = NULL;
+    xccl_coll_task_t *popped_task = NULL;
     if (ctx->tasks_countrs[which_pool]) {
         for (i = 0; i < LINE_SIZE; i++) {
             popped_task = ctx->tasks[which_pool][i];
@@ -91,7 +91,7 @@ xccl_status_t lf_tasks_queue_pop(xccl_lf_tasks_queue_t *ctx, ucc_coll_task_t **p
     popped_task = NULL;
     ucs_spin_lock(&ctx->locked_queue_lock);
     if (!ucs_list_is_empty(&ctx->locked_queue)) {
-        popped_task = ucs_list_extract_head(&ctx->locked_queue, ucc_coll_task_t, list_elem);
+        popped_task = ucs_list_extract_head(&ctx->locked_queue, xccl_coll_task_t, list_elem);
     }
     ucs_spin_unlock(&ctx->locked_queue_lock);
     if (popped_task != NULL) {
