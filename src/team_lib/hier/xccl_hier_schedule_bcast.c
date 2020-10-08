@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "xccl_hier_schedule.h"
+#include "xccl_hier_task_schedule.h"
 #include "xccl_hier_team.h"
 xccl_status_t xccl_hier_collective_finalize(xccl_tl_coll_req_t *request);
 
@@ -56,10 +57,10 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     int have_node_leaders_group = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
     int have_socket_group = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
+    int have_node_group           = (team->sbgps[SBGP_NODE].status == SBGP_ENABLED);
+
     int node_leaders_group_exists = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
     int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
-    sbgp_type_t top_sbgp = node_leaders_group_exists ? SBGP_NODE_LEADERS :
-        (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
     int root = coll.root, c = 0;
     int rank = team->super.params.oob.rank;
     int wroot = xccl_hier_team_rank2ctx(team, root);
@@ -81,7 +82,6 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
     }
     coll.alg.set_by_user = 0;
     if (have_node_leaders_group) {
-        assert(top_sbgp == SBGP_NODE_LEADERS);
         coll.root = find_root_by_id(ctx->procs[wroot].node_id,
                                     &team->sbgps[SBGP_NODE_LEADERS],
                                     ctx->procs, ROOT_ID_NODE);
@@ -90,6 +90,7 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
         if (coll.root != team->sbgps[SBGP_NODE_LEADERS].group_rank) {
             schedule->dep_id = c;
         }
+
         c++;
     }
     if (have_socket_leaders_group) {
@@ -135,6 +136,24 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
         c++;
     }
 
+    if (team->no_socket && have_node_group) {
+        if (root_on_local_node) {
+            coll.root = find_root_by_rank(root, &team->sbgps[SBGP_NODE]);
+        } else {
+            coll.root = 0;
+        }
+        schedule->super.args[c].xccl_coll = coll;
+        if (spec.use_sm_fanout_get) {
+            xccl_hier_error("SM Fanout get bcast is not supported with unbound processes");
+            abort();
+        }
+        schedule->super.args[c].pair = team->pairs[spec.pairs.node];
+        if (coll.root != team->sbgps[SBGP_NODE].group_rank) {
+            schedule->dep_id = c;
+        }
+        c++;
+    }
+
     assert(schedule->dep_id >= 0);
     schedule->dep_satisfied = 0;
     schedule->super.n_colls = c;
@@ -146,6 +165,154 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
         make_fragmented_schedule(&schedule->super.super, sched, coll.buffer_info,
                                  pipeline_thresh, 1, ctx->bcast_pipeline_depth);
     }
+
+    return XCCL_OK;
+}
+
+xccl_status_t hier_bcast_task_progress_handler(xccl_coll_task_t *task)
+{
+    const int n_polls = 10;
+    xccl_status_t status;
+    int i;
+
+    xccl_hier_task_t *self = (xccl_hier_task_t*)task;
+    for (i = 0; (i < n_polls) && (task->state == XCCL_TASK_STATE_INPROGRESS); i++) {
+        if (!self->req) {
+            status = xccl_collective_init(&self->xccl_coll, &self->req, self->pair->team);
+            status = xccl_collective_post(self->req);
+        }
+        status = xccl_collective_test(self->req);
+        if (status == XCCL_OK) {
+            xccl_collective_finalize(self->req);
+            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+            task->state = XCCL_TASK_STATE_COMPLETED;
+        }
+    }
+    return task->state == XCCL_TASK_STATE_COMPLETED ? XCCL_OK : XCCL_INPROGRESS;
+}
+
+void hier_bcast_task_completed_handler(xccl_coll_task_t *task)
+{
+    /* start task if completion event received */
+    task->state = XCCL_TASK_STATE_INPROGRESS;
+    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+}
+
+xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
+                                        xccl_hier_bcast_spec_t spec, xccl_seq_schedule_t **sched)
+{
+    int have_node_leaders_group     = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
+    int have_socket_group           = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
+    int have_socket_leaders_group   = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
+    int node_leaders_group_exists   = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
+    int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
+    sbgp_type_t top_sbgp            = node_leaders_group_exists ? SBGP_NODE_LEADERS :
+                                      (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
+    int root                        = coll.root;
+    int c                           = 0;
+    int rank                        = team->super.params.oob.rank;
+    int wroot                       = xccl_hier_team_rank2ctx(team, root);
+    int root_on_local_node          = is_rank_on_local_node(root, team);
+    int root_on_local_socket        = root_on_local_node &&
+                                      is_rank_on_local_socket(root, team);
+    xccl_hier_context_t *ctx        = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
+    size_t pipeline_thresh          = ctx->bcast_pipeline_thresh;
+    xccl_seq_schedule_t *schedule   = (xccl_seq_schedule_t *)malloc(sizeof(*schedule));
+    int dep_id, i, debug=1;
+    if (schedule == NULL) {
+        return XCCL_ERR_NO_MEMORY;
+    }
+
+    schedule->tasks = (xccl_hier_task_t*)malloc(8*sizeof(xccl_hier_task_t));
+    xccl_schedule_init(&schedule->super, team->super.ctx);
+
+    // schedule->super.super.hier_team = team;
+    // schedule->super.super.type = XCCL_COLL_SCHED_SINGLE_DEP;
+    // schedule->super.super.progress = coll_schedule_progress_single_dep;
+    // schedule->super.super.status = XCCL_INPROGRESS;
+    // schedule->super.fs = NULL;
+    // schedule->dep_id = -1;
+
+    if (rank == root) {
+        dep_id = 0;
+    }
+
+    coll.alg.set_by_user = 0;
+    if (have_node_leaders_group) {
+        assert(top_sbgp == SBGP_NODE_LEADERS);
+        coll.root = find_root_by_id(ctx->procs[wroot].node_id,
+                                    &team->sbgps[SBGP_NODE_LEADERS],
+                                    ctx->procs, ROOT_ID_NODE);
+        schedule->tasks[c].xccl_coll = coll;
+        schedule->tasks[c].pair      = team->pairs[spec.pairs.node_leaders];
+        xccl_coll_task_init(&schedule->tasks[c].super);
+
+        if (coll.root != team->sbgps[SBGP_NODE_LEADERS].group_rank) {
+            dep_id = c;
+        }
+        c++;
+    }
+    if (have_socket_leaders_group) {
+        if (root_on_local_node) {
+            coll.root = find_root_by_id(ctx->procs[wroot].socketid,
+                                        &team->sbgps[SBGP_SOCKET_LEADERS],
+                                        ctx->procs, ROOT_ID_SOCKET);
+        } else {
+            coll.root = 0;
+        }
+        schedule->tasks[c].xccl_coll = coll;
+        if (spec.use_sm_fanout_get) {
+            schedule->tasks[c].xccl_coll.coll_type = XCCL_FANOUT_GET;
+            schedule->tasks[c].xccl_coll.get_info.memh   = spec.socket_leaders_memh;
+            schedule->tasks[c].xccl_coll.get_info.offset = 0;
+            schedule->tasks[c].xccl_coll.get_info.len = coll.buffer_info.len;
+            schedule->tasks[c].xccl_coll.get_info.local_buffer = coll.buffer_info.dst_buffer;
+        }
+        schedule->tasks[c].pair = team->pairs[spec.pairs.socket_leaders];
+        xccl_coll_task_init(&schedule->tasks[c].super);
+
+        if (coll.root != team->sbgps[SBGP_SOCKET_LEADERS].group_rank) {
+            dep_id = c;
+        }
+        c++;
+    }
+    if (have_socket_group) {
+        if (root_on_local_socket) {
+            coll.root = find_root_by_rank(root, &team->sbgps[SBGP_SOCKET]);
+        } else {
+            coll.root = 0;
+        }
+        schedule->tasks[c].xccl_coll = coll;
+        if (spec.use_sm_fanout_get) {
+            schedule->tasks[c].xccl_coll.coll_type = XCCL_FANOUT_GET;
+            schedule->tasks[c].xccl_coll.get_info.memh   = spec.socket_memh;
+            schedule->tasks[c].xccl_coll.get_info.offset = 0;
+            schedule->tasks[c].xccl_coll.get_info.len = coll.buffer_info.len;
+            schedule->tasks[c].xccl_coll.get_info.local_buffer = coll.buffer_info.dst_buffer;
+        }
+        schedule->tasks[c].pair = team->pairs[spec.pairs.socket];
+        xccl_coll_task_init(&schedule->tasks[c].super);
+        if (coll.root != team->sbgps[SBGP_SOCKET].group_rank) {
+            dep_id = c;
+        }
+        c++;
+    }
+
+    for (i = 0; i < c; i++) {
+        schedule->tasks[i].super.progress  = hier_bcast_task_progress_handler;
+        schedule->tasks[i].super.handlers[XCCL_EVENT_COMPLETED] = hier_bcast_task_completed_handler;
+        schedule->tasks[i].req = NULL;
+        if (i != dep_id) {
+            xccl_event_manager_subscribe(&schedule->tasks[dep_id].super.em, XCCL_EVENT_COMPLETED, &schedule->tasks[i].super);
+        } else {
+            schedule->tasks[i].super.handlers[XCCL_EVENT_SCHEDULE_STARTED] = hier_bcast_task_completed_handler;
+            xccl_event_manager_subscribe(&schedule->super.super.em, XCCL_EVENT_SCHEDULE_STARTED,
+                                        &schedule->tasks[i].super);
+        }
+        xccl_schedule_add_task(&schedule->super, &schedule->tasks[i].super);
+    }
+    schedule->dep = dep_id;
+    (*sched) = schedule;
 
     return XCCL_OK;
 }
@@ -186,6 +353,7 @@ static xccl_status_t coll_schedule_progress_bcast_sm_get(coll_schedule_t *sched)
                                        XCCL_HIER_PAIR_NODE_LEADERS_UCX,
                     .socket          = XCCL_HIER_PAIR_SOCKET_SHMSEG,
                     .socket_leaders  = XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG,
+                    .node            = XCCL_HIER_PAIR_NODE_UCX,
                 },
                 .socket_memh         = schedule->sock_memh,
                 .socket_leaders_memh = schedule->sock_leaders_memh,

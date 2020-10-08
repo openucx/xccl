@@ -31,7 +31,9 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int *scount, int *rcount,
     };
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
     XCCL_CHECK(xccl_collective_post(request));
-    XCCL_CHECK(xccl_collective_wait(request));
+    while (XCCL_OK != xccl_collective_test(request)) {
+            xccl_context_progress(team_ctx);
+        }
     XCCL_CHECK(xccl_collective_finalize(request));
 
     MPI_Ialltoallv(sbuf, scount, sdispl, MPI_INT, rbuf_mpi, rcount, rdispl, MPI_INT, MPI_COMM_WORLD, &mpi_req);
@@ -70,7 +72,7 @@ int main (int argc, char **argv)
 
     count_max = (msglen_max + sizeof(int) - 1)/sizeof(int);
     count_min = (msglen_min + sizeof(int) - 1)/sizeof(int);
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLTOALL));
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLTOALL, XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 

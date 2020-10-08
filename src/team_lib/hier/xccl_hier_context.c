@@ -14,7 +14,7 @@
 
 static xccl_status_t
 xccl_hier_init_tl(xccl_hier_context_t *ctx, int tl_idx,
-                  xccl_oob_collectives_t oob, xccl_tl_hier_context_config_t *hier_cfg) {
+                  xccl_oob_collectives_t oob, xccl_tl_hier_context_config_t *hier_cfg, unsigned thread_mode) {
     xccl_team_lib_hier_t  *hlib = ucs_derived_of(ctx->super.lib,
                                                  xccl_team_lib_hier_t);
     xccl_lib_h            lib   = hlib->tl_lib;
@@ -32,7 +32,7 @@ xccl_hier_init_tl(xccl_hier_context_t *ctx, int tl_idx,
                            XCCL_CONTEXT_PARAM_FIELD_TEAM_COMPLETION_TYPE |
                            XCCL_CONTEXT_PARAM_FIELD_OOB |
                            XCCL_CONTEXT_PARAM_FIELD_TLS,
-        .thread_mode     = XCCL_THREAD_MODE_SINGLE,
+        .thread_mode     = thread_mode,
         .completion_type = XCCL_TEAM_COMPLETION_TYPE_BLOCKING,
         .oob             = oob,
         .tls             = tl_id,
@@ -161,7 +161,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     ctx->node_leader_rank_id                    = hier_cfg->node_leader_rank_id;
 
     ucs_for_each_bit(tl, XCCL_TL_ALL) {
-        if (XCCL_OK != (status = xccl_hier_init_tl(ctx, tl, params->oob, hier_cfg))) {
+        if (XCCL_OK != (status = xccl_hier_init_tl(ctx, tl, params->oob, hier_cfg, params->thread_mode))) {
             return status;
         }
     }
@@ -183,7 +183,10 @@ xccl_status_t xccl_hier_destroy_context(xccl_tl_context_t *team_context)
     for (i=0; i<ucs_ilog2(XCCL_TL_LAST-1)+1; i++) {
         if (ctx->tls[i].enabled) {
             assert(ctx->tls[i].xccl_ctx);
-            xccl_context_destroy(ctx->tls[i].xccl_ctx);
+            xccl_status_t status = xccl_context_destroy(ctx->tls[i].xccl_ctx);
+            if (status != XCCL_OK){
+                return status;
+            }
         }
     }
     free(ctx->procs);

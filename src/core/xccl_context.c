@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include <xccl_context.h>
+#include <xccl_progress_queue.h>
 #include <xccl_ucs.h>
 #include <ucs/sys/math.h>
 #include <stdlib.h>
@@ -30,15 +31,16 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
                                   const xccl_context_config_t *config,
                                   xccl_context_h *context)
 {
-    xccl_context_t    *ctx            = malloc(sizeof(xccl_context_t));
-    int               num_tls         = ucs_popcount(params->tls);
-    uint64_t          default_tls     = XCCL_TL_ALL;
-    uint64_t          tls             = 0;
+    xccl_context_t    *ctx              = malloc(sizeof(xccl_context_t));
+    int               num_tls           = ucs_popcount(params->tls);
+    uint64_t          default_tls       = XCCL_TL_ALL;
+    uint64_t          tls               = 0;
     xccl_context_config_t *dfl_config = NULL;
     uint64_t          i;
     xccl_team_lib_t   *tlib;
     xccl_tl_context_t *tl_ctx;
     int               tl_index;
+    xccl_status_t     status;
 
     ctx->lib = lib;
     memcpy(&ctx->params, params, sizeof(xccl_context_params_t));
@@ -62,6 +64,10 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
             tlib = lib->libs[tl_index];
             if (tlib->team_context_create(tlib, &ctx->params, config->configs[tl_index], &tl_ctx) == XCCL_OK) {
                 ctx->tl_ctx[ctx->n_tl_ctx++] = tl_ctx;
+                status = xccl_ctx_progress_queue_init(&tl_ctx->pq,params->thread_mode);
+                if(status != XCCL_OK){
+                    return status;
+                }
             }
         }
     }
@@ -87,24 +93,37 @@ xccl_status_t xccl_context_progress(xccl_context_h context)
             if (status != XCCL_OK) {
                 return status;
             }
+            status = xccl_ctx_progress_queue(tl_ctx);
+            if(status != XCCL_OK){
+                return status;
+            }
         }
     }
 
     return XCCL_OK;
 }
 
-void xccl_context_destroy(xccl_context_h context)
+xccl_status_t xccl_context_destroy(xccl_context_h context)
 {
     xccl_tl_context_t *tl_ctx;
     int               i;
+    xccl_status_t     status;
 
     for (i = 0; i < context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
-        tl_ctx->lib->team_context_destroy(tl_ctx);
+        status = xccl_ctx_progress_queue_destroy(tl_ctx->pq);
+        if(status != XCCL_OK){
+            return status;
+        }
+        status = tl_ctx->lib->team_context_destroy(tl_ctx);
+        if(status != XCCL_OK){
+            return status;
+        }
     }
 
     free(context->tl_ctx);
     free(context);
+    return XCCL_OK;
 }
 
 xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,
@@ -150,7 +169,7 @@ xccl_status_t xccl_context_config_read(xccl_lib_h lib, const char *env_prefix,
                                              lib->libs[i]->tl_context_config.table,
                                              full_prefix,
                                              lib->libs[i]->tl_context_config.prefix,
-                                             0);    
+                                             0);
     }
     config->n_tl_cfg = lib->n_libs_opened;
     config->lib      = lib;

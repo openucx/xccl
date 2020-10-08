@@ -8,6 +8,7 @@
 #include "xccl_hier_team.h"
 #include "xccl_hier_context.h"
 #include "xccl_hier_schedule.h"
+#include "xccl_hier_task_schedule.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -104,7 +105,7 @@ xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
                          xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
     //TODO alg selection for allreduce shoud happen here
-    coll_schedule_t *schedule;
+    xccl_seq_schedule_t *schedule;
     xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
     xccl_hier_allreduce_spec_t spec = {
         .pairs              = {
@@ -117,12 +118,13 @@ xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
             .socket_leaders = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
                               XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
                               XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+            .node           = XCCL_HIER_PAIR_NODE_UCX,
         },
     };
-    build_allreduce_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
-                             spec, &schedule);
-    schedule->super.lib = &xccl_team_lib_hier.super;
-    (*request) = &schedule->super;
+    build_allreduce_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
+                                  spec, &schedule);
+    schedule->req.lib = &xccl_team_lib_hier.super;
+    (*request) = &schedule->req;
     return XCCL_OK;
 }
 
@@ -131,32 +133,28 @@ static inline xccl_status_t
 xccl_hier_bcast_init(xccl_coll_op_args_t *coll_args,
                      xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
-    coll_schedule_t *schedule;
+    xccl_seq_schedule_t *schedule;
     xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
-    if (!ctx->use_sm_get_bcast ||
-        coll_args->buffer_info.len < ctx->bcast_sm_get_thresh) {
-        xccl_hier_bcast_spec_t spec = {
-            .use_sm_fanout_get  = 0,
-            .pairs              = {
-                .node_leaders   = ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled ?
-                                  XCCL_HIER_PAIR_NODE_LEADERS_VMC :
-                                  XCCL_HIER_PAIR_NODE_LEADERS_UCX,
-                .socket         = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
-                                  XCCL_HIER_PAIR_SOCKET_SHMSEG :
-                                  XCCL_HIER_PAIR_SOCKET_UCX,
-                .socket_leaders = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
-                                  XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
-                                  XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
-            },
-        };
-        build_bcast_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
-                             spec, &schedule);
-    } else {
-        build_bcast_schedule_sm_get(ucs_derived_of(team, xccl_hier_team_t),
-                                    &schedule, (*coll_args));
-    }
-    schedule->super.lib = &xccl_team_lib_hier.super;
-    (*request) = &schedule->super;
+
+    xccl_hier_bcast_spec_t spec = {
+        .use_sm_fanout_get  = 0,
+        .pairs              = {
+            .node_leaders   = ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled ?
+                                XCCL_HIER_PAIR_NODE_LEADERS_VMC :
+                                XCCL_HIER_PAIR_NODE_LEADERS_UCX,
+            .socket         = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
+                                XCCL_HIER_PAIR_SOCKET_SHMSEG :
+                                XCCL_HIER_PAIR_SOCKET_UCX,
+            .socket_leaders = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
+                                XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
+                                XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+            .node           = XCCL_HIER_PAIR_NODE_UCX,
+        },
+    };
+    build_bcast_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
+                              spec, &schedule);
+    schedule->req.lib = &xccl_team_lib_hier.super;
+    (*request) = &schedule->req;
     return XCCL_OK;
 }
 
@@ -164,7 +162,7 @@ static inline xccl_status_t
 xccl_hier_barrier_init(xccl_coll_op_args_t *coll_args,
                        xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
-    coll_schedule_t *schedule;
+	xccl_seq_schedule_t *schedule;
     xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
     xccl_hier_barrier_spec_t spec = {
         .pairs              = {
@@ -177,12 +175,13 @@ xccl_hier_barrier_init(xccl_coll_op_args_t *coll_args,
             .socket_leaders = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
                               XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG :
                               XCCL_HIER_PAIR_SOCKET_LEADERS_UCX,
+            .node           = XCCL_HIER_PAIR_NODE_UCX,
         },
     };
-    build_barrier_schedule(ucs_derived_of(team, xccl_hier_team_t),
+    build_barrier_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
                            spec, &schedule);
-    schedule->super.lib = &xccl_team_lib_hier.super;
-    (*request) = &schedule->super;
+    schedule->req.lib = &xccl_team_lib_hier.super;
+    (*request) = &schedule->req;
     return XCCL_OK;
 }
 
@@ -203,15 +202,17 @@ xccl_hier_collective_init(xccl_coll_op_args_t *coll_args,
 
 static xccl_status_t xccl_hier_collective_post(xccl_tl_coll_req_t *request)
 {
-    coll_schedule_t *schedule = ucs_derived_of(request, coll_schedule_t);
-    return coll_schedule_progress(schedule);
+    xccl_seq_schedule_t *schedule = ucs_container_of(request, xccl_seq_schedule_t, req);
+    schedule->tasks[schedule->dep].super.state = XCCL_INPROGRESS;
+    xccl_schedule_start(&schedule->super);
+    return XCCL_OK;
 }
 
 static xccl_status_t xccl_hier_collective_test(xccl_tl_coll_req_t *request)
 {
-    coll_schedule_t *schedule = ucs_derived_of(request, coll_schedule_t);
-    coll_schedule_progress(schedule);
-    return schedule->status;
+    xccl_seq_schedule_t *schedule = ucs_container_of(request, xccl_seq_schedule_t, req);
+    return schedule->super.super.state == XCCL_TASK_STATE_COMPLETED ? XCCL_OK :
+        XCCL_INPROGRESS;
 }
 
 static xccl_status_t xccl_hier_collective_wait(xccl_tl_coll_req_t *request)
@@ -225,7 +226,9 @@ static xccl_status_t xccl_hier_collective_wait(xccl_tl_coll_req_t *request)
 
 xccl_status_t xccl_hier_collective_finalize(xccl_tl_coll_req_t *request)
 {
-    free(request);
+    xccl_seq_schedule_t *schedule = ucs_container_of(request, xccl_seq_schedule_t, req);
+    free(schedule->tasks);
+    free(schedule);
     return XCCL_OK;
 }
 

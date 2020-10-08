@@ -103,6 +103,7 @@ typedef struct xccl_hier_schedule_pairs_t {
     xccl_hier_pair_type_t  socket;
     xccl_hier_pair_type_t  socket_leaders;
     xccl_hier_pair_type_t  node_leaders;
+    xccl_hier_pair_type_t  node;
 } xccl_hier_schedule_pairs_t;
 
 typedef struct xccl_hier_bcast_spec {

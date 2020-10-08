@@ -19,14 +19,16 @@ do_barrier(xccl_team_h team) {
     };
     XCCL_CHECK(xccl_collective_init(&coll, &request, team));
     XCCL_CHECK(xccl_collective_post(request));
-    XCCL_CHECK(xccl_collective_wait(request));
+    while (XCCL_OK != xccl_collective_test(request)) {
+            xccl_context_progress(team_ctx);
+        }
     XCCL_CHECK(xccl_collective_finalize(request));
 }
 
 int main (int argc, char **argv) {
     int rank, size, i, sleep_us;
 
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BARRIER));
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BARRIER, XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 

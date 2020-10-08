@@ -10,7 +10,7 @@ int main (int argc, char **argv) {
         status = 0, status_global;
     int *sbuf, *rbuf, *rbuf_mpi;
     xccl_coll_req_h request;    
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLGATHER));
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLGATHER, XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -39,7 +39,9 @@ int main (int argc, char **argv) {
 
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
     XCCL_CHECK(xccl_collective_post(request));
-    XCCL_CHECK(xccl_collective_wait(request));
+    while (XCCL_OK != xccl_collective_test(request)) {
+            xccl_context_progress(team_ctx);
+        }
     XCCL_CHECK(xccl_collective_finalize(request));
 
     MPI_Allgather(sbuf, count/size, MPI_INT, rbuf_mpi, count/size, MPI_INT, MPI_COMM_WORLD);

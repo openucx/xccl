@@ -1,8 +1,9 @@
 #include "test_mpi.h"
+#include <assert.h>
 
 xccl_team_h xccl_world_team;
 static xccl_lib_h     lib;
-static xccl_context_h team_ctx;
+xccl_context_h team_ctx;
 
 typedef struct xccl_test_oob_allgather_req {
     xccl_ep_range_t range;
@@ -130,7 +131,7 @@ int xccl_mpi_create_comm(MPI_Comm comm, xccl_team_h *team) {
 }
 
 int xccl_mpi_test_init(int argc, char **argv,
-                       xccl_collective_cap_t coll_types) {
+                       xccl_collective_cap_t coll_types, unsigned thread_mode) {
     char     *var;
     int      rank, size;
     char     *tl, *saveptr;
@@ -138,9 +139,10 @@ int xccl_mpi_test_init(int argc, char **argv,
     uint64_t i;
     int      j;
     xccl_tl_id_t *tl_ids;
-    unsigned     tl_count;
-
-    MPI_Init(&argc, &argv);
+    unsigned     tl_count, provided;
+    int required = (thread_mode==XCCL_THREAD_MODE_SINGLE) ? MPI_THREAD_SINGLE : MPI_THREAD_MULTIPLE;
+    MPI_Init_thread(&argc, &argv, required, &provided);
+    assert(provided == required);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -170,7 +172,7 @@ int xccl_mpi_test_init(int argc, char **argv,
                            XCCL_CONTEXT_PARAM_FIELD_OOB |
                            XCCL_CONTEXT_PARAM_FIELD_TEAM_COMPLETION_TYPE |
                            XCCL_CONTEXT_PARAM_FIELD_TLS,
-        .thread_mode     = XCCL_THREAD_MODE_SINGLE,
+        .thread_mode     = thread_mode,
         .completion_type = XCCL_TEAM_COMPLETION_TYPE_BLOCKING,
         .oob = {
             .allgather    = oob_allgather,

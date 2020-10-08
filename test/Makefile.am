@@ -15,7 +15,8 @@ bin_PROGRAMS =  test_mpi_allreduce \
 				test_mpi_create_team_nb \
 				test_mpi_alltoall \
 				test_mpi_alltoallv \
-				test_mpi_allgather
+				test_mpi_allgather \
+				test_mpi_mt
 if HAVE_CUDA
 bin_PROGRAMS += test_mpi_cuda_allreduce \
                 test_mpi_cuda_bcast \
@@ -31,6 +32,7 @@ test_mpi_create_team_nb_SOURCES=test_mpi_create_team_nb.c test_mpi.c
 test_mpi_alltoall_SOURCES=test_mpi_alltoall.c test_mpi.c
 test_mpi_alltoallv_SOURCES=test_mpi_alltoallv.c test_mpi.c
 test_mpi_allgather_SOURCES=test_mpi_allgather.c test_mpi.c
+test_mpi_mt_SOURCES=test_mt.c test_mpi.c
 if HAVE_CUDA
 test_mpi_cuda_allreduce_SOURCES=test_mpi_cuda_allreduce.c test_mpi.c
 test_mpi_cuda_bcast_SOURCES=test_mpi_cuda_bcast.c test_mpi.c

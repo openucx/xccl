@@ -11,83 +11,155 @@
 #include <stdlib.h>
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_team.h"
+#include "xccl_hier_task_schedule.h"
 
-xccl_status_t build_barrier_schedule(xccl_hier_team_t *team,
-                                     xccl_hier_barrier_spec_t spec, coll_schedule_t **sched)
-{
-    int have_node_leaders_group     = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
-    int have_socket_group           = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
-    int have_socket_leaders_group   = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
+
+xccl_status_t hier_seq_barrier_task_progress_handler(xccl_coll_task_t *task) {
+    const int n_polls = 10;
+    xccl_status_t status;
+    int i;
+
+    xccl_hier_task_t *self = (xccl_hier_task_t *) task;
+    for (i = 0; (i < n_polls) && (task->state == XCCL_TASK_STATE_INPROGRESS); i++) {
+        if (!self->req) {
+            status = xccl_collective_init(&self->xccl_coll, &self->req, self->pair->team);
+            status = xccl_collective_post(self->req);
+        }
+        status = xccl_collective_test(self->req);
+        if (status == XCCL_OK) {
+            xccl_collective_finalize(self->req);
+            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+            task->state = XCCL_TASK_STATE_COMPLETED;
+        }
+    }
+    return task->state == XCCL_TASK_STATE_COMPLETED ? XCCL_OK : XCCL_INPROGRESS;
+}
+
+void hier_seq_barrier_task_completed_handler(xccl_coll_task_t *task) {
+    /* start task if completion event received */
+    task->state = XCCL_TASK_STATE_INPROGRESS;
+    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+}
+
+xccl_status_t build_barrier_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
+                                          xccl_hier_allreduce_spec_t spec, xccl_seq_schedule_t **sched) {
+    int have_node_leaders_group   = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
+    int have_socket_group         = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
+    int have_socket_leaders_group = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
+    int have_node_group           = (team->sbgps[SBGP_NODE].status == SBGP_ENABLED);
 
     int node_leaders_group_exists   = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
     int socket_group_exists         = (team->sbgps[SBGP_SOCKET].status != SBGP_NOT_EXISTS);
     int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
+    int node_group_exists           = (team->sbgps[SBGP_NODE].status != SBGP_NOT_EXISTS);
 
-    sbgp_type_t top_sbgp = node_leaders_group_exists ? SBGP_NODE_LEADERS :
-        (socket_leaders_group_exists ? SBGP_SOCKET_LEADERS : SBGP_SOCKET);
+    sbgp_type_t top_sbgp;
+    if (node_leaders_group_exists) {
+        top_sbgp = SBGP_NODE_LEADERS;
+    } else if (socket_leaders_group_exists) {
+        top_sbgp = SBGP_SOCKET_LEADERS;
+    } else if (socket_group_exists) {
+        top_sbgp = SBGP_SOCKET;
+    } else {
+        assert(node_group_exists);
+        top_sbgp = SBGP_NODE;
+    }
 
-    coll_schedule_sequential_t *schedule = (coll_schedule_sequential_t *)malloc(sizeof(*schedule));
-    schedule->super.super.hier_team = team;
-    schedule->super.super.type = XCCL_COLL_SCHED_SEQ;
-    schedule->super.super.progress = coll_schedule_progress_sequential;
-    schedule->super.super.status = XCCL_INPROGRESS;
-    schedule->super.fs = NULL;
-    int c = 0;
+    xccl_seq_schedule_t *schedule = (xccl_seq_schedule_t *) malloc(sizeof(*schedule));
+    if (schedule == NULL) {
+        return XCCL_ERR_NO_MEMORY;
+    }
+    schedule->tasks = (xccl_hier_task_t *) malloc(8 * sizeof(xccl_hier_task_t));
+    schedule->dep = 0;
+    coll.alg.set_by_user = 0;
 
-    xccl_coll_op_args_t coll = {
-        .coll_type       = XCCL_BARRIER,
-        .alg.set_by_user = 0,
-    };
+    int i, c = 0;
 
     if (have_socket_group) {
         if (top_sbgp == SBGP_SOCKET) {
             coll.coll_type = XCCL_BARRIER;
-            schedule->super.args[c].xccl_coll = coll;
+            schedule->tasks[c].xccl_coll = coll;
         } else {
             coll.coll_type = XCCL_FANIN;
-            schedule->super.args[c].xccl_coll = coll;
+            schedule->tasks[c].xccl_coll = coll;
         }
-        schedule->super.args[c].pair = team->pairs[spec.pairs.socket];
+        schedule->tasks[c].pair = team->pairs[spec.pairs.socket];
         c++;
     }
 
     if (have_socket_leaders_group) {
         if (top_sbgp == SBGP_SOCKET_LEADERS) {
             coll.coll_type = XCCL_BARRIER;
-            schedule->super.args[c].xccl_coll = coll;
+            schedule->tasks[c].xccl_coll = coll;
         } else {
             coll.coll_type = XCCL_FANIN;
-            schedule->super.args[c].xccl_coll = coll;
+            schedule->tasks[c].xccl_coll = coll;
         }
-        schedule->super.args[c].pair = team->pairs[spec.pairs.socket_leaders];
+        schedule->tasks[c].pair = team->pairs[spec.pairs.socket_leaders];
+        c++;
+    }
+
+    if (team->no_socket && have_node_group) {
+        assert(c == 0);
+        /* !have_socket_group && ! have_socket_leaders_group */
+        if (top_sbgp == SBGP_NODE) {
+            coll.coll_type = XCCL_BARRIER;
+            schedule->tasks[c].xccl_coll = coll;
+        } else {
+            coll.coll_type = XCCL_FANIN;
+            schedule->tasks[c].xccl_coll = coll;
+        }
+        schedule->tasks[c].pair = team->pairs[spec.pairs.node];
         c++;
     }
 
     if (have_node_leaders_group) {
         assert(top_sbgp == SBGP_NODE_LEADERS);
         coll.coll_type = XCCL_BARRIER;
-        schedule->super.args[c].xccl_coll = coll;
-        schedule->super.args[c].pair = team->pairs[spec.pairs.node_leaders];
+        schedule->tasks[c].xccl_coll = coll;
+        schedule->tasks[c].pair = team->pairs[spec.pairs.node_leaders];
         c++;
     }
 
     if (have_socket_leaders_group && top_sbgp != SBGP_SOCKET_LEADERS) {
         coll.coll_type = XCCL_FANOUT;
-        schedule->super.args[c].xccl_coll = coll;
-        schedule->super.args[c].pair = team->pairs[spec.pairs.socket_leaders];
+        schedule->tasks[c].xccl_coll = coll;
+        schedule->tasks[c].pair = team->pairs[spec.pairs.socket_leaders];
         c++;
     }
 
-    if (have_socket_group  && top_sbgp != SBGP_SOCKET) {
+    if (have_socket_group && top_sbgp != SBGP_SOCKET) {
         coll.coll_type = XCCL_FANOUT;
-        schedule->super.args[c].xccl_coll = coll;
-        schedule->super.args[c].pair = team->pairs[spec.pairs.socket];
+        schedule->tasks[c].xccl_coll = coll;
+        schedule->tasks[c].pair = team->pairs[spec.pairs.socket];
         c++;
     }
-    schedule->super.n_colls = c;
-    schedule->super.n_completed_colls = 0;
-    schedule->req = NULL;
 
-    (*sched) = &schedule->super.super;
+    if (team->no_socket && have_node_group  && top_sbgp != SBGP_NODE) {
+        coll.coll_type = XCCL_FANOUT;
+        schedule->tasks[c].xccl_coll = coll;
+        schedule->tasks[c].pair = team->pairs[spec.pairs.node];
+        c++;
+    }
+
+    xccl_schedule_init(&schedule->super, team->super.ctx);
+    for (i = 0; i < c; i++) {
+        xccl_coll_task_init(&schedule->tasks[i].super);
+        schedule->tasks[i].super.progress = hier_seq_barrier_task_progress_handler;
+        schedule->tasks[i].super.handlers[XCCL_EVENT_COMPLETED] = hier_seq_barrier_task_completed_handler;
+        schedule->tasks[i].req = NULL;
+        if (i > 0) {
+            xccl_event_manager_subscribe(&schedule->tasks[i - 1].super.em, XCCL_EVENT_COMPLETED,
+                                        &schedule->tasks[i].super);
+        } else {
+            //i == 0
+            schedule->tasks[i].super.handlers[XCCL_EVENT_SCHEDULE_STARTED] = hier_seq_barrier_task_completed_handler;
+            xccl_event_manager_subscribe(&schedule->super.super.em, XCCL_EVENT_SCHEDULE_STARTED,
+                                        &schedule->tasks[i].super);
+        }
+        xccl_schedule_add_task(&schedule->super, &schedule->tasks[i].super);
+    }
+
+    (*sched) = schedule;
     return XCCL_OK;
 }
