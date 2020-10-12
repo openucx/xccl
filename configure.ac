@@ -75,9 +75,9 @@ AS_HELP_STRING([--enable-debug], [Enable extra debugging code (default is NO).])
 if test $enable_debug = yes; then
 	AC_DEFINE([ENABLE_DEBUG], [1], [Enable debugging code])
 	CFLAGS="$CFLAGS -O0 -g3"
-	AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_TRACE_POLL], [Highest log level])],
+	AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_TRACE_POLL], [Highest log level]),
 else
-	AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_INFO], [Highest log level])]
+	AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_INFO], [Highest log level])
 	CFLAGS="$CFLAGS -O3 -DNDEBUG"
 fi
 
@@ -85,6 +85,9 @@ AM_CONDITIONAL([HAVE_UCX], [false])
 m4_include([m4/ucx.m4])
 XCCL_CHECK_UCX
 
+if test $ucx_happy != "yes"; then
+   AC_MSG_ERROR([UCX is not available])
+fi
 AC_MSG_RESULT([UCX support: $ucx_happy])
 
 AM_CONDITIONAL([HAVE_SHARP], [false])
@@ -118,7 +121,7 @@ fi
 
 includes="-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core -I${XCCL_TOP_SRCDIR}/src/utils"
 CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes"
-LDFLAGS="$LDFLAGS $UCS_LDFLAGS"
+LDFLAGS="$LDFLAGS $UCS_LDFLAGS $UCS_LIBADD"
 AC_CONFIG_FILES([
                  Makefile
                  src/Makefile
