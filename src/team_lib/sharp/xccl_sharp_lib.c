@@ -8,6 +8,7 @@
 #include "xccl_sharp_lib.h"
 #include "xccl_sharp_collective.h"
 #include "xccl_sharp_map.h"
+#include <ucs/memory/memory_type.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -385,6 +386,8 @@ xccl_team_lib_sharp_t xccl_team_lib_sharp = {
     .super.params.thread_mode     = XCCL_THREAD_MODE_SINGLE | XCCL_THREAD_MODE_MULTIPLE,
     .super.params.team_usage      = XCCL_LIB_PARAMS_TEAM_USAGE_HW_COLLECTIVES,
     .super.params.coll_types      = XCCL_COLL_CAP_BARRIER | XCCL_COLL_CAP_ALLREDUCE,
+    .super.mem_types              = UCS_BIT(UCS_MEMORY_TYPE_HOST) |
+                                    UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode        = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_GLOBAL,
     .super.team_context_create    = xccl_sharp_context_create,
     .super.team_context_destroy   = xccl_sharp_context_destroy,

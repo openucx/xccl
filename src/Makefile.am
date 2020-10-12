@@ -16,6 +16,9 @@ endif
 if HAVE_VMC
 SUBDIRS += team_lib/vmc
 endif
+if HAVE_NCCL
+SUBDIRS += team_lib/nccl
+endif
 if HAVE_CUDA
 SUBDIRS += utils/cuda
 endif
@@ -23,9 +26,9 @@ endif
 lib_LTLIBRARIES  = libxccl.la
 noinst_LIBRARIES =
 
-libxccl_la_CPPFLAGS = $(AM_CPPFLAGS)
+libxccl_la_CPPFLAGS = $(AM_CPPFLAGS) $(UCS_CPPFLAGS)
 libxccl_la_CFLAGS   =
-libxccl_la_LDFLAGS  = -ldl -version-info $(SOVERSION) --no-undefined
+libxccl_la_LDFLAGS  = -ldl -version-info $(SOVERSION) --no-undefined $(UCS_LDFLAGS)
 
 nobase_dist_libxccl_la_HEADERS = \
 	api/xccl.h                   \

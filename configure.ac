@@ -109,7 +109,14 @@ AC_ARG_WITH([cuda],
 AM_CONDITIONAL([HAVE_CUDA], [test "x$cuda_happy" != xno])
 AC_MSG_RESULT([CUDA support: $cuda_happy; $CUDA_CPPFLAGS $CUDA_LDFLAGS])
 
-includes="-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core"
+AM_CONDITIONAL([HAVE_NCCL], [false])
+if test "x$cuda_happy" != xno; then
+    m4_include([m4/nccl.m4])
+    XCCL_CHECK_NCCL
+    AC_MSG_RESULT([NCCL support: $nccl_happy])
+fi
+
+includes="-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core -I${XCCL_TOP_SRCDIR}/src/utils"
 CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes"
 LDFLAGS="$LDFLAGS $UCS_LDFLAGS"
 AC_CONFIG_FILES([
@@ -120,6 +127,7 @@ AC_CONFIG_FILES([
                  src/team_lib/vmc/Makefile
                  src/team_lib/hier/Makefile
                  src/team_lib/multirail/Makefile
+                 src/team_lib/nccl/Makefile
                  src/utils/cuda/Makefile
                  src/utils/cuda/reduce/Makefile
                  test/Makefile

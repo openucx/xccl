@@ -17,6 +17,7 @@
 #include "bcast/bcast.h"
 #include "barrier/barrier.h"
 #include "utils/mem_component.h"
+#include <ucs/memory/memory_type.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -477,6 +478,8 @@ xccl_team_lib_ucx_t xccl_team_lib_ucx = {
                                    XCCL_COLL_CAP_BCAST | XCCL_COLL_CAP_ALLREDUCE |
                                    XCCL_COLL_CAP_ALLTOALL | XCCL_COLL_CAP_ALLTOALLV |
                                    XCCL_COLL_CAP_ALLGATHER,
+    .super.mem_types             = UCS_BIT(UCS_MEMORY_TYPE_HOST) |
+                                   UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode       = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create   = xccl_ucx_create_context,
     .super.team_context_progress = NULL,

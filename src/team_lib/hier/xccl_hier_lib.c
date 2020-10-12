@@ -9,6 +9,7 @@
 #include "xccl_hier_context.h"
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_task_schedule.h"
+#include <ucs/memory/memory_type.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -254,6 +255,8 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
     .super.params.team_usage     = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,
     .super.params.coll_types     = XCCL_COLL_CAP_BARRIER |
                                    XCCL_COLL_CAP_BCAST | XCCL_COLL_CAP_ALLREDUCE,
+    .super.mem_types             = UCS_BIT(UCS_MEMORY_TYPE_HOST) |
+                                   UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode       = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create   = xccl_hier_create_context,
     .super.team_context_progress = xccl_hier_context_progress,
