@@ -4,23 +4,12 @@
  */
 
 #include "xccl_nccl_lib.h"
+#include "xccl_nccl_collective.h"
 #include "mem_component.h"
 #include <ucs/memory/memory_type.h>
 
-#define ncclOpUnsupported (ncclNumOps + 1)
-#define ncclDataTypeUnsupported (ncclNumTypes + 1)
-
-#define CUDACHECK(cmd) do {                         \
-  cudaError_t e = cmd;                              \
-  if(cudaSuccess != e) {                            \
-    nccl_ucx_error("CUDA error %s:%d '%d' %s\n",    \
-        __FILE__,__LINE__, e, cudaGetErrorName(e)); \
-    return XCCL_ERR_NO_MESSAGE;                     \
-  }                                                 \
-} while(0)
-
-static ncclDataType_t xccl_to_nccl_dtype[XCCL_DT_LAST_PREDEFINED];
-static ncclRedOp_t    xccl_to_nccl_reduce_op[XCCL_OP_LAST_PREDEFINED];
+extern ncclDataType_t xccl_to_nccl_dtype[XCCL_DT_LAST_PREDEFINED];
+extern ncclRedOp_t    xccl_to_nccl_reduce_op[XCCL_OP_LAST_PREDEFINED];
 
 static void map_xccl_to_nccl_dtype()
 {
@@ -170,13 +159,12 @@ xccl_nccl_team_destroy(xccl_tl_team_t *team)
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
-                                         xccl_tl_coll_req_t **request,
-                                         xccl_tl_team_t *team)
+static xccl_status_t
+xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
+                          xccl_tl_coll_req_t **request,
+                          xccl_tl_team_t *team)
 {
-    xccl_nccl_team_t *nccl_team       = ucs_derived_of(team, xccl_nccl_team_t);
-    unsigned int     cuda_event_flags = cudaEventBlockingSync |
-                                        cudaEventDisableTiming;
+    xccl_nccl_team_t *nccl_team  = ucs_derived_of(team, xccl_nccl_team_t);
     xccl_nccl_coll_req_t *req;
     xccl_status_t        status;
     ucs_memory_type_t    mem_type;
@@ -194,22 +182,27 @@ static xccl_status_t xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
         return XCCL_ERR_UNSUPPORTED;
     }
 
-    nccl_redop = xccl_to_nccl_reduce_op[coll_args->reduce_info.op];
-    nccl_dt    = xccl_to_nccl_dtype[coll_args->reduce_info.dt];
-    if ((nccl_redop == ncclOpUnsupported) ||
-        (nccl_dt    == ncclDataTypeUnsupported))
-    {
-        return XCCL_ERR_UNSUPPORTED;
+    status = xccl_nccl_collective_init_base(coll_args, &req, nccl_team);
+    if (status != XCCL_OK) {
+        return status;
     }
 
-    req = (xccl_nccl_coll_req_t*)malloc(sizeof(*req));
-    if (req == NULL) {
-        return XCCL_ERR_NO_MEMORY;
+    switch (coll_args->coll_type) {
+    case XCCL_ALLREDUCE:
+        status = xccl_nccl_allreduce_init(coll_args, req, nccl_team);
+        break;
+    case XCCL_ALLTOALL:
+    case XCCL_ALLTOALLV:
+        status = xccl_nccl_alltoall_init(coll_args, req, nccl_team);
+        break;
+    default:
+        status = XCCL_ERR_INVALID_PARAM;
     }
-    memcpy(&req->args, coll_args, sizeof(*coll_args));
-    req->team      = nccl_team;
-    req->super.lib = &xccl_team_lib_nccl.super;
-    CUDACHECK(cudaEventCreateWithFlags(&req->completed, cuda_event_flags));
+
+    if (status != XCCL_OK) {
+        free(req);
+        return status;
+    }
 
     (*request) = &req->super;
     return XCCL_OK;
@@ -219,19 +212,11 @@ static xccl_status_t
 xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
-    xccl_coll_op_args_t  *args = &req->args;
-    ncclResult_t nccl_st;
+    xccl_status_t st;
 
-    nccl_st = ncclAllReduce(args->buffer_info.src_buffer,
-                            args->buffer_info.dst_buffer,
-                            args->reduce_info.count,
-                            xccl_to_nccl_dtype[args->reduce_info.dt],
-                            xccl_to_nccl_reduce_op[args->reduce_info.op],
-                            req->team->nccl_comm,
-                            req->team->stream);
-    if (nccl_st != ncclSuccess) {
-        xccl_nccl_error("ncclAllReduce failed (%d)", nccl_st);
-        return XCCL_ERR_NO_MESSAGE;
+    st = req->coll_start(request);
+    if (st != XCCL_OK) {
+        return st;
     }
     CUDACHECK(cudaEventRecord(req->completed, req->team->stream));
 
@@ -302,7 +287,8 @@ xccl_team_lib_nccl_t xccl_team_lib_nccl = {
     .super.params.reproducible    = XCCL_REPRODUCIBILITY_MODE_NON_REPRODUCIBLE,
     .super.params.thread_mode     = XCCL_THREAD_MODE_SINGLE | XCCL_THREAD_MODE_MULTIPLE,
     .super.params.team_usage      = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,
-    .super.params.coll_types      = XCCL_COLL_CAP_ALLREDUCE,
+    .super.params.coll_types      = XCCL_COLL_CAP_ALLREDUCE |
+                                    XCCL_COLL_CAP_ALLTOALL,
     .super.mem_types              = UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode        = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create    = xccl_nccl_context_create,
