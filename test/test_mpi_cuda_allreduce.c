@@ -16,16 +16,15 @@ int main (int argc, char **argv) {
     char *local_rank;
     cudaStream_t stream;
 
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLREDUCE, XCCL_THREAD_MODE_MULTIPLE));
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
     local_rank = getenv("OMPI_COMM_WORLD_LOCAL_RANK");
     if (local_rank) {
         cudaSetDevice(atoi(local_rank));
     }
-
     cudaStreamCreate(&stream);
+
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLREDUCE, XCCL_THREAD_MODE_SINGLE));
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     sbuf_host = (int*)malloc(msg_size);
     rbuf_mpi  = (int*)malloc(msg_size);
@@ -61,7 +60,9 @@ int main (int argc, char **argv) {
 
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
     XCCL_CHECK(xccl_collective_post(request));
-    XCCL_CHECK(xccl_collective_wait(request));
+    while (XCCL_OK != xccl_collective_test(request)) {
+        xccl_context_progress(team_ctx);
+    }
     XCCL_CHECK(xccl_collective_finalize(request));
 
     cudaMemcpyAsync(rbuf_host, rbuf_cuda, msg_size, cudaMemcpyDeviceToHost, stream);

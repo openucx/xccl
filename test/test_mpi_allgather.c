@@ -40,8 +40,8 @@ int main (int argc, char **argv) {
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
     XCCL_CHECK(xccl_collective_post(request));
     while (XCCL_OK != xccl_collective_test(request)) {
-            xccl_context_progress(team_ctx);
-        }
+        xccl_context_progress(team_ctx);
+    }
     XCCL_CHECK(xccl_collective_finalize(request));
 
     MPI_Allgather(sbuf, count/size, MPI_INT, rbuf_mpi, count/size, MPI_INT, MPI_COMM_WORLD);
