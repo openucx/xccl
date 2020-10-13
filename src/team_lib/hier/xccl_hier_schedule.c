@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "xccl_hier_schedule.h"
+#include "xccl_hier_task_schedule.h"
 #include "xccl_hier_team.h"
 
 static xccl_tl_coll_req_t xccl_hier_complete_req;
@@ -320,4 +321,33 @@ xccl_status_t make_fragmented_schedule(coll_schedule_t *in_sched, coll_schedule_
     }
     *frag_sched = &fs->super;
     return XCCL_OK;
+}
+
+
+xccl_status_t hier_task_progress_handler(xccl_coll_task_t *task)
+{
+    const int n_polls = 10;
+    xccl_status_t status;
+    int i;
+    xccl_hier_task_t *self = (xccl_hier_task_t *) task;
+    assert(self->req);
+    for (i = 0; (i < n_polls) && (task->state == XCCL_TASK_STATE_INPROGRESS); i++) {
+        status = xccl_collective_test(self->req);
+        if (status == XCCL_OK) {
+            xccl_collective_finalize(self->req);
+            task->state = XCCL_TASK_STATE_COMPLETED;
+        }
+    }
+    return XCCL_OK;
+}
+
+void hier_task_completed_handler(xccl_coll_task_t *task)
+{
+    xccl_hier_task_t *self = (xccl_hier_task_t *) task;
+    /* start task if completion event received */
+    task->state = XCCL_TASK_STATE_INPROGRESS;
+    assert(NULL == self->req);
+    xccl_collective_init(&self->xccl_coll, &self->req, self->pair->team);
+    xccl_collective_post(self->req);
+    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
 }
