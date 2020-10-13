@@ -219,7 +219,10 @@ static xccl_status_t xccl_hier_collective_test(xccl_tl_coll_req_t *request)
 static xccl_status_t xccl_hier_collective_wait(xccl_tl_coll_req_t *request)
 {
     xccl_status_t status = xccl_hier_collective_test(request);
+    xccl_seq_schedule_t *schedule = ucs_container_of(request, xccl_seq_schedule_t, req);
+    xccl_context_t *ctx = schedule->super.tl_ctx->ctx;
     while (XCCL_OK != status) {
+        xccl_context_progress(ctx);
         status = xccl_hier_collective_test(request);
     }
     return XCCL_OK;
