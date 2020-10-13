@@ -88,14 +88,14 @@ xccl_nccl_alltoall_start(xccl_tl_coll_req_t *request)
 
     NCCLCHECK(ncclGroupStart());
     for (peer = 0; peer < group_size; peer++) {
-      NCCLCHECK(ncclSend((void*)(sbuf + peer*data_size),
-                          data_size, ncclChar, peer,
-                          req->team->nccl_comm,
-                          req->team->stream));
-      NCCLCHECK(ncclRecv((void*)(rbuf + peer*data_size),
-                          data_size, ncclChar, peer,
-                          req->team->nccl_comm,
-                          req->team->stream));
+        NCCLCHECK(ncclSend((void*)(sbuf + peer*data_size),
+                           data_size, ncclChar, peer,
+                           req->team->nccl_comm,
+                           req->team->stream));
+        NCCLCHECK(ncclRecv((void*)(rbuf + peer*data_size),
+                           data_size, ncclChar, peer,
+                           req->team->nccl_comm,
+                           req->team->stream));
 
     }
     NCCLCHECK(ncclGroupEnd());
@@ -109,5 +109,53 @@ xccl_nccl_alltoall_init(xccl_coll_op_args_t *coll_args,
                         xccl_nccl_team_t *team)
 {
     request->coll_start = xccl_nccl_alltoall_start;
+    return XCCL_OK;
+}
+
+xccl_status_t
+xccl_nccl_alltoallv_start(xccl_tl_coll_req_t *request)
+{
+    xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
+    xccl_coll_op_args_t  *args = &req->args;
+    ptrdiff_t sbuf, rbuf;
+    size_t    size, offset;
+    int       send_dt_size, recv_dt_size;
+    int       group_size, peer;
+
+    NCCLCHECK(ncclCommCount(req->team->nccl_comm, &group_size));
+    sbuf         = (ptrdiff_t)args->buffer_info.src_buffer;
+    rbuf         = (ptrdiff_t)args->buffer_info.dst_buffer;
+    send_dt_size = xccl_dt_size(args->buffer_info.src_datatype);
+    recv_dt_size = xccl_dt_size(args->buffer_info.dst_datatype);
+
+    NCCLCHECK(ncclGroupStart());
+    for (peer = 0; peer < group_size; peer++) {
+        offset = send_dt_size*args->buffer_info.src_displacements[peer];
+        size   = send_dt_size*args->buffer_info.src_counts[peer];
+        NCCLCHECK(ncclSend((void*)(sbuf + offset),
+                           size, ncclChar, peer,
+                           req->team->nccl_comm,
+                           req->team->stream));
+
+        offset = recv_dt_size*args->buffer_info.dst_displacements[peer];
+        size   = recv_dt_size*args->buffer_info.dst_counts[peer];
+        NCCLCHECK(ncclRecv((void*)(rbuf + offset),
+                           size, ncclChar, peer,
+                           req->team->nccl_comm,
+                           req->team->stream));
+
+    }
+    NCCLCHECK(ncclGroupEnd());
+
+    return XCCL_OK;
+}
+
+
+xccl_status_t
+xccl_nccl_alltoallv_init(xccl_coll_op_args_t *coll_args,
+                         xccl_nccl_coll_req_t *request,
+                         xccl_nccl_team_t *team)
+{
+    request->coll_start = xccl_nccl_alltoallv_start;
     return XCCL_OK;
 }

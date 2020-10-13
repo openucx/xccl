@@ -37,4 +37,9 @@ xccl_nccl_alltoall_init(xccl_coll_op_args_t *coll_args,
                         xccl_nccl_coll_req_t *request,
                         xccl_nccl_team_t *team);
 
+xccl_status_t
+xccl_nccl_alltoallv_init(xccl_coll_op_args_t *coll_args,
+                         xccl_nccl_coll_req_t *request,
+                         xccl_nccl_team_t *team);
+
 #endif

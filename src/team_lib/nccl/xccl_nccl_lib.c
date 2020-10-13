@@ -192,8 +192,10 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
         status = xccl_nccl_allreduce_init(coll_args, req, nccl_team);
         break;
     case XCCL_ALLTOALL:
-    case XCCL_ALLTOALLV:
         status = xccl_nccl_alltoall_init(coll_args, req, nccl_team);
+        break;
+    case XCCL_ALLTOALLV:
+        status = xccl_nccl_alltoallv_init(coll_args, req, nccl_team);
         break;
     default:
         status = XCCL_ERR_INVALID_PARAM;
@@ -288,7 +290,8 @@ xccl_team_lib_nccl_t xccl_team_lib_nccl = {
     .super.params.thread_mode     = XCCL_THREAD_MODE_SINGLE | XCCL_THREAD_MODE_MULTIPLE,
     .super.params.team_usage      = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,
     .super.params.coll_types      = XCCL_COLL_CAP_ALLREDUCE |
-                                    XCCL_COLL_CAP_ALLTOALL,
+                                    XCCL_COLL_CAP_ALLTOALL |
+                                    XCCL_COLL_CAP_ALLTOALLV,
     .super.mem_types              = UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode        = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create    = xccl_nccl_context_create,
