@@ -52,11 +52,22 @@ typedef struct xccl_nccl_team {
     cudaStream_t   stream;
 } xccl_nccl_team_t;
 
-typedef struct xccl_nccl_coll_req {
-    xccl_tl_coll_req_t  super;
-    xccl_coll_op_args_t args;
-    xccl_nccl_team_t    *team;
-    cudaEvent_t         completed;
-} xccl_nccl_coll_req_t;
+#define CUDACHECK(cmd) do {                         \
+  cudaError_t e = cmd;                              \
+  if(cudaSuccess != e) {                            \
+    nccl_ucx_error("CUDA error %s:%d '%d' %s\n",    \
+        __FILE__,__LINE__, e, cudaGetErrorName(e)); \
+    return XCCL_ERR_NO_MESSAGE;                     \
+  }                                                 \
+} while(0)
+
+#define NCCLCHECK(cmd) do {                           \
+  ncclResult_t e = cmd;                               \
+  if(ncclSuccess != e) {                              \
+    nccl_ucx_error("NCCL error %s:%d '%d'\n",         \
+        __FILE__,__LINE__, e, ncclGetErrorString(e)); \
+    return XCCL_ERR_NO_MESSAGE;                       \
+  }                                                   \
+} while(0)
 
 #endif

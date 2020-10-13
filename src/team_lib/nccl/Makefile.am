@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2009-2020 Mellanox Technologies.  All rights reserved.
+# Copyright (c) 2020 Mellanox Technologies.  All rights reserved.
 # $COPYRIGHT$
 #
 # Additional copyrights may follow
@@ -9,7 +9,8 @@
 
 if HAVE_NCCL
 sources = \
-	xccl_nccl_lib.c \
+	xccl_nccl_lib.c        \
+    xccl_nccl_collective.c \
 	xccl_nccl_lib.h
 
 component_noinst =

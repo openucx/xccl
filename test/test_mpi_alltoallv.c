@@ -3,14 +3,19 @@
 *
 * See file LICENSE for terms.
 */
-#include "test_mpi.h"
 
-int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int *scount, int *rcount,
-             int *sdispl, int *rdispl, int rank, int total_count)
+#include "test_mpi.h"
+#include "test_utils.h"
+
+int run_test(void *sbuf, void *rbuf, void *sbuf_mpi, void *rbuf_mpi,
+             int *scount, int *rcount,
+             int *sdispl, int *rdispl, int rank, int total_count,
+             test_mem_type_t mtype)
 {
     xccl_coll_req_h request;
     MPI_Request     mpi_req;
     int             status, status_global, completed;
+    int             not_equal;
     int i = 0;
 
     status = 0;
@@ -32,11 +37,12 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int *scount, int *rcount,
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
     XCCL_CHECK(xccl_collective_post(request));
     while (XCCL_OK != xccl_collective_test(request)) {
-            xccl_context_progress(team_ctx);
-        }
+        xccl_context_progress(team_ctx);
+    }
     XCCL_CHECK(xccl_collective_finalize(request));
 
-    MPI_Ialltoallv(sbuf, scount, sdispl, MPI_INT, rbuf_mpi, rcount, rdispl, MPI_INT, MPI_COMM_WORLD, &mpi_req);
+    MPI_Ialltoallv(sbuf_mpi, scount, sdispl, MPI_INT, rbuf_mpi, rcount, rdispl,
+                   MPI_INT, MPI_COMM_WORLD, &mpi_req);
 
     completed = 0;
     while (!completed) {
@@ -44,8 +50,13 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int *scount, int *rcount,
         xccl_mpi_test_progress();
     }
 
-    if (0 != memcmp(rbuf, rbuf_mpi, total_count*sizeof(int))) {
-        fprintf(stderr, "RST CHECK FAILURE at rank %d, count %d\n", rank, total_count);
+    XCCL_CHECK(test_xccl_memcmp(rbuf, mtype,
+                                rbuf_mpi, TEST_MEM_TYPE_HOST,
+                                total_count*sizeof(int),
+                                &not_equal));
+    if (not_equal) {
+        fprintf(stderr, "RST CHECK FAILURE at rank %d, count %d\n",
+                rank, total_count);
         status = 1;
     }
 
@@ -59,25 +70,33 @@ int main (int argc, char **argv)
     size_t msglen_min, msglen_max;
     int count_max, count_min, count,
         rank, size, i, j, status_global;
-    int *sbuf, *rbuf, *rbuf_mpi;
+    int *sbuf, *rbuf, *sbuf_mpi, *rbuf_mpi;
     int *send_counts, *recv_counts;
     int *send_displ, *recv_displ;
+    int is_cuda;
+    test_mem_type_t mtype;
 
     msglen_min = argc > 1 ? atoi(argv[1]) : 16;
     msglen_max = argc > 2 ? atoi(argv[2]) : 1024;
+    mtype      = argc > 3 ? atoi(argv[3]) : TEST_MEM_TYPE_HOST;
+    
     if (msglen_max < msglen_min) {
         fprintf(stderr, "Incorrect msglen settings\n");
         return -1;
     }
-
+    XCCL_CHECK(test_xccl_set_device(mtype));
     count_max = (msglen_max + sizeof(int) - 1)/sizeof(int);
     count_min = (msglen_min + sizeof(int) - 1)/sizeof(int);
-    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLTOALL, XCCL_THREAD_MODE_SINGLE));
+    XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_ALLTOALLV,
+                                  XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    sbuf     = malloc(count_max*size*sizeof(int));
-    rbuf     = malloc(count_max*size*sizeof(int));
+    XCCL_CHECK(test_xccl_mem_alloc((void**)&sbuf, count_max*size*sizeof(int),
+                                   mtype));
+    XCCL_CHECK(test_xccl_mem_alloc((void**)&rbuf, count_max*size*sizeof(int),
+                                   mtype));
+    sbuf_mpi = malloc(count_max*size*sizeof(int));
     rbuf_mpi = malloc(count_max*size*sizeof(int));
 
     send_counts = (int*)malloc(size*sizeof(int));
@@ -86,10 +105,12 @@ int main (int argc, char **argv)
     recv_displ  = (int*)malloc(size*sizeof(int));
 
     for (i=0; i<count_max*size; i++) {
-        sbuf[i] = rank+1;
+        sbuf_mpi[i] = rank+1;
     }
+    XCCL_CHECK(test_xccl_memcpy(sbuf, sbuf_mpi, count_max*size*sizeof(int),
+                                (mtype == TEST_MEM_TYPE_HOST) ? TEST_MEMCPY_H2H:
+                                                                TEST_MEMCPY_H2D));
 
-/* regular alltoall */ 
     for (count = count_min; count <= count_max; count *= 2) {
         for (j = 0; j < size; j++) {
             send_counts[j] = count;
@@ -98,11 +119,12 @@ int main (int argc, char **argv)
             recv_displ[j]  = j*count;
         }
         for (i=0; i<iters; i++) {
-            memset(rbuf, 0, sizeof(count*size*sizeof(int)));
-            status_global = run_test(sbuf, rbuf, rbuf_mpi,
+            XCCL_CHECK(test_xccl_memset(rbuf, 0, count*size*sizeof(int),
+                                        mtype))
+            status_global = run_test(sbuf, rbuf, sbuf_mpi, rbuf_mpi,
                                      send_counts, recv_counts,
                                      send_displ, recv_displ,
-                                     rank, count * size);
+                                     rank, count * size, mtype);
             if (status_global) {
                 goto end;
             }
@@ -118,9 +140,11 @@ end:
     free(recv_counts);
     free(send_displ);
     free(recv_displ);
-    free(sbuf);
-    free(rbuf);
+    free(sbuf_mpi);
     free(rbuf_mpi);
+    XCCL_CHECK(test_xccl_mem_free(sbuf, mtype));
+    XCCL_CHECK(test_xccl_mem_free(rbuf, mtype));
+
     xccl_mpi_test_finalize();
     return 0;
 }
