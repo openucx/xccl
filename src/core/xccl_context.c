@@ -64,6 +64,7 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
             tlib = lib->libs[tl_index];
             if (tlib->team_context_create(tlib, &ctx->params, config->configs[tl_index], &tl_ctx) == XCCL_OK) {
                 ctx->tl_ctx[ctx->n_tl_ctx++] = tl_ctx;
+                tl_ctx->ctx = ctx;
                 status = xccl_ctx_progress_queue_init(&tl_ctx->pq,params->thread_mode);
                 if(status != XCCL_OK){
                     return status;
