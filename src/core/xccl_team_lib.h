@@ -16,10 +16,11 @@
 #include <string.h>
 #include "xccl_schedule.h"
 
+typedef struct xccl_context     xccl_context_t;
 typedef struct xccl_tl_context  xccl_tl_context_t;
 typedef struct xccl_tl_team     xccl_tl_team_t;
 typedef struct xccl_tl_coll_req xccl_tl_coll_req_t;
-typedef struct xccl_team_lib* xccl_team_lib_h;
+typedef struct xccl_team_lib*   xccl_team_lib_h;
 
 typedef struct xccl_team_lib_config {
     /* Log level above which log messages will be printed */
@@ -81,6 +82,7 @@ typedef struct xccl_team_lib {
 typedef struct xccl_progress_queue xccl_progress_queue_t;
 typedef struct xccl_tl_context {
     xccl_team_lib_t       *lib;
+    xccl_context_t        *ctx;
     xccl_context_params_t params;
     xccl_progress_queue_t *pq;
 } xccl_tl_context_t;

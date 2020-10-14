@@ -13,36 +13,6 @@
 #include "xccl_hier_team.h"
 #include "xccl_hier_task_schedule.h"
 
-
-xccl_status_t hier_seq_task_progress_handler(xccl_coll_task_t *task)
-{
-    const int n_polls = 10;
-    xccl_status_t status;
-    int i;
-
-    xccl_hier_task_t *self = (xccl_hier_task_t*)task;
-    for (i = 0; (i < n_polls) && (task->state == XCCL_TASK_STATE_INPROGRESS); i++) {
-        if (!self->req) {
-            status = xccl_collective_init(&self->xccl_coll, &self->req, self->pair->team);
-            status = xccl_collective_post(self->req);
-        }
-        status = xccl_collective_test(self->req);
-        if (status == XCCL_OK) {
-            xccl_collective_finalize(self->req);
-            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
-            task->state = XCCL_TASK_STATE_COMPLETED;
-        }
-    }
-    return task->state == XCCL_TASK_STATE_COMPLETED ? XCCL_OK : XCCL_INPROGRESS;
-}
-
-void hier_seq_task_completed_handler(xccl_coll_task_t *task)
-{
-    /* start task if completion event received */
-    task->state = XCCL_TASK_STATE_INPROGRESS;
-    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
-}
-
 xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
                                             xccl_hier_allreduce_spec_t spec, xccl_seq_schedule_t **sched)
 {
@@ -151,14 +121,15 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
     xccl_schedule_init(&schedule->super, team->super.ctx);
     for (i = 0; i < c; i++) {
         xccl_coll_task_init(&schedule->tasks[i].super);
-        schedule->tasks[i].super.progress  = hier_seq_task_progress_handler;
-        schedule->tasks[i].super.handlers[XCCL_EVENT_COMPLETED] = hier_seq_task_completed_handler;
+        schedule->tasks[i].super.progress  = hier_task_progress_handler;
+        schedule->tasks[i].super.handlers[XCCL_EVENT_COMPLETED] = hier_task_completed_handler;
         schedule->tasks[i].req = NULL;
         if (i > 0) {
-            xccl_event_manager_subscribe(&schedule->tasks[i-1].super.em, XCCL_EVENT_COMPLETED, &schedule->tasks[i].super);
+            xccl_event_manager_subscribe(&schedule->tasks[i-1].super.em,
+                                         XCCL_EVENT_COMPLETED, &schedule->tasks[i].super);
         } else {
             //i == 0
-            schedule->tasks[i].super.handlers[XCCL_EVENT_SCHEDULE_STARTED] = hier_seq_task_completed_handler;
+            schedule->tasks[i].super.handlers[XCCL_EVENT_SCHEDULE_STARTED] = hier_task_completed_handler;
             xccl_event_manager_subscribe(&schedule->super.super.em, XCCL_EVENT_SCHEDULE_STARTED,
                                         &schedule->tasks[i].super);
         }

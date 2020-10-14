@@ -20,9 +20,16 @@ xccl_status_t tasks_queue_insert(xccl_progress_queue_t *handle, xccl_coll_task_t
 xccl_status_t tasks_queue_progress(xccl_progress_queue_t *handle) {
     xccl_tasks_queue_t *ctx = (xccl_tasks_queue_t *) handle->ctx;
     xccl_coll_task_t *task, *tmp;
+    xccl_status_t status;
     ucs_list_for_each_safe(task, tmp, &ctx->list, list_elem)
     {
-        if (task->progress(task) == XCCL_OK) {
+        if (task->progress) {
+            if (0 < task->progress(task)) {
+                return status;
+            }
+        }
+        if (XCCL_TASK_STATE_COMPLETED == task->state) {
+            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
             ucs_list_del(&task->list_elem);
         }
     }

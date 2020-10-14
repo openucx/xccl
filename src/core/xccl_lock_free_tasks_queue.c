@@ -49,14 +49,21 @@ xccl_status_t lf_tasks_queue_insert(xccl_progress_queue_t *handle, xccl_coll_tas
 
 xccl_status_t lf_tasks_queue_progress(xccl_progress_queue_t *handle) {
     xccl_lf_tasks_queue_t *ctx = (xccl_lf_tasks_queue_t *) handle->ctx;
-    xccl_coll_task_t *popped_task;
-    xccl_status_t status = lf_tasks_queue_pop(ctx, &popped_task, 1);
+    xccl_coll_task_t *task;
+    xccl_status_t status = lf_tasks_queue_pop(ctx, &task, 1);
     if (status != XCCL_OK) {
         return status;
     }
-    if (popped_task) {
-        if (XCCL_OK != popped_task->progress(popped_task)) {
-            return lf_tasks_queue_insert(handle, popped_task);
+    if (task) {
+        if (task->progress) {
+            if (0 < task->progress(task)) {
+                return status;
+            }
+        }
+        if (XCCL_TASK_STATE_COMPLETED == task->state) {
+            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+        } else {
+            return lf_tasks_queue_insert(handle, task);
         }
     }
     return XCCL_OK;

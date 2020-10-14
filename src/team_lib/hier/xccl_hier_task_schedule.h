@@ -26,6 +26,9 @@ typedef struct xccl_seq_schedule {
     xccl_hier_task_t   *tasks;
 } xccl_seq_schedule_t;
 
+xccl_status_t hier_task_progress_handler(xccl_coll_task_t *task);
+void hier_task_completed_handler(xccl_coll_task_t *task);
+
 xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
                                             xccl_hier_allreduce_spec_t spec, xccl_seq_schedule_t **sched);
 
