@@ -100,10 +100,11 @@ typedef struct coll_schedule_fragmented {
 
 /* Descriptor of the hierarchy pairs (ie TLS) that should be used at different levels */
 typedef struct xccl_hier_schedule_pairs_t {
-    xccl_hier_pair_type_t  socket;
-    xccl_hier_pair_type_t  socket_leaders;
-    xccl_hier_pair_type_t  node_leaders;
-    xccl_hier_pair_type_t  node;
+    xccl_hier_pair_type_t socket;
+    xccl_hier_pair_type_t socket_leaders;
+    xccl_hier_pair_type_t node_leaders;
+    xccl_hier_pair_type_t node;
+    xccl_hier_pair_type_t flat;
 } xccl_hier_schedule_pairs_t;
 
 typedef struct xccl_hier_bcast_spec {
@@ -122,6 +123,10 @@ typedef struct xccl_hier_allreduce_spec {
 typedef struct xccl_hier_barrier_spec {
     xccl_hier_schedule_pairs_t pairs;
 } xccl_hier_barrier_spec_t;
+
+typedef struct xccl_hier_alltoall_spec {
+    xccl_hier_schedule_pairs_t pairs;
+} xccl_hier_alltoall_spec_t;
 
 xccl_status_t build_allreduce_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
                                        xccl_hier_allreduce_spec_t spec, coll_schedule_t **schedule);

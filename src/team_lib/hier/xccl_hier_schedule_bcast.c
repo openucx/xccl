@@ -272,7 +272,9 @@ xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team, xccl_coll_op_arg
     for (i = 0; i < c; i++) {
         schedule->tasks[i].super.progress  = hier_task_progress_handler;
         schedule->tasks[i].super.handlers[XCCL_EVENT_COMPLETED] = hier_task_completed_handler;
-        schedule->tasks[i].req = NULL;
+        schedule->tasks[i].req     = NULL;
+        schedule->tasks[i].scratch = NULL;
+
         if (i != dep_id) {
             xccl_event_manager_subscribe(&schedule->tasks[dep_id].super.em,
                                          XCCL_EVENT_COMPLETED, &schedule->tasks[i].super);

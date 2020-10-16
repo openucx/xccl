@@ -44,6 +44,8 @@ oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len,
 static xccl_status_t xccl_hier_create_pair(sbgp_t *sbgp, xccl_hier_team_t *team,
                                            xccl_tl_id_t tl_id, xccl_hier_pair_type_t pair) {
     xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
+    xccl_status_t status;
+
     if (sbgp->status != SBGP_ENABLED) {
         return 0;
     }
@@ -65,8 +67,13 @@ static xccl_status_t xccl_hier_create_pair(sbgp_t *sbgp, xccl_hier_team_t *team,
     };
 
     team->pairs[pair] = (xccl_hier_pair_t*)malloc(sizeof(xccl_hier_pair_t));
-    xccl_team_create_post(ctx->tls[ucs_ilog2(tl_id)].xccl_ctx, &team_params,
-                          &team->pairs[pair]->team);
+    status = xccl_team_create_post(ctx->tls[ucs_ilog2(tl_id)].xccl_ctx, &team_params,
+                                   &team->pairs[pair]->team);
+    if (status != XCCL_OK) {
+        free(team->pairs[pair]);
+        team->pairs[pair] = NULL;
+        return status;
+    }
     while (XCCL_INPROGRESS ==
            xccl_team_create_test(team->pairs[pair]->team)) {;}
     team->pairs[pair]->sbgp = sbgp;
@@ -102,7 +109,12 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
     /* SBGP_NODE has to be always created first, it is used to
        create other sbgps: socket and socket_leaders */
     sbgp_create(hier_team, SBGP_NODE);
+    sbgp_create(hier_team, SBGP_FLAT);
     sbgp_create(hier_team, SBGP_NODE_LEADERS);
+    xccl_hier_create_pair(&hier_team->sbgps[SBGP_FLAT], hier_team,
+                          XCCL_TL_UCX, XCCL_HIER_PAIR_FLAT_UCX);
+    xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE], hier_team,
+                            XCCL_TL_UCX, XCCL_HIER_PAIR_NODE_UCX);
     if (!hier_team->no_socket) {
         sbgp_create(hier_team, SBGP_SOCKET);
         sbgp_create(hier_team, SBGP_SOCKET_LEADERS);
@@ -110,9 +122,6 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
                               XCCL_TL_UCX, XCCL_HIER_PAIR_SOCKET_UCX);
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_SOCKET_LEADERS], hier_team,
                               XCCL_TL_UCX, XCCL_HIER_PAIR_SOCKET_LEADERS_UCX);
-    } else {
-        xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE], hier_team,
-                              XCCL_TL_UCX, XCCL_HIER_PAIR_NODE_UCX);
     }
     xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
                           XCCL_TL_UCX, XCCL_HIER_PAIR_NODE_LEADERS_UCX);
@@ -132,6 +141,15 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
     if (ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled) {
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
                               XCCL_TL_VMC, XCCL_HIER_PAIR_NODE_LEADERS_VMC);
+    }
+
+    if (ctx->tls[ucs_ilog2(XCCL_TL_NCCL)].enabled) {
+        status = xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE], hier_team,
+                                       XCCL_TL_NCCL, XCCL_HIER_PAIR_NODE_NCCL);
+        if (status != XCCL_OK) {
+            xccl_context_destroy(ctx->tls[ucs_ilog2(XCCL_TL_NCCL)].xccl_ctx);
+            ctx->tls[ucs_ilog2(XCCL_TL_NCCL)].enabled = 0;
+        }
     }
 
     *team = &hier_team->super;

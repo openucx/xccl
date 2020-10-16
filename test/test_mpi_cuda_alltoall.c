@@ -8,7 +8,8 @@
 #include "test_mpi.h"
 
 int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
-             void *rbuf_mpi, int count, int rank, cudaStream_t *stream)
+             void *rbuf_mpi, int count, int comm_rank, int comm_size,
+             cudaStream_t *stream)
 {
     xccl_coll_req_h request;
     MPI_Request     mpi_req;
@@ -45,11 +46,11 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
         xccl_mpi_test_progress();
     }
 
-    cudaMemcpyAsync(rbuf_host, rbuf, count*sizeof(int),
+    cudaMemcpyAsync(rbuf_host, rbuf, comm_size*count*sizeof(int),
                     cudaMemcpyDeviceToHost, *stream);
     cudaStreamSynchronize(*stream);
-    if (0 != memcmp(rbuf_host, rbuf_mpi, count*sizeof(int))) {
-        fprintf(stderr, "RST CHECK FAILURE at rank %d, count %d\n", rank, count);
+    if (0 != memcmp(rbuf_host, rbuf_mpi, comm_size*count*sizeof(int))) {
+        fprintf(stderr, "RST CHECK FAILURE at rank %d, count %d\n", comm_rank, count);
         status = 1;
     }
 
@@ -107,7 +108,7 @@ int main (int argc, char **argv)
         for (i=0; i<iters; i++) {
             cudaMemset(rbuf_cuda, 0, sizeof(count*size*sizeof(int)));
             status_global = run_test(sbuf_cuda, rbuf_cuda, rbuf_host, sbuf_host, rbuf_mpi,
-                                     count, rank, &stream);
+                                     count, rank, size, &stream);
             if (status_global) {
                 goto end;
             }

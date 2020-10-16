@@ -19,6 +19,7 @@ sources = \
 	xccl_hier_schedule.h \
 	xccl_hier_schedule.c \
 	xccl_hier_schedule_allreduce.c \
+	xccl_hier_schedule_alltoall.c \
 	xccl_hier_schedule_barrier.c \
 	xccl_hier_schedule_bcast.c
 
