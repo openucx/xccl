@@ -8,6 +8,7 @@
 
 #include <xccl_team.h>
 #include <ucs/memory/memory_type.h>
+#include "topo/xccl_topo.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -40,6 +41,11 @@ xccl_status_t xccl_team_create_post(xccl_context_h context,
                                 sizeof(xccl_tl_team_t*)*(n_ctx-1));
     team->ctx = context;
     team->n_teams = 0;
+    team->topo    = NULL;
+    memcpy(&team->params, params, sizeof(*params));
+    if (context->topo) {
+        xccl_team_topo_init(team, context->topo, &team->topo);
+    }
     for (i=0; i<context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
         status = tl_ctx->lib->team_create_post(tl_ctx, params,
@@ -100,6 +106,9 @@ void xccl_team_destroy(xccl_team_t *team)
     for (i=0; i<team->n_teams; i++) {
         tl_ctx = team->tl_teams[i]->ctx;
         tl_ctx->lib->team_destroy(team->tl_teams[i]);
+    }
+    if (team->topo) {
+        xccl_team_topo_cleanup(team->topo);
     }
     free(team);
 }

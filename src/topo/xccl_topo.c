@@ -72,8 +72,12 @@ static void compute_layout(xccl_topo_t *topo, xccl_oob_collectives_t oob) {
     topo->max_n_sockets = max_sockid+1;
 }
 
-xccl_status_t xccl_topo_init(xccl_oob_collectives_t oob, xccl_topo_t *topo)
+xccl_status_t xccl_topo_init(xccl_oob_collectives_t oob, xccl_topo_t **_topo)
 {
+    xccl_topo_t *topo = malloc(sizeof(*topo));
+    if (!topo) {
+        return XCCL_ERR_NO_MEMORY;
+    }
     topo->procs = (xccl_proc_data_t*)malloc(
         oob.size*sizeof(xccl_proc_data_t));
     topo->local_proc.socketid  = xccl_local_process_info()->socketid;
@@ -84,5 +88,50 @@ xccl_status_t xccl_topo_init(xccl_oob_collectives_t oob, xccl_topo_t *topo)
     xccl_oob_allgather(&topo->local_proc, topo->procs,
                        sizeof(xccl_proc_data_t), &oob);
     compute_layout(topo, oob);
+    *_topo = topo;
     return XCCL_OK;
+}
+
+void xccl_topo_cleanup(xccl_topo_t *topo)
+{
+    free(topo->procs);
+    free(topo);
+}
+
+xccl_status_t xccl_team_topo_init(xccl_team_t *team, xccl_topo_t *topo, xccl_team_topo_t **_team_topo)
+{
+    xccl_team_topo_t *team_topo = malloc(sizeof(*team_topo));
+    int i;
+    if (!topo) {
+        return XCCL_ERR_NO_MEMORY;
+    }
+    team_topo->topo = topo;
+    for (i=0; i<XCCL_SBGP_LAST; i++) {
+        team_topo->sbgps[i].status = XCCL_SBGP_NOT_INIT;
+    }
+    team_topo->no_socket = 0;
+    team_topo->node_leader_rank = -1;
+    team_topo->node_leader_rank_id = 0;
+    team_topo->team = team;
+    *_team_topo = team_topo;
+    return XCCL_OK;
+}
+
+void xccl_team_topo_cleanup(xccl_team_topo_t *team_topo)
+{
+    int i;
+    for (i=0; i<XCCL_SBGP_LAST; i++) {
+        if (team_topo->sbgps[i].status == XCCL_SBGP_ENABLED) {
+            xccl_sbgp_cleanup(&team_topo->sbgps[i]);
+        }
+    }
+    free(team_topo);
+}
+
+xccl_sbgp_t* xccl_team_topo_get_sbgp(xccl_team_topo_t *topo, xccl_sbgp_type_t type)
+{
+    if (topo->sbgps[type].status == XCCL_SBGP_NOT_INIT) {
+        xccl_sbgp_create(topo, type);
+    }
+    return &topo->sbgps[type];
 }
