@@ -70,11 +70,12 @@ xccl_mhba_context_destroy(xccl_tl_context_t *context)
 static xccl_status_t
 xccl_mhba_team_create_post(xccl_tl_context_t *context,
                            xccl_team_params_t *params,
+                           xccl_team_t *base_team,
                            xccl_tl_team_t **team)
 {
     xccl_mhba_team_t *mhba_team = malloc(sizeof(*mhba_team));
 
-    XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params);
+    XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
     *team = &mhba_team->super;
     return XCCL_OK;
 }

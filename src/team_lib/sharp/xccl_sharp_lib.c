@@ -289,6 +289,7 @@ xccl_sharp_context_destroy(xccl_tl_context_t *context)
 static xccl_status_t
 xccl_sharp_team_create_post(xccl_tl_context_t *context,
                             xccl_team_params_t *params,
+                            xccl_team_t *base_team,
                             xccl_tl_team_t **team)
 {
     xccl_sharp_team_t    *team_sharp     = malloc(sizeof(*team_sharp));
@@ -298,7 +299,7 @@ xccl_sharp_team_create_post(xccl_tl_context_t *context,
         ucs_derived_of(context, xccl_sharp_context_t);
     struct sharp_coll_comm_init_spec comm_spec;
     int i, ret;
-    XCCL_TEAM_SUPER_INIT(team_sharp->super, context, params);
+    XCCL_TEAM_SUPER_INIT(team_sharp->super, context, params, base_team);
 
     comm_spec.size              = params->oob.size;
     comm_spec.rank              = params->oob.rank;

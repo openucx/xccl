@@ -121,3 +121,17 @@ xccl_status_t xccl_sbgp_cleanup(xccl_sbgp_t *sbgp)
         free(sbgp->rank_map);
     }
 }
+
+void xccl_sbgp_print(xccl_sbgp_t *sbgp)
+{
+    int i;
+    if (sbgp->group_rank == 0 && sbgp->status == XCCL_SBGP_ENABLED) {
+        printf("sbgp: %15s: group_size %4d, team_ranks=[ ",
+               xccl_sbgp_type_str[sbgp->type], sbgp->group_size);
+        for (i=0; i<sbgp->group_size; i++) {
+            printf("%d ", sbgp->rank_map[i]);
+        }
+        printf("]");
+        printf("\n");
+    }
+}

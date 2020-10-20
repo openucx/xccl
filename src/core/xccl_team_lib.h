@@ -17,6 +17,7 @@
 #include "xccl_schedule.h"
 
 typedef struct xccl_context     xccl_context_t;
+typedef struct xccl_team        xccl_team_t;
 typedef struct xccl_tl_context  xccl_tl_context_t;
 typedef struct xccl_tl_team     xccl_tl_team_t;
 typedef struct xccl_tl_coll_req xccl_tl_coll_req_t;
@@ -62,6 +63,7 @@ typedef struct xccl_team_lib {
     xccl_status_t              (*team_context_destroy)(xccl_tl_context_t *team_context);
     xccl_status_t              (*team_create_post)(xccl_tl_context_t *team_ctx,
                                                    xccl_team_params_t *params,
+                                                   xccl_team_t *base_team,
                                                    xccl_tl_team_t **team);
     xccl_status_t              (*team_create_test)(xccl_tl_team_t *team_ctx);
     xccl_status_t              (*team_destroy)(xccl_tl_team_t *team);
@@ -89,6 +91,7 @@ typedef struct xccl_tl_context {
 
 typedef struct xccl_tl_team {
     xccl_tl_context_t  *ctx;
+    xccl_team_t        *base_team;
     xccl_team_params_t params;
 } xccl_tl_team_t;
 
@@ -123,8 +126,9 @@ typedef struct xccl_local_proc_info {
 
 xccl_local_proc_info_t* xccl_local_process_info();
 
-#define XCCL_TEAM_SUPER_INIT(_team, _ctx, _params) do {                   \
-        (_team).ctx = (_ctx);                                             \
+#define XCCL_TEAM_SUPER_INIT(_team, _ctx, _params, _base_team) do {       \
+        (_team).ctx       = (_ctx);                                       \
+        (_team).base_team = (_base_team);                                 \
         memcpy(&((_team).params), (_params), sizeof(xccl_team_params_t)); \
     }while(0)
 

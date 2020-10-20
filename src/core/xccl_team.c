@@ -48,7 +48,7 @@ xccl_status_t xccl_team_create_post(xccl_context_h context,
     }
     for (i=0; i<context->n_tl_ctx; i++) {
         tl_ctx = context->tl_ctx[i];
-        status = tl_ctx->lib->team_create_post(tl_ctx, params,
+        status = tl_ctx->lib->team_create_post(tl_ctx, params, team,
                                                &team->tl_teams[team->n_teams]);
         if (XCCL_OK == status) {
             /* fprintf(stderr, "Created team %s\n", team->tl_teams[team->n_teams]->ctx->lib->name); */

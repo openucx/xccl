@@ -104,13 +104,14 @@ xccl_nccl_context_destroy(xccl_tl_context_t *context)
 static xccl_status_t
 xccl_nccl_team_create_post(xccl_tl_context_t *context,
                            xccl_team_params_t *params,
+                           xccl_team_t *base_team,
                            xccl_tl_team_t **team)
 {
     xccl_nccl_team_t *nccl_team = malloc(sizeof(*nccl_team));
     ncclUniqueId unique_id, *gathered_ids;
     ncclResult_t nccl_st;
 
-    XCCL_TEAM_SUPER_INIT(nccl_team->super, context, params);
+    XCCL_TEAM_SUPER_INIT(nccl_team->super, context, params, base_team);
     gathered_ids = (ncclUniqueId*)malloc(params->oob.size*sizeof(ncclUniqueId));
 
     if (params->oob.rank == 0) {

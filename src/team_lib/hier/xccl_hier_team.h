@@ -36,6 +36,7 @@ typedef struct xccl_hier_team {
 
 xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
                                          xccl_team_params_t *config,
+                                         xccl_team_t *base_team,
                                          xccl_tl_team_t **team);
 xccl_status_t xccl_hier_team_create_test(xccl_tl_team_t *team);
 xccl_status_t xccl_hier_team_destroy(xccl_tl_team_t *team);

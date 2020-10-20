@@ -75,6 +75,7 @@ static xccl_status_t xccl_hier_create_pair(sbgp_t *sbgp, xccl_hier_team_t *team,
 
 xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
                                          xccl_team_params_t *params,
+                                         xccl_team_t *base_team,
                                          xccl_tl_team_t **team)
 {
     //TODO need to make this non blocking + team_hier_wait
@@ -86,7 +87,7 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
     xccl_hier_team_t    *hier_team;
 
     hier_team = (xccl_hier_team_t*)calloc(1, sizeof(xccl_hier_team_t));
-    XCCL_TEAM_SUPER_INIT(hier_team->super, context, params);
+    XCCL_TEAM_SUPER_INIT(hier_team->super, context, params, base_team);
 
     for (i=0; i<SBGP_LAST; i++) {
         hier_team->sbgps[i].status = SBGP_DISABLED;
