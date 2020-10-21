@@ -6,12 +6,22 @@ env:
   HPCX_PKG_NAME: hpcx-v2.5.0-gcc-MLNX_OFED_LINUX-4.7-1.0.0.1-ubuntu18.04-x86_64
   HPCX_PKG_LINK: http://www.mellanox.com/downloads/hpc/hpc-x/v2.5
   OPEN_UCX_LINK: https://github.com/openucx/ucx
+  MOFED_PKG_NAME: MLNX_OFED_LINUX-5.1-2.3.7.1-ubuntu18.04-x86_64
+  MOFED_PKG_LINK: http://www.mellanox.com/downloads/ofed/MLNX_OFED-5.1-2.3.7.1
 jobs:
   build:
 
     runs-on: ubuntu-latest
 
     steps:
+    - name: Get MOFED
+      run: wget "${MOFED_PKG_LINK}/${MOFED_PKG_NAME}.tgz" -P /tmp
+    - name: Unpack MOFED
+      run: cd /tmp && tar -xf "${MOFED_PKG_NAME}.tgz"
+    - name: Install MOFED
+      run: |
+        cd /tmp/${MOFED_PKG_NAME}
+        sudo ./mlnxofedinstall --basic --user-space-only --without-fw-update --all  -q --force --without-neohost-backend
     - name: Get HPCX
       run: wget "${HPCX_PKG_LINK}/${HPCX_PKG_NAME}.tbz" -P /tmp
     - name: Unpack HPCX
