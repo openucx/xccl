@@ -6,6 +6,7 @@
 #ifndef XCCL_TEAM_LIB_MHBA_H_
 #define XCCL_TEAM_LIB_MHBA_H_
 #include "xccl_team_lib.h"
+#include "topo/xccl_topo.h"
 
 typedef struct xccl_team_lib_mhba_config {
     xccl_team_lib_config_t super;
@@ -43,8 +44,23 @@ typedef struct xccl_mhba_context {
     xccl_tl_context_t super;
 } xccl_mhba_context_t;
 
+/* This structure holds resources and data related to the "in-node"
+   part of the algorithm. */
+typedef struct xccl_mhba_node {
+    xccl_sbgp_t *sbgp;
+    void        *storage;
+    void        *ctrl;
+    void        *my_ctrl;
+    void        *umr_data;
+    void        *my_umr_data;
+} xccl_mhba_node_t;
+
+#define MHBA_CTRL_SIZE 128
+#define MHBA_DATA_SIZE 64
+
 typedef struct xccl_mhba_team {
     xccl_tl_team_t super;
+    xccl_mhba_node_t node;
 } xccl_mhba_team_t;
 
 #endif

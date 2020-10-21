@@ -7,6 +7,12 @@
 #include "xccl_mhba_collective.h"
 #include "mem_component.h"
 #include <ucs/memory/memory_type.h>
+#include "core/xccl_team.h"
+
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <errno.h>
 
 static ucs_config_field_t xccl_team_lib_mhba_config_table[] = {
     {"", "",
@@ -67,6 +73,7 @@ xccl_mhba_context_destroy(xccl_tl_context_t *context)
     return XCCL_OK;
 }
 
+
 static xccl_status_t
 xccl_mhba_team_create_post(xccl_tl_context_t *context,
                            xccl_team_params_t *params,
@@ -74,8 +81,45 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
                            xccl_tl_team_t **team)
 {
     xccl_mhba_team_t *mhba_team = malloc(sizeof(*mhba_team));
-
+    xccl_sbgp_t *node;
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
+    node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
+    mhba_team->node.sbgp = node;
+    size_t storage_size = (MHBA_CTRL_SIZE+MHBA_DATA_SIZE) * node->group_size;
+    int shmid;
+    if (0 == node->group_rank) {
+        shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
+    }
+    xccl_sbgp_oob_bcast(&shmid, sizeof(int), 0, node, params->oob);
+    if (shmid == -1) {
+        xccl_mhba_error("failed to allocate sysv shm segment for %d bytes",
+                        storage_size);
+        return XCCL_ERR_NO_RESOURCE;
+    }
+
+    mhba_team->node.storage = shmat(shmid, NULL, 0);
+    if (0 == node->group_rank) {
+        if (shmctl(shmid, IPC_RMID, NULL) == -1) {
+            xccl_mhba_error("failed to shmctl IPC_RMID seg %d",
+                            shmid);
+            return XCCL_ERR_NO_RESOURCE;
+        }
+    }
+    if (mhba_team->node.storage == (void*)(-1)) {
+        xccl_mhba_error("failed to shmat seg %d",
+                        shmid);
+        return XCCL_ERR_NO_RESOURCE;
+    }
+    mhba_team->node.ctrl = mhba_team->node.storage;
+    mhba_team->node.umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
+        node->group_size*MHBA_CTRL_SIZE);
+    mhba_team->node.my_ctrl = (void*)((ptrdiff_t)mhba_team->node.ctrl +
+        node->group_rank*MHBA_CTRL_SIZE);
+    mhba_team->node.my_umr_data = (void*)((ptrdiff_t)mhba_team->node.umr_data +
+        node->group_size*MHBA_DATA_SIZE);
+
+    memset(mhba_team->node.my_ctrl, 0, MHBA_CTRL_SIZE);
+    xccl_sbgp_oob_barrier(node, params->oob);
     *team = &mhba_team->super;
     return XCCL_OK;
 }
@@ -90,6 +134,10 @@ static xccl_status_t
 xccl_mhba_team_destroy(xccl_tl_team_t *team)
 {
     xccl_mhba_team_t *mhba_team = ucs_derived_of(team, xccl_mhba_team_t);
+    if (-1 == shmdt(mhba_team->node.storage)) {
+        xccl_mhba_error("failed to shmdt %p, errno %d",
+                        mhba_team->node.storage, errno);
+    }
     free(team);
     return XCCL_OK;
 }
