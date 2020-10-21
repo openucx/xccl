@@ -14,8 +14,6 @@ sources = \
 	xccl_hier_context.c \
 	xccl_hier_team.h \
 	xccl_hier_team.c \
-	xccl_hier_sbgp.h \
-	xccl_hier_sbgp.c \
 	xccl_hier_schedule.h \
 	xccl_hier_schedule.c \
 	xccl_hier_schedule_allreduce.c \

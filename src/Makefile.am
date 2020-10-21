@@ -38,7 +38,10 @@ nobase_dist_libxccl_la_HEADERS = \
 	api/xccl_status.h            \
 	api/xccl_tls.h
 
-noinst_HEADERS = core/xccl_team_lib.h
+noinst_HEADERS =         \
+	core/xccl_team_lib.h \
+	topo/xccl_topo.h     \
+	topo/xccl_sbgp.h
 
 libxccl_la_SOURCES =                  \
 	core/xccl_init.c                  \
@@ -56,7 +59,9 @@ libxccl_la_SOURCES =                  \
 	core/xccl_progress_queue.c        \
 	core/xccl_schedule.c              \
 	utils/socketid.c                  \
-	utils/mem_component.c
+	utils/mem_component.c             \
+	topo/xccl_topo.c                  \
+	topo/xccl_sbgp.c
 
 libxccl_ladir = $(includedir)
 

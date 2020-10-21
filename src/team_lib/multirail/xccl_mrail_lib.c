@@ -287,6 +287,7 @@ xccl_status_t xccl_mrail_context_destroy(xccl_tl_context_t *team_context)
 
 xccl_status_t
 xccl_mrail_team_create_post(xccl_tl_context_t *context, xccl_team_params_t *params,
+                            xccl_team_t *base_team,
                             xccl_tl_team_t **tl_team)
 {
     xccl_mrail_context_t *ctx = ucs_derived_of(context, xccl_mrail_context_t);
@@ -308,7 +309,7 @@ xccl_mrail_team_create_post(xccl_tl_context_t *context, xccl_team_params_t *para
         }
     }
 
-    XCCL_TEAM_SUPER_INIT(team->super, context, params);
+    XCCL_TEAM_SUPER_INIT(team->super, context, params, base_team);
 
     *tl_team = &team->super;
     return XCCL_OK;

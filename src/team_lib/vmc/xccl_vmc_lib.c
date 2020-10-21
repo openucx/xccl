@@ -75,13 +75,14 @@ static int vmc_comm_rank_to_world_mapper(int rank, void *mapper_ctx)
 
 static xccl_status_t xccl_vmc_team_create_post(xccl_tl_context_t *context,
                                                xccl_team_params_t *params,
+                                               xccl_team_t *base_team,
                                                xccl_tl_team_t **team)
 {
     xccl_vmc_context_t *team_vmc_ctx = ucs_derived_of(context, xccl_vmc_context_t);
     xccl_vmc_team_t    *team_vmc     = malloc(sizeof(*team_vmc));
     vmc_comm_params_t   vmc_params   = vmc_default_comm_params;
     vmc_status_t        st;
-    XCCL_TEAM_SUPER_INIT(team_vmc->super, context, params);
+    XCCL_TEAM_SUPER_INIT(team_vmc->super, context, params, base_team);
     vmc_params.comm_size            = params->oob.size;
     vmc_params.rank                 = params->oob.rank;
     vmc_params.comm_oob_context     = &team_vmc->super.params.oob;

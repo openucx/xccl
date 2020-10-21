@@ -22,6 +22,7 @@ struct xccl_ucx_nb_create_req {
 
 xccl_status_t xccl_ucx_team_create_post(xccl_tl_context_t *context,
                                         xccl_team_params_t *params,
+                                        xccl_team_t *base_team,
                                         xccl_tl_team_t **team)
 {
     xccl_status_t status      = XCCL_OK;
@@ -35,7 +36,7 @@ xccl_status_t xccl_ucx_team_create_post(xccl_tl_context_t *context,
     char* addr_array;
     struct xccl_ucx_nb_create_req *nb_req = malloc(sizeof(*nb_req));
     ucx_team = (xccl_ucx_team_t*)malloc(sizeof(xccl_ucx_team_t));
-    XCCL_TEAM_SUPER_INIT(ucx_team->super, context, params);
+    XCCL_TEAM_SUPER_INIT(ucx_team->super, context, params, base_team);
     nb_req->phase = 0;
     ucx_team->nb_create_req  = nb_req;
     ucx_team->range          = params->range;

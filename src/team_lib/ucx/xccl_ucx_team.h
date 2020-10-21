@@ -18,6 +18,7 @@ typedef struct xccl_ucx_team_t {
 
 xccl_status_t xccl_ucx_team_create_post(xccl_tl_context_t *context,
                                         xccl_team_params_t *params,
+                                        xccl_team_t *base_team,
                                         xccl_tl_team_t **team);
 xccl_status_t xccl_ucx_team_create_test(xccl_tl_team_t *team);
 xccl_status_t xccl_ucx_team_destroy(xccl_tl_team_t *team);

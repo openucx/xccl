@@ -8,6 +8,7 @@
 #include <xccl_context.h>
 #include <xccl_progress_queue.h>
 #include <xccl_ucs.h>
+#include "topo/xccl_topo.h"
 #include <ucs/sys/math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,10 +54,14 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
 
     ctx->tl_ctx = (xccl_tl_context_t**)malloc(sizeof(xccl_tl_context_t*)*num_tls);
     ctx->n_tl_ctx = 0;
-
+    ctx->topo     = NULL;
     if (config == NULL) {
         xccl_context_config_read(lib, NULL, NULL, &dfl_config);
         config = dfl_config;
+    }
+
+    if (params->field_mask & XCCL_CONTEXT_PARAM_FIELD_OOB) {
+        xccl_topo_init(params->oob, &ctx->topo);
     }
     /* TODO: use ucs_for_each_bit */
     for (i = 1; i < XCCL_TL_LAST; i = i << 1) {
@@ -123,6 +128,9 @@ xccl_status_t xccl_context_destroy(xccl_context_h context)
     }
 
     free(context->tl_ctx);
+    if (context->topo) {
+        xccl_topo_cleanup(context->topo);
+    }
     free(context);
     return XCCL_OK;
 }

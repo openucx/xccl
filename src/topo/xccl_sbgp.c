@@ -1,54 +1,41 @@
-/**
-* Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
-*
+/*
+* Copyright (C) Mellanox Technologies Ltd. 2020.  ALL RIGHTS RESERVED.
 * See file LICENSE for terms.
 */
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <assert.h>
+
+#include "xccl_sbgp.h"
+#include "xccl_topo.h"
+#include "core/xccl_team.h"
+
 #include <limits.h>
-#include "xccl_hier_sbgp.h"
-#include "xccl_hier_team.h"
-#include "xccl_hier_context.h"
+
+char* xccl_sbgp_type_str[XCCL_SBGP_LAST] = {"undef", "numa", "socket", "node", "node_leaders",
+                                            "socket_leaders", "numa_leaders", "flat"};
 
 #define SWAP(_x, _y) do{                        \
         int _tmp   = (_x);                      \
         (_x)       = (_y);                      \
         (_y)       = _tmp;                      \
     } while(0)
-enum {
-    LOCAL_NODE,
-    LOCAL_SOCKET,
-};
 
-static inline int is_rank_local(int rank, xccl_hier_team_t *team, int local)
+static inline xccl_status_t sbgp_create_socket(xccl_team_topo_t *topo, xccl_sbgp_t *sbgp)
 {
-    switch (local) {
-    case LOCAL_NODE:
-        return is_rank_on_local_node(rank, team);
-    case LOCAL_SOCKET:
-        return is_rank_on_local_socket(rank, team);
-    }
-}
-
-static inline xccl_status_t sbgp_create_socket(sbgp_t *sbgp)
-{
-    xccl_hier_team_t *team = sbgp->hier_team;
-    sbgp_t *node_sbgp      = &team->sbgps[SBGP_NODE];
-    int *local_ranks;
-    int group_size     = team->super.params.oob.size;
-    int group_rank     = team->super.params.oob.rank;
-    int nlr            = team->node_leader_rank;
+    xccl_team_t *team = sbgp->team;
+    xccl_sbgp_t *node_sbgp = &topo->sbgps[XCCL_SBGP_NODE];
+    int group_size    = team->params.oob.size;
+    int group_rank    = team->params.oob.rank;
+    int nlr           = topo->node_leader_rank;
     int sock_rank = 0, sock_size = 0, i, r, nlr_pos;
-    assert(node_sbgp->status == SBGP_ENABLED);
+    int *local_ranks;
+
+    assert(node_sbgp->status == XCCL_SBGP_ENABLED);
     local_ranks = (int*)malloc(node_sbgp->group_size*sizeof(int));
     if (!local_ranks) {
         return XCCL_ERR_NO_MEMORY;
     }
     for (i=0; i<node_sbgp->group_size; i++) {
         r = node_sbgp->rank_map[i];
-        if (is_rank_local(r, team, LOCAL_SOCKET)) {
+        if (xccl_rank_on_local_socket(r, team)) {
             local_ranks[sock_size] = r;
             if (r == group_rank) {
                 sock_rank = sock_size;
@@ -72,22 +59,20 @@ static inline xccl_status_t sbgp_create_socket(sbgp_t *sbgp)
         SWAP(local_ranks[nlr_pos], local_ranks[0]);
     }
     if (sock_size > 1) {
-        sbgp->status = SBGP_ENABLED;
+        sbgp->status = XCCL_SBGP_ENABLED;
     } else {
-        sbgp->status = SBGP_NOT_EXISTS;
+        sbgp->status = XCCL_SBGP_NOT_EXISTS;
     }
     return XCCL_OK;
 }
 
-static inline xccl_status_t sbgp_create_node(sbgp_t *sbgp)
+static inline xccl_status_t sbgp_create_node(xccl_team_topo_t *topo, xccl_sbgp_t *sbgp)
 {
-    xccl_hier_team_t *team   = sbgp->hier_team;
-    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx,
-                                               xccl_hier_context_t);
-    int group_size           = team->super.params.oob.size;
-    int group_rank           = team->super.params.oob.rank;
+    xccl_team_t *team        = sbgp->team;
+    int group_size           = team->params.oob.size;
+    int group_rank           = team->params.oob.rank;
     int max_local_size       = 256;
-    int ctx_nlr              = ctx->node_leader_rank_id;
+    int ctx_nlr              = topo->node_leader_rank_id;
     int node_rank = 0, node_size = 0, i;
     int *local_ranks;
     local_ranks = (int*)malloc(max_local_size*sizeof(int));
@@ -95,7 +80,7 @@ static inline xccl_status_t sbgp_create_node(sbgp_t *sbgp)
         return XCCL_ERR_NO_MEMORY;
     }
     for (i=0; i<group_size; i++) {
-        if (is_rank_local(i, team, LOCAL_NODE)) {
+        if (xccl_rank_on_local_node(i, team)) {
             if (node_size == max_local_size) {
                 max_local_size *= 2;
                 local_ranks = (int*)realloc(local_ranks, max_local_size*sizeof(int));
@@ -129,25 +114,23 @@ static inline xccl_status_t sbgp_create_node(sbgp_t *sbgp)
         sbgp->group_rank = (node_rank + node_size - ctx_nlr) % node_size;
         free(local_ranks);
     }
-    team->node_leader_rank = sbgp->rank_map[0];
+    topo->node_leader_rank = sbgp->rank_map[0];
     if (node_size > 1) {
-        sbgp->status = SBGP_ENABLED;
+        sbgp->status = XCCL_SBGP_ENABLED;
     } else {
-        sbgp->status = SBGP_NOT_EXISTS;
+        sbgp->status = XCCL_SBGP_NOT_EXISTS;
     }
     return XCCL_OK;
 }
 
-static xccl_status_t sbgp_create_node_leaders(sbgp_t *sbgp)
+static xccl_status_t sbgp_create_node_leaders(xccl_team_topo_t *topo, xccl_sbgp_t *sbgp)
 {
-    xccl_hier_team_t *team   = sbgp->hier_team;
-    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx,
-                                               xccl_hier_context_t);
-    int comm_size        = team->super.params.oob.size;
-    int comm_rank        = team->super.params.oob.rank;
-    int ctx_nlr          = ctx->node_leader_rank_id;
+    xccl_team_t *team   = sbgp->team;
+    int comm_size        = team->params.oob.size;
+    int comm_rank        = team->params.oob.rank;
+    int ctx_nlr          = topo->node_leader_rank_id;
     int i_am_node_leader = 0;
-    int nnodes           = ctx->nnodes;
+    int nnodes           = topo->topo->nnodes;
     int i, c, n_node_leaders;
     int *nl_array_1, *nl_array_2;
 
@@ -167,8 +150,8 @@ static xccl_status_t sbgp_create_node_leaders(sbgp_t *sbgp)
     }
 
     for (i=0; i<comm_size; i++) {
-        int ctx_rank = xccl_hier_team_rank2ctx(team, i);
-        int node_id = ctx->procs[ctx_rank].node_id;
+        int ctx_rank = xccl_team_rank2ctx(team, i);
+        int node_id = topo->topo->procs[ctx_rank].node_id;
         if (nl_array_1[node_id] == 0 ||
             nl_array_1[node_id] == ctx_nlr) {
             nl_array_2[node_id] = i;
@@ -191,31 +174,29 @@ static xccl_status_t sbgp_create_node_leaders(sbgp_t *sbgp)
         if (i_am_node_leader) {
             sbgp->group_size = n_node_leaders;
             sbgp->rank_map = nl_array_1;
-            sbgp->status = SBGP_ENABLED;
+            sbgp->status = XCCL_SBGP_ENABLED;
         } else {
             free(nl_array_1);
-            sbgp->status = SBGP_DISABLED;
+            sbgp->status = XCCL_SBGP_DISABLED;
         }
     } else {
         free(nl_array_1);
-        sbgp->status = SBGP_NOT_EXISTS;
+        sbgp->status = XCCL_SBGP_NOT_EXISTS;
     }
     return XCCL_OK;
 }
 
-static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp)
+static xccl_status_t sbgp_create_socket_leaders(xccl_team_topo_t *topo, xccl_sbgp_t *sbgp)
 {
-    xccl_hier_team_t    *team = sbgp->hier_team;
-    xccl_hier_context_t *ctx  = ucs_derived_of(team->super.ctx,
-                                               xccl_hier_context_t);
-    sbgp_t *node_sbgp         = &team->sbgps[SBGP_NODE];
-    int    comm_size          = team->super.params.oob.size;
-    int    comm_rank          = team->super.params.oob.rank;
-    int    nlr                = team->node_leader_rank;
-    int    i_am_socket_leader = (nlr == comm_rank);
-    int    max_n_sockets      = ctx->max_n_sockets;
-    int    *sl_array          = (int*)malloc(max_n_sockets*sizeof(int));
-    int    n_socket_leaders   = 1, i, nlr_sock_id;
+    xccl_team_t *team              = sbgp->team;
+    xccl_sbgp_t *node_sbgp         = &topo->sbgps[XCCL_SBGP_NODE];
+    int         comm_size          = team->params.oob.size;
+    int         comm_rank          = team->params.oob.rank;
+    int         nlr                = topo->node_leader_rank;
+    int         i_am_socket_leader = (nlr == comm_rank);
+    int         max_n_sockets      = topo->topo->max_n_sockets;
+    int         *sl_array          = (int*)malloc(max_n_sockets*sizeof(int));
+    int         n_socket_leaders   = 1, i, nlr_sock_id;
 
     if (!sl_array) {
         return XCCL_ERR_NO_MEMORY;
@@ -223,13 +204,13 @@ static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp)
     for (i=0; i<max_n_sockets; i++) {
         sl_array[i] = INT_MAX;
     }
-    nlr_sock_id = ctx->procs[xccl_hier_team_rank2ctx(team, nlr)].socketid;
+    nlr_sock_id = topo->topo->procs[xccl_team_rank2ctx(team, nlr)].socketid;
     sl_array[nlr_sock_id] = nlr;
 
     for (i=0; i<node_sbgp->group_size; i++) {
         int r = node_sbgp->rank_map[i];
-        int ctx_rank = xccl_hier_team_rank2ctx(team, r);
-        int socket_id = ctx->procs[ctx_rank].socketid;
+        int ctx_rank = xccl_team_rank2ctx(team, r);
+        int socket_id = topo->topo->procs[ctx_rank].socketid;
         if (sl_array[socket_id] == INT_MAX) {
             n_socket_leaders++;
             sl_array[socket_id] = r;
@@ -273,92 +254,74 @@ static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp)
             }
 
             sbgp->group_size = n_socket_leaders;
-            sbgp->status = SBGP_ENABLED;
+            sbgp->status = XCCL_SBGP_ENABLED;
         } else {
-            sbgp->status = SBGP_DISABLED;
+            sbgp->status = XCCL_SBGP_DISABLED;
         }
     } else {
-        sbgp->status = SBGP_NOT_EXISTS;
+        sbgp->status = XCCL_SBGP_NOT_EXISTS;
     }
     free(sl_array);
     return XCCL_OK;
 }
 
-char* sbgp_type_str[SBGP_LAST] = {"undef", "numa", "socket", "node", "node_leaders",
-                                  "socket_leaders", "numa_leaders", "flat"};
-
-static void print_sbgp(sbgp_t *sbgp)
-{
-    int i;
-    if (sbgp->group_rank == 0 && sbgp->status == SBGP_ENABLED) {
-        printf("sbgp: %15s: group_size %4d, xccl_ranks=[ ",
-               sbgp_type_str[sbgp->type], sbgp->group_size);
-        for (i=0; i<sbgp->group_size; i++) {
-            printf("%d ", sbgp->rank_map[i]);
-        }
-        printf("]");
-        printf("\n");
-    }
-}
-
-xccl_status_t sbgp_create(xccl_hier_team_t *team, sbgp_type_t type)
+xccl_status_t xccl_sbgp_create(xccl_team_topo_t *topo, xccl_sbgp_type_t type)
 {
     xccl_status_t status;
-    sbgp_t        *sbgp = &team->sbgps[type];
+    xccl_team_t *team = topo->team;
+    xccl_sbgp_t  *sbgp = &topo->sbgps[type];
 
-    sbgp->hier_team = team;
-    sbgp->type      = type;
-    sbgp->status    = SBGP_NOT_EXISTS;
-
+    sbgp->team   = team;
+    sbgp->type   = type;
+    sbgp->status = XCCL_SBGP_NOT_EXISTS;
 
     switch(type) {
-    case SBGP_NODE:
-        status = sbgp_create_node(sbgp);
+    case XCCL_SBGP_NODE:
+        status = sbgp_create_node(topo, sbgp);
         break;
-    case SBGP_SOCKET:
-        assert(SBGP_DISABLED != team->sbgps[SBGP_NODE].status);
-        if (team->sbgps[SBGP_NODE].status == SBGP_ENABLED) {
-            status = sbgp_create_socket(sbgp);
+    case XCCL_SBGP_SOCKET:
+        if (topo->sbgps[XCCL_SBGP_NODE].status == XCCL_SBGP_NOT_INIT) {
+            xccl_sbgp_create(topo, XCCL_SBGP_NODE);
+        }
+        if (topo->sbgps[XCCL_SBGP_NODE].status == XCCL_SBGP_ENABLED) {
+            status = sbgp_create_socket(topo, sbgp);
         }
         break;
-    case SBGP_NODE_LEADERS:
-        assert(SBGP_DISABLED != team->sbgps[SBGP_NODE].status);
-        status = sbgp_create_node_leaders(sbgp);
+    case XCCL_SBGP_NODE_LEADERS:
+        assert(XCCL_SBGP_DISABLED != topo->sbgps[XCCL_SBGP_NODE].status);
+        status = sbgp_create_node_leaders(topo, sbgp);
         break;
-    case SBGP_SOCKET_LEADERS:
-        assert(SBGP_DISABLED != team->sbgps[SBGP_NODE].status);
-        if (team->sbgps[SBGP_NODE].status == SBGP_ENABLED) {
-            status = sbgp_create_socket_leaders(sbgp);
+    case XCCL_SBGP_SOCKET_LEADERS:
+        if (topo->sbgps[XCCL_SBGP_NODE].status == XCCL_SBGP_NOT_INIT) {
+            xccl_sbgp_create(topo, XCCL_SBGP_NODE);
+        }
+        if (topo->sbgps[XCCL_SBGP_NODE].status == XCCL_SBGP_ENABLED) {
+            status = sbgp_create_socket_leaders(topo, sbgp);
         }
         break;
     default:
         status = XCCL_ERR_NOT_IMPLEMENTED;
         break;
     };
-
-#if 0
-    print_sbgp(sbgp);
-#endif
-    return status;
 }
 
-xccl_status_t sbgp_cleanup(sbgp_t *sbgp)
+xccl_status_t xccl_sbgp_cleanup(xccl_sbgp_t *sbgp)
 {
     if (sbgp->rank_map) {
         free(sbgp->rank_map);
     }
-    return XCCL_OK;
 }
 
-int xccl_hier_compare_proc_data(const void* a, const void* b)
+void xccl_sbgp_print(xccl_sbgp_t *sbgp)
 {
-    const xccl_hier_proc_data_t *d1 = (const xccl_hier_proc_data_t*)a;
-    const xccl_hier_proc_data_t *d2 = (const xccl_hier_proc_data_t*)b;
-    if (d1->node_hash != d2->node_hash) {
-        return d1->node_hash > d2->node_hash ? 1 : -1;
-    } else if (d1->socketid != d2->socketid) {
-        return d1->socketid - d2->socketid;
-    } else {
-        return d1->pid - d2->pid;
+    int i;
+    if (sbgp->group_rank == 0 && sbgp->status == XCCL_SBGP_ENABLED) {
+        printf("sbgp: %15s: group_size %4d, team_ranks=[ ",
+               xccl_sbgp_type_str[sbgp->type], sbgp->group_size);
+        for (i=0; i<sbgp->group_size; i++) {
+            printf("%d ", sbgp->rank_map[i]);
+        }
+        printf("]");
+        printf("\n");
     }
 }
