@@ -48,4 +48,9 @@ static inline int xccl_sbgp_rank2team(xccl_sbgp_t *sbgp, int rank)
 
 void xccl_sbgp_print(xccl_sbgp_t *sbgp);
 
+xccl_status_t xccl_sbgp_oob_allgather(void *sbuf, void *rbuf, size_t len,
+                                      xccl_sbgp_t *sbgp, xccl_oob_collectives_t oob);
+xccl_status_t xccl_sbgp_oob_bcast(void *buf,size_t len, int root,
+                                  xccl_sbgp_t *sbgp, xccl_oob_collectives_t oob);
+xccl_status_t xccl_sbgp_oob_barrier(xccl_sbgp_t *sbgp, xccl_oob_collectives_t oob);
 #endif
