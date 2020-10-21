@@ -12,6 +12,7 @@
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_task_schedule.h"
 #include "xccl_hier_team.h"
+#include "xccl_hier_task_schedule.h"
 
 static xccl_tl_coll_req_t xccl_hier_complete_req;
 #define REQ_COMPLETE ((xccl_coll_req_h)&xccl_hier_complete_req)
@@ -334,6 +335,9 @@ xccl_status_t hier_task_progress_handler(xccl_coll_task_t *task)
     for (i = 0; (i < n_polls) && (task->state == XCCL_TASK_STATE_INPROGRESS); i++) {
         status = xccl_collective_test(self->req);
         if (status == XCCL_OK) {
+            if (self->scratch != NULL) {
+                free(self->scratch);
+            }
             xccl_collective_finalize(self->req);
             task->state = XCCL_TASK_STATE_COMPLETED;
         }

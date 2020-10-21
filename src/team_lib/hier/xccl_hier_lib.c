@@ -102,6 +102,46 @@ static xccl_status_t xccl_hier_open(xccl_team_lib_h self,
 }
 
 static inline xccl_status_t
+xccl_hier_alltoall_init(xccl_coll_op_args_t *coll_args,
+                        xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
+{
+    xccl_hier_context_t *ctx = ucs_derived_of(team->ctx, xccl_hier_context_t);
+    xccl_seq_schedule_t        *schedule;
+    xccl_hier_alltoall_spec_t  spec;
+    ucs_memory_type_t          mem_type;
+    xccl_status_t              status;
+
+    status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
+                                     &mem_type);
+    if (status != XCCL_OK) {
+        xccl_hier_error("Memtype detection error");
+        return XCCL_ERR_INVALID_PARAM;
+    }
+
+    spec.pairs.flat = XCCL_HIER_PAIR_FLAT_UCX;
+    switch (mem_type) {
+        case UCS_MEMORY_TYPE_HOST:
+            spec.pairs.node = XCCL_HIER_PAIR_NODE_UCX;
+            break;
+        case UCS_MEMORY_TYPE_CUDA:
+            if (ctx->tls[ucs_ilog2(XCCL_TL_NCCL)].enabled) {
+                spec.pairs.node = XCCL_HIER_PAIR_NODE_NCCL;
+            } else {
+                spec.pairs.node = XCCL_HIER_PAIR_NODE_UCX;
+            }
+            break;
+        default:
+            xccl_hier_error("Memory type (%d) is not supported", mem_type);
+    }
+
+    build_alltoall_task_schedule(ucs_derived_of(team, xccl_hier_team_t), (*coll_args),
+                                 spec, &schedule);
+    schedule->req.lib = &xccl_team_lib_hier.super;
+    (*request) = &schedule->req;
+    return XCCL_OK;
+
+}
+static inline xccl_status_t
 xccl_hier_allreduce_init(xccl_coll_op_args_t *coll_args,
                          xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
@@ -197,6 +237,8 @@ xccl_hier_collective_init(xccl_coll_op_args_t *coll_args,
         return xccl_hier_barrier_init(coll_args, request, team);
     case XCCL_BCAST:
         return xccl_hier_bcast_init(coll_args, request, team);
+    case XCCL_ALLTOALL:
+        return xccl_hier_alltoall_init(coll_args, request, team);
     }
     return XCCL_ERR_INVALID_PARAM;
 }
@@ -257,7 +299,9 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
                                    XCCL_THREAD_MODE_MULTIPLE,
     .super.params.team_usage     = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,
     .super.params.coll_types     = XCCL_COLL_CAP_BARRIER |
-                                   XCCL_COLL_CAP_BCAST | XCCL_COLL_CAP_ALLREDUCE,
+                                   XCCL_COLL_CAP_BCAST |
+                                   XCCL_COLL_CAP_ALLREDUCE |
+                                   XCCL_COLL_CAP_ALLTOALL,
     .super.mem_types             = UCS_BIT(UCS_MEMORY_TYPE_HOST) |
                                    UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode       = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,

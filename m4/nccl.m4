@@ -22,12 +22,12 @@ AS_IF([test "x$with_nccl" != "xno"],
             [
             xccl_check_nccl_dir="$with_nccl"
             xccl_check_nccl_libdir="$with_nccl/lib"
-            CPPFLAGS="-I$with_nccl/include $save_CPPFLAGS"
-            LDFLAGS="-L$xccl_check_nccl_libdir $save_LDFLAGS"
+            CPPFLAGS="-I$with_nccl/include $save_CPPFLAGS $CUDA_CPPFLAGS"
+            LDFLAGS="-L$xccl_check_nccl_libdir $save_LDFLAGS $CUDA_LDFLAGS"
             ])
         AS_IF([test ! -z "$with_nccl_libdir" -a "x$with_nccl_libdir" != "xyes"],
             [xccl_check_nccl_libdir="$with_nccl_libdir"
-            LDFLAGS="-L$xccl_check_nccl_libdir $save_LDFLAGS"])
+            LDFLAGS="-L$xccl_check_nccl_libdir $save_LDFLAGS $CUDA_LDFLAGS"])
 
         AC_CHECK_HEADERS([nccl.h],
             [AC_CHECK_LIB([nccl] , [ncclCommInitRank],

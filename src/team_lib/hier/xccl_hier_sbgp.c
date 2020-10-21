@@ -284,6 +284,25 @@ static xccl_status_t sbgp_create_socket_leaders(sbgp_t *sbgp)
     return XCCL_OK;
 }
 
+static xccl_status_t sbgp_create_flat(sbgp_t *sbgp)
+{
+    xccl_hier_team_t *team = sbgp->hier_team;
+    int i;
+
+    sbgp->status     = SBGP_ENABLED;
+    sbgp->group_rank = team->super.params.oob.rank;
+    sbgp->group_size = team->super.params.oob.size;
+    sbgp->rank_map   = (int*)malloc(sizeof(int)*sbgp->group_size);
+    if (!sbgp->rank_map) {
+        return XCCL_ERR_NO_MEMORY;
+    }
+    for(i = 0; i < sbgp->group_size; i++) {
+        sbgp->rank_map[i] = i;
+    }
+
+    return XCCL_OK;
+}
+
 char* sbgp_type_str[SBGP_LAST] = {"undef", "numa", "socket", "node", "node_leaders",
                                   "socket_leaders", "numa_leaders", "flat"};
 
@@ -330,6 +349,9 @@ xccl_status_t sbgp_create(xccl_hier_team_t *team, sbgp_type_t type)
         if (team->sbgps[SBGP_NODE].status == SBGP_ENABLED) {
             status = sbgp_create_socket_leaders(sbgp);
         }
+        break;
+    case SBGP_FLAT:
+        status = sbgp_create_flat(sbgp);
         break;
     default:
         status = XCCL_ERR_NOT_IMPLEMENTED;

@@ -5,12 +5,12 @@
 */
 #include "test_mpi.h"
 
-int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank)
+int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank, int size)
 {
     xccl_coll_req_h request;
     MPI_Request     mpi_req;
     int             status, status_global, completed;
-    int i = 0;
+    int i = 0, j;
 
     status = 0;
     xccl_coll_op_args_t coll = {
@@ -27,8 +27,8 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank)
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
     XCCL_CHECK(xccl_collective_post(request));
     while (XCCL_OK != xccl_collective_test(request)) {
-            xccl_context_progress(team_ctx);
-        }
+        xccl_context_progress(team_ctx);
+    }
     XCCL_CHECK(xccl_collective_finalize(request));
 
     if (sbuf != rbuf) {
@@ -42,8 +42,7 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank)
         xccl_mpi_test_progress();
     }
 
-    if (0 != memcmp(rbuf, rbuf_mpi, count*sizeof(int))) {
-
+    if (0 != memcmp(rbuf, rbuf_mpi, size*count*sizeof(int))) {
         fprintf(stderr, "RST CHECK FAILURE at rank %d, count %d\n", rank, count);
         status = 1;
     }
@@ -82,7 +81,7 @@ int main (int argc, char **argv)
     for (count = count_min; count <= count_max; count *= 2) {
         for (i=0; i<iters; i++) {
             memset(rbuf, 0, sizeof(count*size*sizeof(int)));
-            status_global = run_test(sbuf, rbuf, rbuf_mpi, count, rank);
+            status_global = run_test(sbuf, rbuf, rbuf_mpi, count, rank, size);
             if (status_global) {
                 goto end;
             }
@@ -91,6 +90,7 @@ int main (int argc, char **argv)
     }
 
 /* in-place alltoall */
+#if 0
     for (count = count_min; count <= count_max; count *= 2) {
         for (i=0; i<iters; i++) {
             memcpy(rbuf,     sbuf, count*size*sizeof(int));
@@ -102,6 +102,7 @@ int main (int argc, char **argv)
         }
         count *= 2;
     }
+#endif
 
 end:
     if (0 == rank) {

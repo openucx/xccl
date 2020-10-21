@@ -123,7 +123,8 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
         xccl_coll_task_init(&schedule->tasks[i].super);
         schedule->tasks[i].super.progress  = hier_task_progress_handler;
         schedule->tasks[i].super.handlers[XCCL_EVENT_COMPLETED] = hier_task_completed_handler;
-        schedule->tasks[i].req = NULL;
+        schedule->tasks[i].req     = NULL;
+        schedule->tasks[i].scratch = NULL;
         if (i > 0) {
             xccl_event_manager_subscribe(&schedule->tasks[i-1].super.em,
                                          XCCL_EVENT_COMPLETED, &schedule->tasks[i].super);

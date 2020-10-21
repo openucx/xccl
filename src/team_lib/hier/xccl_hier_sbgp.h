@@ -3,8 +3,10 @@
 *
 * See file LICENSE for terms.
 */
+
 #ifndef XCCL_HIER_SBGP_H_
 #define XCCL_HIER_SBGP_H_
+
 #include "xccl_team_lib.h"
 typedef enum sbgp_type_t {
     SBGP_UNDEF = 0,
@@ -26,12 +28,12 @@ typedef enum sbgp_status_t {
 
 typedef struct xccl_hier_team xccl_hier_team_t;
 typedef struct sbgp_t {
-    sbgp_type_t        type;
-    sbgp_status_t      status;
-    int                group_size;
-    int                group_rank;
-    int               *rank_map;
-    xccl_hier_team_t  *hier_team;
+    sbgp_type_t      type;
+    sbgp_status_t    status;
+    int              group_size;
+    int              group_rank;
+    int              *rank_map;
+    xccl_hier_team_t *hier_team;
 } sbgp_t;
 
 extern char* sbgp_type_str[SBGP_LAST];
@@ -44,4 +46,5 @@ static inline int sbgp_rank2team(sbgp_t *sbgp, int rank)
 }
 
 int xccl_hier_compare_proc_data(const void* a, const void* b);
+
 #endif

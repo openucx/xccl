@@ -67,7 +67,7 @@ component_install = xccl_team_lib_ucx.la
 xccl_team_lib_ucx_la_LIBADD = $(XCCL_TOP_BUILDDIR)/src/libxccl.la
 xccl_team_lib_ucx_la_SOURCES =$(sources)
 xccl_team_lib_ucx_la_CPPFLAGS = $(AM_CPPFLAGS) $(UCX_CPPFLAGS)
-xccl_team_lib_ucx_la_LDFLAGS = -module -avoid-version $(UCX_LDFLAGS)
+xccl_team_lib_ucx_la_LDFLAGS = -module -avoid-version $(UCX_LDFLAGS) $(UCX_LIBADD)
 
 pkglib_LTLIBRARIES = $(component_install)
 endif
