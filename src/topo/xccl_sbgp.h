@@ -45,6 +45,7 @@ static inline int xccl_sbgp_rank2team(xccl_sbgp_t *sbgp, int rank)
 {
     return sbgp->rank_map[rank];
 }
+
 void xccl_sbgp_print(xccl_sbgp_t *sbgp);
 
 #endif

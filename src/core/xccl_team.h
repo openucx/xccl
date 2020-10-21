@@ -20,6 +20,7 @@
         }                                                                         \
     } while(0)
 
+typedef struct xccl_team_topo xccl_team_topo_t;
 typedef struct xccl_team {
     xccl_context_t *ctx;
     int            coll_team_id[XCCL_COLL_LAST][UCS_MEMORY_TYPE_LAST];
@@ -49,6 +50,12 @@ static inline int xccl_rank_on_local_socket(int rank, xccl_team_t *team)
     xccl_proc_data_t *proc = &team->topo->topo->procs[xccl_team_rank2ctx(team, rank)];
     return proc->node_hash == team->topo->topo->local_proc.node_hash &&
         proc->socketid == team->topo->topo->local_proc.socketid;
+}
+
+static inline int xccl_sbgp_rank2ctx(xccl_sbgp_t *sbgp, int rank)
+{
+    return xccl_team_rank2ctx(sbgp->team,
+                              xccl_sbgp_rank2team(sbgp, rank));
 }
 
 #endif

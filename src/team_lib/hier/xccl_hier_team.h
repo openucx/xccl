@@ -5,12 +5,13 @@
 #ifndef XCCL_HIER_TEAM_H_
 #define XCCL_HIER_TEAM_H_
 #include "xccl_hier_lib.h"
-#include "xccl_hier_sbgp.h"
 #include "xccl_hier_context.h"
+#include "topo/xccl_topo.h"
+#include "core/xccl_team.h"
 
 typedef struct xccl_hier_pair {
     xccl_team_h team;
-    sbgp_t     *sbgp;
+    xccl_sbgp_t *sbgp;
 } xccl_hier_pair_t;
 
 typedef enum {
@@ -28,7 +29,6 @@ typedef enum {
 
 typedef struct xccl_hier_team {
     xccl_tl_team_t             super;
-    sbgp_t                     sbgps[SBGP_LAST];
     xccl_hier_pair_t           *pairs[XCCL_HIER_PAIR_LAST];
     int                        node_leader_rank;
     int                        no_socket;
@@ -47,28 +47,14 @@ static inline int xccl_hier_team_rank2ctx(xccl_hier_team_t *team, int rank)
     return xccl_range_to_rank(team->super.params.range, rank);
 }
 
-static inline int sbgp_rank2ctx(sbgp_t *sbgp, int rank)
-{
-    return xccl_range_to_rank(sbgp->hier_team->super.params.range,
-                              sbgp_rank2team(sbgp, rank));
-}
-
 static inline int is_rank_on_local_node(int rank, xccl_hier_team_t *team)
 {
-    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
-    return ctx->procs[xccl_hier_team_rank2ctx(team, rank)].node_hash
-        == ctx->local_proc.node_hash;
+    return xccl_rank_on_local_node(rank, team->super.base_team);
 }
 
 static inline int is_rank_on_local_socket(int rank, xccl_hier_team_t *team)
 {
-    xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
-    if (ctx->local_proc.socketid < 0) {
-        return 0;
-    }
-    xccl_hier_proc_data_t *proc = &ctx->procs[xccl_hier_team_rank2ctx(team, rank)];
-    return proc->node_hash == ctx->local_proc.node_hash &&
-        proc->socketid == ctx->local_proc.socketid;
+    return xccl_rank_on_local_socket(rank, team->super.base_team);
 }
 
 #endif

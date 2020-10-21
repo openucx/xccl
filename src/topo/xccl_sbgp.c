@@ -209,7 +209,7 @@ static xccl_status_t sbgp_create_socket_leaders(xccl_team_topo_t *topo, xccl_sbg
 
     for (i=0; i<node_sbgp->group_size; i++) {
         int r = node_sbgp->rank_map[i];
-        int ctx_rank = xccl_hier_team_rank2ctx(team, r);
+        int ctx_rank = xccl_team_rank2ctx(team, r);
         int socket_id = topo->topo->procs[ctx_rank].socketid;
         if (sl_array[socket_id] == INT_MAX) {
             n_socket_leaders++;
@@ -281,7 +281,7 @@ xccl_status_t xccl_sbgp_create(xccl_team_topo_t *topo, xccl_sbgp_type_t type)
         break;
     case XCCL_SBGP_SOCKET:
         if (topo->sbgps[XCCL_SBGP_NODE].status == XCCL_SBGP_NOT_INIT) {
-            sbgp_create_node(topo, &topo->sbgps[XCCL_SBGP_NODE]);
+            xccl_sbgp_create(topo, XCCL_SBGP_NODE);
         }
         if (topo->sbgps[XCCL_SBGP_NODE].status == XCCL_SBGP_ENABLED) {
             status = sbgp_create_socket(topo, sbgp);
@@ -293,7 +293,7 @@ xccl_status_t xccl_sbgp_create(xccl_team_topo_t *topo, xccl_sbgp_type_t type)
         break;
     case XCCL_SBGP_SOCKET_LEADERS:
         if (topo->sbgps[XCCL_SBGP_NODE].status == XCCL_SBGP_NOT_INIT) {
-            sbgp_create_node(topo, &topo->sbgps[XCCL_SBGP_NODE]);
+            xccl_sbgp_create(topo, XCCL_SBGP_NODE);
         }
         if (topo->sbgps[XCCL_SBGP_NODE].status == XCCL_SBGP_ENABLED) {
             status = sbgp_create_socket_leaders(topo, sbgp);

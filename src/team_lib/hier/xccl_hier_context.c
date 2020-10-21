@@ -5,7 +5,6 @@
 */
 #include "config.h"
 #include "xccl_hier_context.h"
-#include "xccl_hier_sbgp.h"
 #include "utils/utils.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -59,55 +58,6 @@ xccl_hier_init_tl(xccl_hier_context_t *ctx, int tl_idx,
     return status;
 }
 
-static void compute_layout(xccl_hier_context_t *ctx) {
-    int ctx_size = ctx->super.params.oob.size;
-    xccl_hier_proc_data_t *sorted = (xccl_hier_proc_data_t*)
-        malloc(ctx_size*sizeof(xccl_hier_proc_data_t));
-    memcpy(sorted, ctx->procs, ctx_size*sizeof(xccl_hier_proc_data_t));
-    qsort(sorted, ctx_size, sizeof(xccl_hier_proc_data_t),
-          xccl_hier_compare_proc_data);
-    unsigned long current_hash = sorted[0].node_hash;
-    int current_ppn = 1;
-    int min_ppn = INT_MAX;
-    int max_ppn = 0;
-    int nnodes = 1;
-    int max_sockid = 0;
-    int i, j;
-    for (i=1; i<ctx_size; i++) {
-        unsigned long hash = sorted[i].node_hash;
-        if (hash != current_hash) {
-            for (j=0; j<ctx_size; j++) {
-                if (ctx->procs[j].node_hash == current_hash) {
-                    ctx->procs[j].node_id = nnodes - 1;
-                }
-            }
-            if (current_ppn > max_ppn) max_ppn = current_ppn;
-            if (current_ppn < min_ppn) min_ppn = current_ppn;
-            nnodes++;
-            current_hash = hash;
-            current_ppn = 1;
-        } else {
-            current_ppn++;
-        }
-    }
-    for (j=0; j<ctx_size; j++) {
-        if (ctx->procs[j].socketid > max_sockid) {
-            max_sockid = ctx->procs[j].socketid;
-        }
-        if (ctx->procs[j].node_hash == current_hash) {
-            ctx->procs[j].node_id = nnodes - 1;
-        }
-    }
-
-    if (current_ppn > max_ppn) max_ppn = current_ppn;
-    if (current_ppn < min_ppn) min_ppn = current_ppn;
-    free(sorted);
-    ctx->nnodes = nnodes;
-    ctx->min_ppn = min_ppn;
-    ctx->max_ppn = max_ppn;
-    ctx->max_n_sockets = max_sockid+1;
-}
-
 xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
                                        xccl_context_params_t *params,
                                        xccl_tl_context_config_t *config,
@@ -135,11 +85,6 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
         }
     }
 
-    ctx->procs = (xccl_hier_proc_data_t*)malloc(
-        params->oob.size*sizeof(xccl_hier_proc_data_t));
-    ctx->local_proc.socketid  = xccl_local_process_info()->socketid;
-    ctx->local_proc.node_hash = xccl_local_process_info()->node_hash;
-    ctx->local_proc.pid       = xccl_local_process_info()->pid;
     memset(ctx->tls, 0, sizeof(ctx->tls));
     *context = NULL;
     
@@ -166,11 +111,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
         }
     }
 
-    xccl_oob_allgather(&ctx->local_proc, ctx->procs,
-                       sizeof(xccl_hier_proc_data_t), &params->oob);
-    compute_layout(ctx);
     *context = &ctx->super;
-
     return XCCL_OK;
 }
 
@@ -189,7 +130,6 @@ xccl_status_t xccl_hier_destroy_context(xccl_tl_context_t *team_context)
             }
         }
     }
-    free(ctx->procs);
     free(ctx);
     return XCCL_OK;
 }

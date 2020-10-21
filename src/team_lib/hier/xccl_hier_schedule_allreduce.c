@@ -16,25 +16,26 @@
 xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
                                             xccl_hier_allreduce_spec_t spec, xccl_seq_schedule_t **sched)
 {
-    int have_node_leaders_group     = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
-    int have_socket_group           = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
-    int have_socket_leaders_group   = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);
-    int have_node_group             = (team->sbgps[SBGP_NODE].status == SBGP_ENABLED);
-    int node_leaders_group_exists   = (team->sbgps[SBGP_NODE_LEADERS].status != SBGP_NOT_EXISTS);
-    int socket_group_exists         = (team->sbgps[SBGP_SOCKET].status != SBGP_NOT_EXISTS);
-    int socket_leaders_group_exists = (team->sbgps[SBGP_SOCKET_LEADERS].status != SBGP_NOT_EXISTS);
-    int node_group_exists           = (team->sbgps[SBGP_NODE].status != SBGP_NOT_EXISTS);
+    xccl_sbgp_t *sbgps              = team->super.base_team->topo->sbgps;
+    int have_node_leaders_group     = (sbgps[XCCL_SBGP_NODE_LEADERS].status   == XCCL_SBGP_ENABLED);
+    int have_socket_group           = (sbgps[XCCL_SBGP_SOCKET].status         == XCCL_SBGP_ENABLED);
+    int have_socket_leaders_group   = (sbgps[XCCL_SBGP_SOCKET_LEADERS].status == XCCL_SBGP_ENABLED);
+    int have_node_group             = (sbgps[XCCL_SBGP_NODE].status           == XCCL_SBGP_ENABLED);
+    int node_leaders_group_exists   = (sbgps[XCCL_SBGP_NODE_LEADERS].status   != XCCL_SBGP_NOT_EXISTS);
+    int socket_group_exists         = (sbgps[XCCL_SBGP_SOCKET].status         != XCCL_SBGP_NOT_EXISTS);
+    int socket_leaders_group_exists = (sbgps[XCCL_SBGP_SOCKET_LEADERS].status != XCCL_SBGP_NOT_EXISTS);
+    int node_group_exists           = (sbgps[XCCL_SBGP_NODE].status           != XCCL_SBGP_NOT_EXISTS);
 
-    sbgp_type_t top_sbgp;
+    xccl_sbgp_type_t top_sbgp;
     if (node_leaders_group_exists) {
-        top_sbgp = SBGP_NODE_LEADERS;
+        top_sbgp = XCCL_SBGP_NODE_LEADERS;
     } else if (socket_leaders_group_exists) {
-        top_sbgp = SBGP_SOCKET_LEADERS;
+        top_sbgp = XCCL_SBGP_SOCKET_LEADERS;
     } else if (socket_group_exists) {
-        top_sbgp = SBGP_SOCKET;
+        top_sbgp = XCCL_SBGP_SOCKET;
     } else {
         assert(node_group_exists);
-        top_sbgp = SBGP_NODE;
+        top_sbgp = XCCL_SBGP_NODE;
     }
 
     int i,c = 0;
@@ -49,7 +50,7 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
     coll.alg.set_by_user = 0;
 
     if (have_socket_group) {
-        if (top_sbgp == SBGP_SOCKET) {
+        if (top_sbgp == XCCL_SBGP_SOCKET) {
             coll.coll_type = XCCL_ALLREDUCE;
             schedule->tasks[c].xccl_coll = coll;
         } else {
@@ -62,7 +63,7 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
     }
 
     if (have_socket_leaders_group) {
-        if (top_sbgp == SBGP_SOCKET_LEADERS) {
+        if (top_sbgp == XCCL_SBGP_SOCKET_LEADERS) {
             coll.coll_type = XCCL_ALLREDUCE;
             schedule->tasks[c].xccl_coll = coll;
         } else {
@@ -77,7 +78,7 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
     if (team->no_socket && have_node_group) {
         assert(c == 0);
         /* !have_socket_group && ! have_socket_leaders_group */
-        if (top_sbgp == SBGP_NODE) {
+        if (top_sbgp == XCCL_SBGP_NODE) {
             coll.coll_type = XCCL_ALLREDUCE;
             schedule->tasks[c].xccl_coll = coll;
         } else {
@@ -90,28 +91,28 @@ xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op
     }
 
     if (have_node_leaders_group) {
-        assert(top_sbgp == SBGP_NODE_LEADERS);
+        assert(top_sbgp == XCCL_SBGP_NODE_LEADERS);
         coll.coll_type = XCCL_ALLREDUCE;
         schedule->tasks[c].xccl_coll = coll;
         schedule->tasks[c].pair = team->pairs[spec.pairs.node_leaders];
         c++;
     }
 
-    if (have_socket_leaders_group && top_sbgp != SBGP_SOCKET_LEADERS) {
+    if (have_socket_leaders_group && top_sbgp != XCCL_SBGP_SOCKET_LEADERS) {
         coll.coll_type = XCCL_BCAST;
         schedule->tasks[c].xccl_coll = coll;
         schedule->tasks[c].pair = team->pairs[spec.pairs.socket_leaders];
         c++;
     }
 
-    if (have_socket_group  && top_sbgp != SBGP_SOCKET) {
+    if (have_socket_group  && top_sbgp != XCCL_SBGP_SOCKET) {
         coll.coll_type = XCCL_BCAST;
         schedule->tasks[c].xccl_coll = coll;
         schedule->tasks[c].pair = team->pairs[spec.pairs.socket];
         c++;
     }
 
-    if (team->no_socket && have_node_group  && top_sbgp != SBGP_NODE) {
+    if (team->no_socket && have_node_group  && top_sbgp != XCCL_SBGP_NODE) {
         coll.coll_type = XCCL_BCAST;
         schedule->tasks[c].xccl_coll = coll;
         schedule->tasks[c].pair = team->pairs[spec.pairs.node];
