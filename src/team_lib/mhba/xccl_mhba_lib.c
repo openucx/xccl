@@ -142,6 +142,45 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
     return XCCL_OK;
 }
 
+xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int fanin_value, int root)
+{
+    int i;
+    int *ctrl_v;
+    if (team->node.sbgp->group_rank != root) {
+        ctrl_v = (int*)team->node.my_ctrl;
+        int v = *ctrl_v;
+        __sync_fetch_and_add(ctrl_v, (v+fanin_value));
+    } else {
+        for (i=0; i<team->node.sbgp->group_size; i++) {
+            if (i == team->node.sbgp->group_rank) {
+                continue;
+            }
+            ctrl_v = (int*)((ptrdiff_t)team->node.ctrl + MHBA_CTRL_SIZE*i);
+            if (*ctrl_v != fanin_value) {
+                return XCCL_INPROGRESS;
+            }
+        }
+    }
+    return XCCL_OK;
+}
+
+xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, int fanout_value, int root)
+{
+    int i;
+    int *ctrl_v;
+    if (team->node.sbgp->group_rank != root) {
+        ctrl_v = (int*)((ptrdiff_t)team->node.ctrl + MHBA_CTRL_SIZE*root);
+        if (*ctrl_v != fanout_value) {
+            return XCCL_INPROGRESS;
+        }
+    } else {
+        ctrl_v = (int*)team->node.my_ctrl;
+        int v = *ctrl_v;
+        __sync_fetch_and_add(ctrl_v, (v+fanout_value));
+    }
+    return XCCL_OK;
+}
+
 static xccl_status_t
 xccl_mhba_collective_init(xccl_coll_op_args_t *coll_args,
                           xccl_tl_coll_req_t **request,
