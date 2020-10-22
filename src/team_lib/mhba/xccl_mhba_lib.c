@@ -120,6 +120,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
 
     memset(mhba_team->node.my_ctrl, 0, MHBA_CTRL_SIZE);
     xccl_sbgp_oob_barrier(node, params->oob);
+    mhba_team->sequence_number = 1;
     *team = &mhba_team->super;
     return XCCL_OK;
 }
@@ -228,13 +229,7 @@ static xccl_status_t
 xccl_mhba_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_mhba_coll_req_t *req  = ucs_derived_of(request, xccl_mhba_coll_req_t);
-    xccl_status_t st;
-
-    st = req->coll_start(request);
-    if (st != XCCL_OK) {
-        return st;
-    }
-
+    xccl_schedule_start(&req->schedule);
     return XCCL_OK;
 }
 
@@ -242,13 +237,16 @@ static xccl_status_t
 xccl_mhba_collective_test(xccl_tl_coll_req_t *request)
 {
     xccl_mhba_coll_req_t *req  = ucs_derived_of(request, xccl_mhba_coll_req_t);
-    return XCCL_ERR_NOT_IMPLEMENTED;
+    return req->schedule.super.state == XCCL_TASK_STATE_COMPLETED ? XCCL_OK :
+        XCCL_INPROGRESS;
+
 }
 
 static xccl_status_t
 xccl_mhba_collective_finalize(xccl_tl_coll_req_t *request)
 {
     xccl_mhba_coll_req_t *req = ucs_derived_of(request, xccl_mhba_coll_req_t);
+    free(req->tasks);
     free(req);
     return XCCL_OK;
 }
