@@ -2,6 +2,7 @@
 #include "allreduce_knomial.h"
 #include "xccl_ucx_lib.h"
 #include "xccl_ucx_sendrecv.h"
+#include "utils/mem_component.h"
 
 enum {
     SRA_KNOMIAL_SCATTER_REDUCE_START,

@@ -31,7 +31,21 @@ typedef struct xccl_seq_schedule {
 xccl_status_t hier_task_progress_handler(xccl_coll_task_t *task);
 void hier_task_completed_handler(xccl_coll_task_t *task);
 
-xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
-                                            xccl_hier_allreduce_spec_t spec, xccl_seq_schedule_t **sched);
+xccl_status_t build_allreduce_task_schedule(xccl_hier_team_t *team,
+                                            xccl_coll_op_args_t coll,
+                                            xccl_hier_allreduce_spec_t spec,
+                                            xccl_seq_schedule_t **sched);
+xccl_status_t build_alltoall_task_schedule(xccl_hier_team_t *team,
+                                           xccl_coll_op_args_t coll,
+                                           xccl_hier_alltoall_spec_t spec,
+                                           xccl_seq_schedule_t **sched);
+xccl_status_t build_bcast_task_schedule(xccl_hier_team_t *team,
+                                        xccl_coll_op_args_t coll,
+                                        xccl_hier_bcast_spec_t spec,
+                                        xccl_seq_schedule_t **sched);
+xccl_status_t build_barrier_task_schedule(xccl_hier_team_t *team,
+                                          xccl_coll_op_args_t coll,
+                                          xccl_hier_barrier_spec_t spec,
+                                          xccl_seq_schedule_t **sched);
 
 #endif
