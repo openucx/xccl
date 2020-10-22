@@ -63,4 +63,7 @@ typedef struct xccl_mhba_team {
     xccl_mhba_node_t node;
 } xccl_mhba_team_t;
 
+xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int fanin_value, int root);
+xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, int fanout_value, int root);
+
 #endif
