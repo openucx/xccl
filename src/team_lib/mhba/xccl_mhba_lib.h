@@ -61,6 +61,7 @@ typedef struct xccl_mhba_node {
 typedef struct xccl_mhba_team {
     xccl_tl_team_t super;
     xccl_mhba_node_t node;
+    int              sequence_number;
 } xccl_mhba_team_t;
 
 xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int fanin_value, int root);
