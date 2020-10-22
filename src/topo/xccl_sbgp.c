@@ -325,3 +325,51 @@ void xccl_sbgp_print(xccl_sbgp_t *sbgp)
         printf("\n");
     }
 }
+
+static int xccl_sbgp_oob_rank_to_team(int rank, void *rank_mapper_ctx) {
+    xccl_sbgp_t *sbgp = (xccl_sbgp_t*)rank_mapper_ctx;
+    return xccl_sbgp_rank2team(sbgp, rank);
+}
+
+xccl_status_t xccl_sbgp_oob_allgather(void *sbuf, void *rbuf, size_t len,
+                                      xccl_sbgp_t *sbgp, xccl_oob_collectives_t oob)
+{
+    void *req;
+    xccl_ep_range_t range = {
+        .type      = XCCL_EP_RANGE_CB,
+        .ep_num    = sbgp->group_size,
+        .cb.cb     = xccl_sbgp_oob_rank_to_team,
+        .cb.cb_ctx = (void*)sbgp,
+    };
+    oob.allgather(sbuf, rbuf, len, sbgp->group_rank,
+                  range, oob.coll_context, &req);
+    while (XCCL_INPROGRESS == oob.req_test(req)) {;}
+    oob.req_free(req);
+    return XCCL_OK;
+}
+
+xccl_status_t xccl_sbgp_oob_bcast(void *buf,size_t len, int root,
+                                  xccl_sbgp_t *sbgp, xccl_oob_collectives_t oob)
+{
+    void *tmp = malloc(sbgp->group_size*len);
+    if (!tmp) {
+        return XCCL_ERR_NO_MEMORY;
+    }
+    xccl_sbgp_oob_allgather(buf, tmp, len, sbgp, oob);
+    if (sbgp->group_rank != root) {
+        memcpy(buf, (void*)((ptrdiff_t)tmp + len*root), len);
+    }
+    free(tmp);
+    return XCCL_OK;
+}
+
+xccl_status_t xccl_sbgp_oob_barrier(xccl_sbgp_t *sbgp, xccl_oob_collectives_t oob)
+{
+    void *tmp = malloc(sbgp->group_size);
+    if (!tmp) {
+        return XCCL_ERR_NO_MEMORY;
+    }
+    xccl_sbgp_oob_allgather(tmp, tmp, 1, sbgp, oob);
+    free(tmp);
+    return XCCL_OK;
+}
