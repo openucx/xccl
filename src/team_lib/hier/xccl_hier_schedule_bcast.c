@@ -472,7 +472,7 @@ xccl_status_t build_bcast_schedule_sm_get(xccl_hier_team_t *team, coll_schedule_
     }
     if (have_socket_group) {
         if (root_on_local_socket) {
-            params.root = root_at_socket(root, &team->sbgps[SBGP_SOCKET]);
+            params.root = find_root_by_rank(root, &team->sbgps[SBGP_SOCKET]);
         } else {
             params.root = 0;
         }
