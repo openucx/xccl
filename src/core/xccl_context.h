@@ -25,4 +25,5 @@ typedef struct xccl_context_config {
     int                      n_tl_cfg;
 }xccl_context_config_t;
 
+xccl_tl_context_t* xccl_get_tl_context(xccl_context_t *ctx, xccl_tl_id_t tl_id);
 #endif
