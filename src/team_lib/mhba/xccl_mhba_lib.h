@@ -7,6 +7,7 @@
 #define XCCL_TEAM_LIB_MHBA_H_
 #include "xccl_team_lib.h"
 #include "topo/xccl_topo.h"
+#include <infiniband/verbs.h>
 
 typedef struct xccl_team_lib_mhba_config {
     xccl_team_lib_config_t super;
@@ -14,7 +15,11 @@ typedef struct xccl_team_lib_mhba_config {
 
 typedef struct xccl_tl_mhba_context_config {
     xccl_tl_context_config_t super;
-    char                     *device;
+    ucs_config_names_array_t devices;
+    int                      asr_cq_size;
+    int                      asr_tx_size;
+    int                      asr_rx_size;
+    int                      ib_global;
 } xccl_tl_mhba_context_config_t;
 
 typedef struct xccl_team_lib_mhba {
@@ -42,6 +47,10 @@ extern xccl_team_lib_mhba_t xccl_team_lib_mhba;
 
 typedef struct xccl_mhba_context {
     xccl_tl_context_t super;
+    struct xccl_tl_mhba_context_config cfg;
+    struct ibv_context *ib_ctx;
+    struct ibv_pd      *ib_pd;
+    int                 ib_port;
 } xccl_mhba_context_t;
 
 /* This structure holds resources and data related to the "in-node"
@@ -54,15 +63,29 @@ typedef struct xccl_mhba_node {
     void        *umr_data;
     void        *my_umr_data;
 } xccl_mhba_node_t;
-
 #define MHBA_CTRL_SIZE 128
 #define MHBA_DATA_SIZE 64
 
+typedef struct xccl_mhba_net {
+    xccl_sbgp_t    *sbgp;
+    struct ibv_qp **qps;
+    struct ibv_cq  *cq;
+    uint32_t       *ctrl;
+    struct ibv_mr  *ctrl_mr;
+    struct {
+        void *addr;
+        uint32_t rkey;
+    } *remote_ctrl;
+} xccl_mhba_net_t;
+
 typedef struct xccl_mhba_team {
-    xccl_tl_team_t super;
+    xccl_tl_team_t   super;
     xccl_mhba_node_t node;
+    xccl_mhba_net_t  net;
     int              sequence_number;
 } xccl_mhba_team_t;
+
+#define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
 
 xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int fanin_value, int root);
 xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, int fanout_value, int root);
