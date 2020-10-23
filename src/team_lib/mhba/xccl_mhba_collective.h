@@ -22,6 +22,7 @@ typedef struct xccl_mhba_coll_req {
     xccl_mhba_team_t              *team;
     int                           asr_rank;
     int                           seq_num;
+    xccl_tl_coll_req_t            *barrier_req;
 } xccl_mhba_coll_req_t;
 
 xccl_status_t

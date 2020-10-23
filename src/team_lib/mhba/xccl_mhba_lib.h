@@ -76,6 +76,7 @@ typedef struct xccl_mhba_net {
         void *addr;
         uint32_t rkey;
     } *remote_ctrl;
+    xccl_tl_team_t *ucx_team;
 } xccl_mhba_net_t;
 
 typedef struct xccl_mhba_team {
