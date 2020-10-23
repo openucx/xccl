@@ -82,6 +82,10 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
     if (dfl_config != NULL) {
         xccl_context_config_release(dfl_config);
     }
+    if (ctx->n_tl_ctx == 0) {
+        xccl_warn("no contexts were opened");
+        return XCCL_ERR_NO_MESSAGE;
+    }
 
     *context = ctx;
     return XCCL_OK;

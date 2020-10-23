@@ -133,7 +133,7 @@ int main (int argc, char **argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     if (0 == rank) {
-        printf("Elapsed %g us\n", i, avg*1e6/size);
+        printf("Elapsed %g us\n", avg*1e6/size);
     }
     xccl_mpi_test_finalize();
     return 0;

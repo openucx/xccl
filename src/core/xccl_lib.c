@@ -3,6 +3,7 @@
 #include <ucs/debug/log_def.h>
 #include <ucs/config/parser.h>
 #include "utils/xccl_log.h"
+#include "utils/mem_component.h"
 #include <xccl_team_lib.h>
 
 extern xccl_lib_t xccl_static_lib;
