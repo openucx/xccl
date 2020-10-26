@@ -9,6 +9,7 @@
 #include "xccl_hier_context.h"
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_task_schedule.h"
+#include "utils/mem_component.h"
 #include <ucs/memory/memory_type.h>
 #include <string.h>
 #include <stdlib.h>
@@ -54,6 +55,12 @@ static ucs_config_field_t xccl_tl_hier_context_config_table[] = {
     {"ENABLE_VMC", "no",
      "Enables vmc team in hier team",
      ucs_offsetof(xccl_tl_hier_context_config_t, enable_vmc),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"ENABLE_NCCL", "no",
+     "Enables nccl team in hier team",
+     ucs_offsetof(xccl_tl_hier_context_config_t, enable_nccl),
      UCS_CONFIG_TYPE_BOOL
      },
 

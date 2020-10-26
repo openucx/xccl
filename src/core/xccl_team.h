@@ -20,11 +20,13 @@
     } while(0)
 
 typedef struct xccl_team {
-    xccl_context_t *ctx;
-    int            coll_team_id[XCCL_COLL_LAST][UCS_MEMORY_TYPE_LAST];
-    int            n_teams;
-    xccl_status_t  status;
-    xccl_tl_team_t *tl_teams[1];
+    xccl_context_t     *ctx;
+    int                coll_team_id[XCCL_COLL_LAST][UCS_MEMORY_TYPE_LAST];
+    int                n_teams;
+    int                last_team_create_posted;
+    xccl_status_t      status;
+    xccl_tl_team_t     *tl_teams[1];
+    xccl_team_params_t params;
 } xccl_team_t;
 
 #endif

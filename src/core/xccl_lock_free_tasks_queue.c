@@ -47,28 +47,6 @@ xccl_status_t lf_tasks_queue_insert(xccl_progress_queue_t *handle, xccl_coll_tas
     return XCCL_OK;
 }
 
-xccl_status_t lf_tasks_queue_progress(xccl_progress_queue_t *handle) {
-    xccl_lf_tasks_queue_t *ctx = (xccl_lf_tasks_queue_t *) handle->ctx;
-    xccl_coll_task_t *task;
-    xccl_status_t status = lf_tasks_queue_pop(ctx, &task, 1);
-    if (status != XCCL_OK) {
-        return status;
-    }
-    if (task) {
-        if (task->progress) {
-            if (0 < task->progress(task)) {
-                return status;
-            }
-        }
-        if (XCCL_TASK_STATE_COMPLETED == task->state) {
-            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
-        } else {
-            return lf_tasks_queue_insert(handle, task);
-        }
-    }
-    return XCCL_OK;
-}
-
 xccl_status_t lf_tasks_queue_pop(xccl_lf_tasks_queue_t *ctx, xccl_coll_task_t **popped_task_ptr, int is_first_call) {
     int i, j;
     int curr_which_pool = ctx->which_pool;
@@ -105,6 +83,28 @@ xccl_status_t lf_tasks_queue_pop(xccl_lf_tasks_queue_t *ctx, xccl_coll_task_t **
         popped_task->was_progressed = 1;
     }
     *popped_task_ptr = popped_task;
+    return XCCL_OK;
+}
+
+xccl_status_t lf_tasks_queue_progress(xccl_progress_queue_t *handle) {
+    xccl_lf_tasks_queue_t *ctx = (xccl_lf_tasks_queue_t *) handle->ctx;
+    xccl_coll_task_t *task;
+    xccl_status_t status = lf_tasks_queue_pop(ctx, &task, 1);
+    if (status != XCCL_OK) {
+        return status;
+    }
+    if (task) {
+        if (task->progress) {
+            if (0 < task->progress(task)) {
+                return status;
+            }
+        }
+        if (XCCL_TASK_STATE_COMPLETED == task->state) {
+            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+        } else {
+            return lf_tasks_queue_insert(handle, task);
+        }
+    }
     return XCCL_OK;
 }
 

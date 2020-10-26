@@ -55,7 +55,7 @@ typedef struct xccl_nccl_team {
 #define CUDACHECK(cmd) do {                         \
   cudaError_t e = cmd;                              \
   if(cudaSuccess != e) {                            \
-    nccl_ucx_error("CUDA error %s:%d '%d' %s\n",    \
+    xccl_nccl_error("CUDA error %s:%d '%d' %s",     \
         __FILE__,__LINE__, e, cudaGetErrorName(e)); \
     return XCCL_ERR_NO_MESSAGE;                     \
   }                                                 \
@@ -64,7 +64,7 @@ typedef struct xccl_nccl_team {
 #define NCCLCHECK(cmd) do {                           \
   ncclResult_t e = cmd;                               \
   if(ncclSuccess != e) {                              \
-    nccl_ucx_error("NCCL error %s:%d '%d'\n",         \
+    xccl_nccl_error("NCCL error %s:%d '%d' %s",       \
         __FILE__,__LINE__, e, ncclGetErrorString(e)); \
     return XCCL_ERR_NO_MESSAGE;                       \
   }                                                   \

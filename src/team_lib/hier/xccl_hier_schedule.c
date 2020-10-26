@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include "xccl_progress_queue.h"
 #include "xccl_hier_schedule.h"
 #include "xccl_hier_task_schedule.h"
 #include "xccl_hier_team.h"

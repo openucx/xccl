@@ -13,8 +13,10 @@
 #include "xccl_hier_team.h"
 #include "xccl_hier_task_schedule.h"
 
-xccl_status_t build_barrier_task_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t coll,
-                                          xccl_hier_allreduce_spec_t spec, xccl_seq_schedule_t **sched) {
+xccl_status_t build_barrier_task_schedule(xccl_hier_team_t *team,
+                                          xccl_coll_op_args_t coll,
+                                          xccl_hier_barrier_spec_t spec,
+                                          xccl_seq_schedule_t **sched) {
     int have_node_leaders_group   = (team->sbgps[SBGP_NODE_LEADERS].status == SBGP_ENABLED);
     int have_socket_group         = (team->sbgps[SBGP_SOCKET].status == SBGP_ENABLED);
     int have_socket_leaders_group = (team->sbgps[SBGP_SOCKET_LEADERS].status == SBGP_ENABLED);

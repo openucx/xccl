@@ -37,7 +37,8 @@ oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len,
         .cb.cb_ctx = (void*)sbgp,
     };
     team->super.params.oob.allgather(sbuf, rbuf, len, sbgp->group_rank,
-                                  range, team->super.params.oob.coll_context, req);
+                                     range, team->super.params.oob.coll_context,
+                                     req);
     return 0;
 }
 
@@ -70,6 +71,7 @@ static xccl_status_t xccl_hier_create_pair(sbgp_t *sbgp, xccl_hier_team_t *team,
     status = xccl_team_create_post(ctx->tls[ucs_ilog2(tl_id)].xccl_ctx, &team_params,
                                    &team->pairs[pair]->team);
     if (status != XCCL_OK) {
+        xccl_hier_warn("Failed to create team for TL %s", xccl_tl_str(tl_id));
         free(team->pairs[pair]);
         team->pairs[pair] = NULL;
         return status;

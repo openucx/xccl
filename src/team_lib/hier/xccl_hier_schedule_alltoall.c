@@ -115,7 +115,6 @@ xccl_status_t build_alltoall_task_schedule(xccl_hier_team_t *team,
                                      XCCL_EVENT_SCHEDULE_STARTED,
                                      &schedule->tasks[i].super);
     }
-
     (*sched) = schedule;
     return XCCL_OK;
 }
