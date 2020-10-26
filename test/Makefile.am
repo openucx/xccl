@@ -32,7 +32,7 @@ test_mpi_fanout_get_SOURCES=test_mpi_fanout_get.c test_mpi.c
 test_mpi_create_team_nb_SOURCES=test_mpi_create_team_nb.c test_mpi.c
 test_mpi_alltoall_SOURCES=test_mpi_alltoall.c test_mpi.c
 test_mpi_alltoallv_SOURCES=test_mpi_alltoallv.c test_mpi.c test_utils.c
-test_mpi_allgather_SOURCES=test_mpi_allgather.c test_mpi.c
+test_mpi_allgather_SOURCES=test_mpi_allgather.c test_mpi.c test_utils.c
 test_mpi_mt_SOURCES=test_mt.c test_mpi.c
 if HAVE_CUDA
 test_mpi_cuda_allreduce_SOURCES=test_mpi_cuda_allreduce.c test_mpi.c
@@ -42,7 +42,7 @@ test_mpi_cuda_alltoall_SOURCES=test_mpi_cuda_alltoall.c test_mpi.c
 endif
 
 CC=mpicc
-CFLAGS+=-I${includedir} -std=c11 
+CFLAGS+=-I${includedir} -std=c11
 
 LDFLAGS=-L$(libdir) -lxccl
 

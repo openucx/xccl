@@ -79,7 +79,7 @@ int main (int argc, char **argv)
     msglen_min = argc > 1 ? atoi(argv[1]) : 16;
     msglen_max = argc > 2 ? atoi(argv[2]) : 1024;
     mtype      = argc > 3 ? atoi(argv[3]) : TEST_MEM_TYPE_HOST;
-    
+
     if (msglen_max < msglen_min) {
         fprintf(stderr, "Incorrect msglen settings\n");
         return -1;
@@ -91,6 +91,9 @@ int main (int argc, char **argv)
                                   XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
+    if (rank == 0) {
+        test_print_header(XCCL_ALLTOALLV, mtype, count_min, count_max);
+    }
 
     XCCL_CHECK(test_xccl_mem_alloc((void**)&sbuf, count_max*size*sizeof(int),
                                    mtype));

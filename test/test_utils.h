@@ -1,8 +1,8 @@
 #include <api/xccl.h>
 
 typedef enum test_mem_type {
-    TEST_MEM_TYPE_HOST,
-    TEST_MEM_TYPE_CUDA
+    TEST_MEM_TYPE_HOST = 0,
+    TEST_MEM_TYPE_CUDA = 1
 } test_mem_type_t;
 
 typedef enum test_memcpy_kind {
@@ -11,6 +11,11 @@ typedef enum test_memcpy_kind {
     TEST_MEMCPY_D2H,
     TEST_MEMCPY_D2D
 } test_memcpy_kind_t;
+
+void test_print_header(xccl_collective_type_t coll_type,
+                       test_mem_type_t mtype,
+                       int test_count_start,
+                       int test_count_finish);
 
 xccl_status_t test_xccl_set_device(test_mem_type_t mtype);
 

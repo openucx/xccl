@@ -24,6 +24,38 @@ static const test_memcpy_kind_t test_memcpy_kind_to_cuda[] = {
 
 #endif
 
+static const char* test_collectives_name[] = {
+    [XCCL_BARRIER]    = "Barrier",
+    [XCCL_BCAST]      = "Broadcast",
+    [XCCL_ALLREDUCE]  = "Allreduce",
+    [XCCL_REDUCE]     = "Reduce",
+    [XCCL_ALLTOALL]   = "Alltoall",
+    [XCCL_ALLTOALLV]  = "Alltoallv",
+    [XCCL_ALLGATHER]  = "Allgather",
+    [XCCL_FANIN]      = "Fanin",
+    [XCCL_FANOUT]     = "Fanout",
+    [XCCL_FANOUT_GET] = "Fanout get"
+};
+
+static const char* test_memtypes_name[] = {
+    [TEST_MEM_TYPE_HOST] = "Host",
+    [TEST_MEM_TYPE_CUDA] = "Cuda",
+};
+
+void test_print_header(xccl_collective_type_t coll_type,
+                       test_mem_type_t mtype,
+                       int test_count_start,
+                       int test_count_finish)
+{
+    printf("Test XCCL %s\n"
+           "\tmemory type: %s\n"
+           "\trange: [%d, %d]\n",
+           test_collectives_name[coll_type],
+           test_memtypes_name[mtype],
+           test_count_start,
+           test_count_finish);
+}
+
 xccl_status_t test_xccl_set_device(test_mem_type_t mtype)
 {
     char *local_rank;

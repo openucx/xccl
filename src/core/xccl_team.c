@@ -51,7 +51,7 @@ xccl_status_t xccl_team_create_post(xccl_context_h context,
         status = tl_ctx->lib->team_create_test(team->tl_teams[team->n_teams]);
         team->n_teams++;
         if (status == XCCL_INPROGRESS) {
-            /* workaround to fix oob allgather issue if multiple teams use it 
+            /* workaround to fix oob allgather issue if multiple teams use it
                simultaneously*/
             break;
         }
@@ -89,7 +89,7 @@ xccl_status_t xccl_team_create_test(xccl_team_t *team)
         status = tl_ctx->lib->team_create_test(team->tl_teams[team->n_teams]);
         team->n_teams++;
         if (status == XCCL_INPROGRESS) {
-            /* workaround to fix oob allgather issue if multiple teams use it 
+            /* workaround to fix oob allgather issue if multiple teams use it
                simultaneously*/
             return XCCL_INPROGRESS;
         }
@@ -99,6 +99,7 @@ xccl_status_t xccl_team_create_test(xccl_team_t *team)
     for (m = 0; m < UCS_MEMORY_TYPE_LAST; m++) {
         for (c = 0; c < XCCL_COLL_LAST; c++) {
             for (i=0; i<team->n_teams; i++) {
+                team->coll_team_id[c][m] = -1;
                 if ((team->tl_teams[i]->ctx->lib->params.coll_types & UCS_BIT(c)) &&
                     (team->tl_teams[i]->ctx->lib->mem_types & UCS_BIT(m))) {
                     team->coll_team_id[c][m] = i;
@@ -116,7 +117,7 @@ void xccl_team_destroy(xccl_team_t *team)
 {
     xccl_tl_context_t *tl_ctx;
     int               i;
-    
+
     if (team->status != XCCL_OK) {
         xccl_error("team %p is used before team_create is completed", team);
         return;
