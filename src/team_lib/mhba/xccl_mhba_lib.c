@@ -301,6 +301,34 @@ static xccl_status_t xccl_mhba_test_net_ctrl(xccl_mhba_team_t *team, xccl_mhba_c
     xccl_mhba_info("test success");
     return status;
 }
+
+static int xccl_sbgp_rank_to_context(int rank, void *rank_mapper_ctx) {
+    xccl_sbgp_t *sbgp = (xccl_sbgp_t*)rank_mapper_ctx;
+    return xccl_sbgp_rank2ctx(sbgp, rank);
+}
+
+static int xccl_sbgp_rank_to_team(int rank, void *rank_mapper_ctx) {
+    xccl_sbgp_t *sbgp = (xccl_sbgp_t*)rank_mapper_ctx;
+    return xccl_sbgp_rank2team(sbgp, rank);
+}
+
+static int
+oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len,
+                   int myrank, xccl_ep_range_t r, void *coll_context, void **req) {
+    xccl_sbgp_t *sbgp = (xccl_sbgp_t*)coll_context;
+    xccl_team_t *team = sbgp->team;
+    assert(r.type == XCCL_EP_RANGE_UNDEFINED);
+    xccl_ep_range_t range = {
+        .type      = XCCL_EP_RANGE_CB,
+        .ep_num    = sbgp->group_size,
+        .cb.cb     = xccl_sbgp_rank_to_team,
+        .cb.cb_ctx = (void*)sbgp,
+    };
+    team->params.oob.allgather(sbuf, rbuf, len, sbgp->group_rank,
+                                  range, team->params.oob.coll_context, req);
+    return 0;
+}
+
 static xccl_status_t
 xccl_mhba_team_create_post(xccl_tl_context_t *context,
                            xccl_team_params_t *params,
@@ -440,9 +468,39 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
                 (void*)(uintptr_t)(*((uint64_t*)&remote_data[net->group_size+2]));
         }
         xccl_sbgp_oob_barrier(net, params->oob);
+        xccl_mhba_test_net_ctrl(mhba_team, ctx);
+
+        xccl_tl_context_t *ucx_ctx = xccl_get_tl_context(context->ctx, XCCL_TL_UCX);
+        if (!ucx_ctx) {
+            xccl_mhba_error("failed to find available ucx tl context");
+            goto remote_ctrl_fail;
+        }
+
+        xccl_oob_collectives_t oob = {
+            .allgather    = oob_sbgp_allgather,
+            .req_test     = params->oob.req_test,
+            .req_free     = params->oob.req_free,
+            .coll_context = (void*)mhba_team->net.sbgp,
+            .rank         = mhba_team->net.sbgp->group_rank,
+            .size         = mhba_team->net.sbgp->group_size,
+        };
+
+        xccl_team_params_t team_params = {
+            .range.type      = XCCL_EP_RANGE_CB,
+            .range.cb.cb     = xccl_sbgp_rank_to_context,
+            .range.cb.cb_ctx = (void*)mhba_team->net.sbgp,
+            .oob             = oob,
+        };
+
+        if (XCCL_OK != ucx_ctx->lib->team_create_post(ucx_ctx, &team_params, base_team,
+                                                      &mhba_team->net.ucx_team)) {
+            xccl_mhba_error("failed to start ucx team creation");
+            goto remote_ctrl_fail;
+        }
+        while (XCCL_OK != ucx_ctx->lib->team_create_test(mhba_team->net.ucx_team)) {;}
+
         free(local_data);
         free(global_data);
-        xccl_mhba_test_net_ctrl(mhba_team, ctx);
     }
     *team = &mhba_team->super;
     return XCCL_OK;
@@ -487,6 +545,7 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         }
         free(mhba_team->net.qps);
         ibv_destroy_cq(mhba_team->net.cq);
+        mhba_team->net.ucx_team->ctx->lib->team_destroy(mhba_team->net.ucx_team);
     }
     free(team);
     return XCCL_OK;

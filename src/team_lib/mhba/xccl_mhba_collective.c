@@ -97,17 +97,40 @@ static void xccl_mhba_transpose_start(xccl_coll_task_t *task) {
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
 }
 xccl_status_t xccl_mhba_transpose_progress(xccl_coll_task_t *task) {
+    xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
+    xccl_mhba_coll_req_t *request = self->req;
+    xccl_mhba_team_t *team = request->team;
     task->state = XCCL_TASK_STATE_COMPLETED;
     return XCCL_OK;
 }
 
 static void xccl_mhba_asr_barrier_start(xccl_coll_task_t *task) {
+    xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
+    xccl_mhba_coll_req_t *request = self->req;
+    xccl_mhba_team_t *team = request->team;
+
     xccl_mhba_info("asr barrier start");
     task->state = XCCL_TASK_STATE_INPROGRESS;
+    xccl_coll_op_args_t coll = {
+        .coll_type = XCCL_BARRIER,
+        .alg.set_by_user = 0,
+    };
+    team->net.ucx_team->ctx->lib->collective_init(&coll, &request->barrier_req,
+                                                  team->net.ucx_team);
+    team->net.ucx_team->ctx->lib->collective_post(request->barrier_req);
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
 }
+
 xccl_status_t xccl_mhba_asr_barrier_progress(xccl_coll_task_t *task) {
-    task->state = XCCL_TASK_STATE_COMPLETED;
+    xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
+    xccl_mhba_coll_req_t *request = self->req;
+    xccl_mhba_team_t *team = request->team;
+
+    if (XCCL_OK == team->net.ucx_team->ctx->lib->collective_test(request->barrier_req)) {
+        team->net.ucx_team->ctx->lib->collective_finalize(request->barrier_req);
+        task->state = XCCL_TASK_STATE_COMPLETED;
+    }
+
     return XCCL_OK;
 }
 

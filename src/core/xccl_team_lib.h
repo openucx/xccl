@@ -83,6 +83,7 @@ typedef struct xccl_team_lib {
 
 typedef struct xccl_progress_queue xccl_progress_queue_t;
 typedef struct xccl_tl_context {
+    xccl_tl_id_t           tl_id;
     xccl_team_lib_t       *lib;
     xccl_context_t        *ctx;
     xccl_context_params_t params;

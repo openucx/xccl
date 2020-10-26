@@ -70,6 +70,7 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
             if (tlib->team_context_create(tlib, &ctx->params, config->configs[tl_index], &tl_ctx) == XCCL_OK) {
                 ctx->tl_ctx[ctx->n_tl_ctx++] = tl_ctx;
                 tl_ctx->ctx = ctx;
+                tl_ctx->tl_id = i;
                 status = xccl_ctx_progress_queue_init(&tl_ctx->pq,params->thread_mode);
                 if(status != XCCL_OK){
                     return status;
@@ -84,6 +85,19 @@ xccl_status_t xccl_context_create(xccl_lib_h lib,
 
     *context = ctx;
     return XCCL_OK;
+}
+
+xccl_tl_context_t* xccl_get_tl_context(xccl_context_t *ctx, xccl_tl_id_t tl_id)
+{
+    int i;
+    xccl_tl_context_t *tl_ctx;
+    for (i = 0; i < ctx->n_tl_ctx; i++) {
+        tl_ctx = ctx->tl_ctx[i];
+        if (tl_ctx->tl_id == tl_id) {
+            return tl_ctx;
+        }
+    }
+    return NULL;
 }
 
 xccl_status_t xccl_context_progress(xccl_context_h context)
