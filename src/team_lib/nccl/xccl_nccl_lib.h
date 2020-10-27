@@ -12,6 +12,10 @@
 
 typedef struct xccl_team_lib_nccl_config {
     xccl_team_lib_config_t super;
+    int enable_allreduce;
+    int enable_alltoall;
+    int enable_alltoallv;
+    int enable_allgather;
 } xccl_team_lib_nccl_config_t;
 
 typedef struct xccl_tl_nccl_context_config {
@@ -48,6 +52,7 @@ typedef struct xccl_nccl_context {
 
 typedef struct xccl_nccl_team {
     xccl_tl_team_t super;
+    int            team_size;
     ncclComm_t     nccl_comm;
     cudaStream_t   stream;
 } xccl_nccl_team_t;

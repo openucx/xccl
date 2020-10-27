@@ -35,7 +35,7 @@ static void map_xccl_to_nccl_reduce_op_type()
     xccl_to_nccl_reduce_op[XCCL_OP_MAX]    = ncclMax;
     xccl_to_nccl_reduce_op[XCCL_OP_MIN]    = ncclMin;
     xccl_to_nccl_reduce_op[XCCL_OP_SUM]    = ncclSum;
-    xccl_to_nccl_reduce_op[XCCL_OP_PROD]   = ncclProd; 
+    xccl_to_nccl_reduce_op[XCCL_OP_PROD]   = ncclProd;
 }
 
 
@@ -44,6 +44,30 @@ static ucs_config_field_t xccl_team_lib_nccl_config_table[] = {
      NULL,
      ucs_offsetof(xccl_team_lib_nccl_config_t, super),
      UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
+    },
+
+    {"ALLREUCE", "1",
+     "Enable NCCL allreduce",
+     ucs_offsetof(xccl_team_lib_nccl_config_t, enable_allreduce),
+     UCS_CONFIG_TYPE_BOOL
+    },
+
+    {"ALLTOALL", "1",
+     "Enable NCCL alltoall",
+     ucs_offsetof(xccl_team_lib_nccl_config_t, enable_alltoall),
+     UCS_CONFIG_TYPE_BOOL
+    },
+
+    {"ALLTOALLV", "1",
+     "Enable NCCL alltoallv",
+     ucs_offsetof(xccl_team_lib_nccl_config_t, enable_alltoallv),
+     UCS_CONFIG_TYPE_BOOL
+    },
+
+    {"ALLGATHER", "1",
+     "Enable NCCL allgather",
+     ucs_offsetof(xccl_team_lib_nccl_config_t, enable_allgather),
+     UCS_CONFIG_TYPE_BOOL
     },
 
     {NULL}
@@ -64,12 +88,24 @@ static xccl_status_t xccl_nccl_lib_open(xccl_team_lib_h self,
 {
     xccl_team_lib_nccl_t        *tl  = ucs_derived_of(self, xccl_team_lib_nccl_t);
     xccl_team_lib_nccl_config_t *cfg = ucs_derived_of(config, xccl_team_lib_nccl_config_t);
-    
+
     tl->config.super.log_component.log_level = cfg->super.log_component.log_level;
     sprintf(tl->config.super.log_component.name, "%s", "TEAM_NCCL");
     xccl_nccl_debug("Team NCCL opened");
     if (cfg->super.priority != -1) {
         tl->super.priority = cfg->super.priority;
+    }
+    if (cfg->enable_allreduce) {
+        tl->super.params.coll_types |= XCCL_COLL_CAP_ALLREDUCE;
+    }
+    if (cfg->enable_alltoall) {
+        tl->super.params.coll_types |= XCCL_COLL_CAP_ALLTOALL;
+    }
+    if (cfg->enable_alltoallv) {
+        tl->super.params.coll_types |= XCCL_COLL_CAP_ALLTOALLV;
+    }
+    if (cfg->enable_allgather) {
+        tl->super.params.coll_types |= XCCL_COLL_CAP_ALLGATHER;
     }
     map_xccl_to_nccl_dtype();
     map_xccl_to_nccl_reduce_op_type();
@@ -134,7 +170,7 @@ xccl_nccl_team_create_post(xccl_tl_context_t *context,
     }
 
     CUDACHECK(cudaStreamCreateWithFlags(&nccl_team->stream, cudaStreamNonBlocking));
-
+    nccl_team->team_size = params->oob.size;
     *team = &nccl_team->super;
     return XCCL_OK;
 }
@@ -179,7 +215,12 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
     }
 
     if (mem_type != UCS_MEMORY_TYPE_CUDA) {
+        xccl_nccl_error("doesn't support memtype %d", mem_type);
         return XCCL_ERR_UNSUPPORTED;
+    }
+
+    if (!(UCS_BIT(coll_args->coll_type) & xccl_team_lib_nccl.super.params.coll_types)) {
+        xccl_nccl_error("collective is not supported or disabled");
     }
 
     status = xccl_nccl_collective_init_base(coll_args, &req, nccl_team);
@@ -196,6 +237,9 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
         break;
     case XCCL_ALLTOALLV:
         status = xccl_nccl_alltoallv_init(coll_args, req, nccl_team);
+        break;
+    case XCCL_ALLGATHER:
+        status = xccl_nccl_allgather_init(coll_args, req, nccl_team);
         break;
     default:
         status = XCCL_ERR_INVALID_PARAM;
@@ -289,9 +333,8 @@ xccl_team_lib_nccl_t xccl_team_lib_nccl = {
     .super.params.reproducible    = XCCL_REPRODUCIBILITY_MODE_NON_REPRODUCIBLE,
     .super.params.thread_mode     = XCCL_THREAD_MODE_SINGLE | XCCL_THREAD_MODE_MULTIPLE,
     .super.params.team_usage      = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,
-    .super.params.coll_types      = XCCL_COLL_CAP_ALLREDUCE |
-                                    XCCL_COLL_CAP_ALLTOALL |
-                                    XCCL_COLL_CAP_ALLTOALLV,
+/* supported collectives will be set in runtime */
+    .super.params.coll_types      = 0,
     .super.mem_types              = UCS_BIT(UCS_MEMORY_TYPE_CUDA),
     .super.ctx_create_mode        = XCCL_TEAM_LIB_CONTEXT_CREATE_MODE_LOCAL,
     .super.team_context_create    = xccl_nccl_context_create,

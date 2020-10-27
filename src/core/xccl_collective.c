@@ -31,6 +31,12 @@ xccl_status_t xccl_collective_init(xccl_coll_op_args_t *coll_args,
     }
 
     tl_team_id = team->coll_team_id[coll_args->coll_type][mtype];
+    if (tl_team_id < 0) {
+        xccl_error("No teams supported col %d memory type %s found",
+                   coll_args->coll_type,
+                   ucs_memory_type_names[mtype]);
+        return XCCL_ERR_UNSUPPORTED;
+    }
     tl_team = team->tl_teams[tl_team_id];
     lib = tl_team->ctx->lib;
     xccl_trace("collective init: coll %d, team %s, memory type %s",
