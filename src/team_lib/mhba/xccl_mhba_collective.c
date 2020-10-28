@@ -26,7 +26,16 @@ static void xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
     xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
-    void *my_umr_data = team->node.my_umr_data;
+
+    struct ibv_mr *send_bf_mr;
+    struct ibv_mr *receive_bf_mr;
+    int sr_mem_access_flags = 0;
+    int dr_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
+    xccl_mhba_info("register memory buffers");
+    send_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.src_buffer, request->args.buffer_info.len, sr_mem_access_flags);
+    memcpy(team->node.my_send_umr_data,send_bf_mr,sizeof(struct ibv_mr));
+    receive_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.dst_buffer, request->args.buffer_info.len, dr_mem_access_flags);
+    memcpy(team->node.my_recv_umr_data,receive_bf_mr,sizeof(struct ibv_mr));
 
     xccl_mhba_info("fanin start");
     /* start task if completion event received */
@@ -61,7 +70,6 @@ static void xccl_mhba_fanout_start(xccl_coll_task_t *task) {
     xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
-    void *my_umr_data = team->node.my_umr_data;
     xccl_mhba_info("fanout start");
     /* start task if completion event received */
     task->state = XCCL_TASK_STATE_INPROGRESS;

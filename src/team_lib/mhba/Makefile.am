@@ -10,7 +10,9 @@
 sources =                  \
 	xccl_mhba_lib.c        \
     xccl_mhba_collective.c \
-	xccl_mhba_lib.h
+	xccl_mhba_lib.h        \
+	xccl_mhba_mkeys.c      \
+	xccl_mhba_mkeys.h
 
 component_noinst =
 component_install = xccl_team_lib_mhba.la

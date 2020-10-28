@@ -6,8 +6,10 @@
 #ifndef XCCL_TEAM_LIB_MHBA_H_
 #define XCCL_TEAM_LIB_MHBA_H_
 #include "xccl_team_lib.h"
+#include "xccl_mhba_mkeys.h"
 #include "topo/xccl_topo.h"
 #include <infiniband/verbs.h>
+#include <infiniband/mlx5dv.h>
 
 typedef struct xccl_team_lib_mhba_config {
     xccl_team_lib_config_t super;
@@ -51,6 +53,10 @@ typedef struct xccl_mhba_context {
     struct ibv_context *ib_ctx;
     struct ibv_pd      *ib_pd;
     int                 ib_port;
+    struct ibv_cq *umr_cq;
+    struct ibv_qp *umr_qp;
+    struct ibv_qp_ex *umr_qpx;
+    struct mlx5dv_qp_ex *umr_mlx5dv_qp_ex;
 } xccl_mhba_context_t;
 
 /* This structure holds resources and data related to the "in-node"
@@ -60,11 +66,18 @@ typedef struct xccl_mhba_node {
     void        *storage;
     void        *ctrl;
     void        *my_ctrl;
-    void        *umr_data;
-    void        *my_umr_data;
+    int          size_of_data_unit;
+    void        *send_umr_data;
+    void        *my_send_umr_data;
+    void        *recv_umr_data;
+    void        *my_recv_umr_data;
+    struct mlx5dv_mkey* send_mkey;
+    struct mlx5dv_mkey* recv_mkey;
+    struct mlx5dv_mr_interleaved *recv_mkey_entries;
+    struct mlx5dv_mr_interleaved* send_mkey_entries;
+    int block_size; // todo fill
 } xccl_mhba_node_t;
 #define MHBA_CTRL_SIZE 128
-#define MHBA_DATA_SIZE 64
 
 typedef struct xccl_mhba_net {
     xccl_sbgp_t    *sbgp;
@@ -84,11 +97,13 @@ typedef struct xccl_mhba_team {
     xccl_mhba_node_t node;
     xccl_mhba_net_t  net;
     int              sequence_number;
+    xccl_mhba_context_t* context;
 } xccl_mhba_team_t;
 
 #define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
 
 xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int fanin_value, int root);
 xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, int fanout_value, int root);
+xccl_status_t remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, uint16_t lid, int port);
 
 #endif

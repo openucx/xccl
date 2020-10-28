@@ -173,6 +173,13 @@ xccl_mhba_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
     }
     memcpy(&ctx->cfg, cfg, sizeof(*cfg));
     *context = &ctx->super;
+
+    xccl_status_t status = init_umr(ctx);
+    if (status!=XCCL_OK){
+        xccl_mhba_error("Failed to init UMR");
+        return status;
+    }
+
     return XCCL_OK;
 pd_alloc_failed:
     ibv_close_device(ctx->ib_ctx);
@@ -186,11 +193,16 @@ xccl_mhba_context_destroy(xccl_tl_context_t *context)
     ibv_dealloc_pd(team_mhba_ctx->ib_pd);
     ibv_close_device(team_mhba_ctx->ib_ctx);
     free(team_mhba_ctx);
+    xccl_status_t status = destroy_umr(team_mhba_ctx);
+    if (status!=XCCL_OK){
+        xccl_mhba_error("Failed to destroy UMR");
+        return status;
+    }
 
     return XCCL_OK;
 }
 
-static xccl_status_t remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, uint16_t lid, int port)
+xccl_status_t remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, uint16_t lid, int port)
 {
     int ret;
     struct ibv_qp_attr qp_attr;
@@ -340,14 +352,17 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     xccl_sbgp_t *node, *net;
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_port_attr port_attr;
-    int shmid, i;
+    int shmid, i,mhba_data_size;
     size_t storage_size, local_data_size;
     uint32_t *local_data, *global_data;
+    mhba_team->context = ctx;
 
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     mhba_team->node.sbgp = node;
-    storage_size = (MHBA_CTRL_SIZE+MHBA_DATA_SIZE) * node->group_size;
+    mhba_team->node.size_of_data_unit = sizeof(struct ibv_mr);
+    mhba_data_size = 2*(mhba_team->node.size_of_data_unit);
+    storage_size = (MHBA_CTRL_SIZE+mhba_data_size) * node->group_size;
 
     if (0 == node->group_rank) {
         shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
@@ -373,12 +388,16 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         return XCCL_ERR_NO_RESOURCE;
     }
     mhba_team->node.ctrl = mhba_team->node.storage;
-    mhba_team->node.umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
+    mhba_team->node.send_umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
         node->group_size*MHBA_CTRL_SIZE);
     mhba_team->node.my_ctrl = (void*)((ptrdiff_t)mhba_team->node.ctrl +
         node->group_rank*MHBA_CTRL_SIZE);
-    mhba_team->node.my_umr_data = (void*)((ptrdiff_t)mhba_team->node.umr_data +
-        node->group_size*MHBA_DATA_SIZE);
+    mhba_team->node.my_send_umr_data = (void*)((ptrdiff_t)mhba_team->node.send_umr_data +
+        node->group_rank*mhba_team->node.size_of_data_unit);
+    mhba_team->node.recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.send_umr_data +
+                                            node->group_size*mhba_team->node.size_of_data_unit);
+    mhba_team->node.my_recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.recv_umr_data +
+                                               node->group_rank*mhba_team->node.size_of_data_unit);
 
     memset(mhba_team->node.my_ctrl, 0, MHBA_CTRL_SIZE);
     xccl_sbgp_oob_barrier(node, params->oob);
@@ -456,6 +475,12 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         if (!mhba_team->net.remote_ctrl) {
             xccl_mhba_error("failed to allocate remote_ctrl");
             goto remote_ctrl_fail;
+        }
+
+        xccl_status_t status = init_mkeys(ctx,&mhba_team->node);
+        if (status!=XCCL_OK){
+            xccl_mhba_error("Failed to init mkeys");
+            return status;
         }
 
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net, params->oob);
@@ -546,6 +571,10 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         free(mhba_team->net.qps);
         ibv_destroy_cq(mhba_team->net.cq);
         mhba_team->net.ucx_team->ctx->lib->team_destroy(mhba_team->net.ucx_team);
+        xccl_status_t status = destroy_mkeys(&mhba_team->node);
+        if (status!=XCCL_OK){
+            return status;
+        }
     }
     free(team);
     return XCCL_OK;
