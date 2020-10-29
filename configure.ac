@@ -73,13 +73,18 @@ AS_HELP_STRING([--enable-debug], [Enable extra debugging code (default is NO).])
 [], [enable_debug=no])
 
 if test $enable_debug = yes; then
-	AC_DEFINE([ENABLE_DEBUG], [1], [Enable debugging code])
-	CFLAGS="$CFLAGS -O0 -g3"
-	AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_TRACE_POLL], [Highest log level])
+    AC_DEFINE([ENABLE_DEBUG], [1], [Enable debugging code])
+    CFLAGS="$CFLAGS -O0 -g3"
+    AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_TRACE_POLL], [Highest log level])
 else
-	AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_INFO], [Highest log level])
-	CFLAGS="$CFLAGS -O3 -DNDEBUG"
+    AC_DEFINE([UCS_MAX_LOG_LEVEL], [UCS_LOG_LEVEL_INFO], [Highest log level])
+    CFLAGS="$CFLAGS -O3 -DNDEBUG"
 fi
+
+AC_ARG_ENABLE([team-mrail],
+AS_HELP_STRING([--enable-team-mrail], [Enable multirail team (default is NO).]),
+[], [enable_team_mrail=no])
+AM_CONDITIONAL([HAVE_TEAM_MRAIL], [test "x$enable_team_mrail" = xyes])
 
 AM_CONDITIONAL([HAVE_UCX], [false])
 m4_include([m4/ucx.m4])

@@ -7,6 +7,7 @@
 # $HEADER$
 #
 
+if HAVE_TEAM_MRAIL
 sources = \
 	xccl_mrail_lib.h \
 	xccl_mrail_lib.c
@@ -19,3 +20,4 @@ xccl_team_lib_mrail_la_CPPFLAGS = $(AM_CPPFLAGS)
 xccl_team_lib_mrail_la_LDFLAGS = -module -avoid-version
 xccl_team_lib_mrail_la_LIBADD = $(XCCL_TOP_BUILDDIR)/src/libxccl.la
 pkglib_LTLIBRARIES = $(component_install)
+endif
