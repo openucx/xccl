@@ -141,7 +141,11 @@ xccl_mhba_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
 {
     xccl_tl_mhba_context_config_t *cfg =
         ucs_derived_of(config, xccl_tl_mhba_context_config_t);
-        xccl_mhba_context_t *ctx = malloc(sizeof(*ctx));
+    xccl_mhba_context_t *ctx = malloc(sizeof(*ctx));
+    if (!ctx){
+        xccl_mhba_error("context malloc faild");
+        return XCCL_ERR_NO_RESOURCE;
+    }
     char *ib_devname = NULL;
     char tmp[128];
     int port = -1;
@@ -174,15 +178,12 @@ xccl_mhba_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
     memcpy(&ctx->cfg, cfg, sizeof(*cfg));
     *context = &ctx->super;
 
-    xccl_status_t status = init_umr(ctx);
-    if (status!=XCCL_OK){
-        xccl_mhba_error("Failed to init UMR");
-        return status;
-    }
+    ctx->umr_cq = NULL; // for later check - singelton
 
     return XCCL_OK;
 pd_alloc_failed:
     ibv_close_device(ctx->ib_ctx);
+    return XCCL_ERR_NO_MESSAGE;
 }
 
 static xccl_status_t
@@ -193,16 +194,10 @@ xccl_mhba_context_destroy(xccl_tl_context_t *context)
     ibv_dealloc_pd(team_mhba_ctx->ib_pd);
     ibv_close_device(team_mhba_ctx->ib_ctx);
     free(team_mhba_ctx);
-    xccl_status_t status = destroy_umr(team_mhba_ctx);
-    if (status!=XCCL_OK){
-        xccl_mhba_error("Failed to destroy UMR");
-        return status;
-    }
-
     return XCCL_OK;
 }
 
-xccl_status_t remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, uint16_t lid, int port)
+xccl_status_t xccl_mhba_remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, uint16_t lid, int port)
 {
     int ret;
     struct ibv_qp_attr qp_attr;
@@ -352,7 +347,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     xccl_sbgp_t *node, *net;
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_port_attr port_attr;
-    int shmid, i,mhba_data_size;
+    int shmid, i, mhba_data_size;
     size_t storage_size, local_data_size;
     uint32_t *local_data, *global_data;
     mhba_team->context = ctx;
@@ -360,9 +355,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     mhba_team->node.sbgp = node;
-    mhba_team->node.size_of_data_unit = sizeof(struct ibv_mr);
-    mhba_data_size = 2*(mhba_team->node.size_of_data_unit);
-    storage_size = (MHBA_CTRL_SIZE+mhba_data_size) * node->group_size;
+    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size;
 
     if (0 == node->group_rank) {
         shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
@@ -393,11 +386,11 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     mhba_team->node.my_ctrl = (void*)((ptrdiff_t)mhba_team->node.ctrl +
         node->group_rank*MHBA_CTRL_SIZE);
     mhba_team->node.my_send_umr_data = (void*)((ptrdiff_t)mhba_team->node.send_umr_data +
-        node->group_rank*mhba_team->node.size_of_data_unit);
+        node->group_rank*MHBA_DATA_SIZE);
     mhba_team->node.recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.send_umr_data +
-                                            node->group_size*mhba_team->node.size_of_data_unit);
+                                            node->group_size*MHBA_DATA_SIZE);
     mhba_team->node.my_recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.recv_umr_data +
-                                               node->group_rank*mhba_team->node.size_of_data_unit);
+                                               node->group_rank*MHBA_DATA_SIZE);
 
     memset(mhba_team->node.my_ctrl, 0, MHBA_CTRL_SIZE);
     xccl_sbgp_oob_barrier(node, params->oob);
@@ -409,6 +402,13 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     mhba_team->net.ctrl_mr = NULL;
     mhba_team->net.remote_ctrl = NULL;
     if (XCCL_MHBA_IS_ASR(mhba_team)) {
+
+        xccl_status_t status = xccl_mhba_init_umr(ctx);
+        if (status!=XCCL_OK){
+            xccl_mhba_error("Failed to init UMR");
+            goto fail;
+        }
+
         mhba_team->net.cq = ibv_create_cq(ctx->ib_ctx, ctx->cfg.asr_cq_size, NULL, NULL, 0);
         if (!mhba_team->net.cq) {
             xccl_mhba_error("failed to allocate ASR CQ");
@@ -477,16 +477,16 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             goto remote_ctrl_fail;
         }
 
-        xccl_status_t status = init_mkeys(ctx,&mhba_team->node);
+        status = xccl_mhba_init_mkeys(ctx,&mhba_team->node);
         if (status!=XCCL_OK){
             xccl_mhba_error("Failed to init mkeys");
-            return status;
+            goto remote_ctrl_fail;
         }
 
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net, params->oob);
         for (i=0; i<net->group_size; i++) {
             uint32_t *remote_data = (uint32_t*)((uintptr_t)global_data + i*local_data_size);
-            remote_qp_connect(mhba_team->net.qps[i], remote_data[net->group_rank],
+            xccl_mhba_remote_qp_connect(mhba_team->net.qps[i], remote_data[net->group_rank],
                               remote_data[net->group_size], ctx->ib_port);
             mhba_team->net.remote_ctrl[i].rkey = remote_data[net->group_size+1];
             mhba_team->net.remote_ctrl[i].addr =
@@ -554,6 +554,7 @@ xccl_mhba_team_create_test(xccl_tl_team_t *team)
 static xccl_status_t
 xccl_mhba_team_destroy(xccl_tl_team_t *team)
 {
+    xccl_status_t status = XCCL_OK;
     xccl_mhba_team_t *mhba_team = ucs_derived_of(team, xccl_mhba_team_t);
     int i;
     xccl_mhba_info("destroying team %p", team);
@@ -562,6 +563,12 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
                         mhba_team->node.storage, errno);
     }
     if (XCCL_MHBA_IS_ASR(mhba_team)) {
+
+        status = xccl_mhba_destroy_umr(mhba_team->context);
+        if(status!=XCCL_OK){
+            xccl_mhba_error("failed to destory UMR");
+        }
+
         ibv_dereg_mr(mhba_team->net.ctrl_mr);
         free(mhba_team->net.ctrl);
         free(mhba_team->net.remote_ctrl);
@@ -571,13 +578,13 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         free(mhba_team->net.qps);
         ibv_destroy_cq(mhba_team->net.cq);
         mhba_team->net.ucx_team->ctx->lib->team_destroy(mhba_team->net.ucx_team);
-        xccl_status_t status = destroy_mkeys(&mhba_team->node);
+
+        status = xccl_mhba_destroy_mkeys(&mhba_team->node);
         if (status!=XCCL_OK){
-            return status;
         }
     }
     free(team);
-    return XCCL_OK;
+    return status;
 }
 
 xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int fanin_value, int root)

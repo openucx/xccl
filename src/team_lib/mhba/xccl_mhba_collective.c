@@ -32,10 +32,21 @@ static void xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
     int sr_mem_access_flags = 0;
     int dr_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
     xccl_mhba_info("register memory buffers");
-    send_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.src_buffer, request->args.buffer_info.len, sr_mem_access_flags);
-    memcpy(team->node.my_send_umr_data,send_bf_mr,sizeof(struct ibv_mr));
-    receive_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.dst_buffer, request->args.buffer_info.len, dr_mem_access_flags);
-    memcpy(team->node.my_recv_umr_data,receive_bf_mr,sizeof(struct ibv_mr));
+    send_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.src_buffer,
+                            request->args.buffer_info.len, sr_mem_access_flags);
+    if (!send_bf_mr) {
+        xccl_mhba_info("Failed to register send_bf memory");
+        return; // todo we will need to modify event manager iface to return XCCL_ERR
+    }
+    receive_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.dst_buffer,
+                               request->args.buffer_info.len, dr_mem_access_flags);
+    if (!receive_bf_mr) {
+        xccl_mhba_info("Failed to register receive_bf memory");
+        ibv_dereg_mr(send_bf_mr);
+        return;
+    }
+    xccl_mhba_update_mkeys_entries(&team->node, send_bf_mr, receive_bf_mr); // no option for failure status
+
 
     xccl_mhba_info("fanin start");
     /* start task if completion event received */
