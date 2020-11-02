@@ -7,6 +7,7 @@
 #define XCCL_MHBA_COLLECTIVE_H_
 
 #include <xccl_mhba_lib.h>
+#include <infiniband/verbs.h>
 
 typedef struct xccl_mhba_coll_req xccl_mhba_coll_req_t;
 typedef struct xccl_mhba_task {

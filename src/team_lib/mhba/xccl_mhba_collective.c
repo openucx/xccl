@@ -26,7 +26,27 @@ static void xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
     xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
-    void *my_umr_data = team->node.my_umr_data;
+
+    struct ibv_mr *send_bf_mr;
+    struct ibv_mr *receive_bf_mr;
+    int sr_mem_access_flags = 0;
+    int dr_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
+    xccl_mhba_info("register memory buffers");
+    send_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.src_buffer,
+                            request->args.buffer_info.len, sr_mem_access_flags);
+    if (!send_bf_mr) {
+        xccl_mhba_info("Failed to register send_bf memory");
+        return; // todo we will need to modify event manager iface to return XCCL_ERR
+    }
+    receive_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.dst_buffer,
+                               request->args.buffer_info.len, dr_mem_access_flags);
+    if (!receive_bf_mr) {
+        xccl_mhba_error("Failed to register receive_bf memory");
+        ibv_dereg_mr(send_bf_mr);
+        return;
+    }
+    xccl_mhba_update_mkeys_entries(&team->node, send_bf_mr, receive_bf_mr); // no option for failure status
+
 
     xccl_mhba_info("fanin start");
     /* start task if completion event received */
@@ -61,7 +81,6 @@ static void xccl_mhba_fanout_start(xccl_coll_task_t *task) {
     xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
-    void *my_umr_data = team->node.my_umr_data;
     xccl_mhba_info("fanout start");
     /* start task if completion event received */
     task->state = XCCL_TASK_STATE_INPROGRESS;
