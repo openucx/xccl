@@ -144,7 +144,7 @@ xccl_mhba_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
     xccl_mhba_context_t *ctx = malloc(sizeof(*ctx));
     if (!ctx){
         xccl_mhba_error("context malloc faild");
-        return XCCL_ERR_NO_RESOURCE;
+        return XCCL_ERR_NO_MEMORY;
     }
     char *ib_devname = NULL;
     char tmp[128];
@@ -347,7 +347,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     xccl_sbgp_t *node, *net;
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_port_attr port_attr;
-    int shmid, i, mhba_data_size;
+    int shmid, i;
     size_t storage_size, local_data_size;
     uint32_t *local_data, *global_data;
     mhba_team->context = ctx;
@@ -566,7 +566,7 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
 
         status = xccl_mhba_destroy_umr(mhba_team->context);
         if(status!=XCCL_OK){
-            xccl_mhba_error("failed to destory UMR");
+            xccl_mhba_error("failed to destroy UMR");
         }
 
         ibv_dereg_mr(mhba_team->net.ctrl_mr);
@@ -581,6 +581,7 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
 
         status = xccl_mhba_destroy_mkeys(&mhba_team->node);
         if (status!=XCCL_OK){
+            xccl_mhba_error("failed to destroy Mkeys");
         }
     }
     free(team);

@@ -41,7 +41,7 @@ static void xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
     receive_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.dst_buffer,
                                request->args.buffer_info.len, dr_mem_access_flags);
     if (!receive_bf_mr) {
-        xccl_mhba_info("Failed to register receive_bf memory");
+        xccl_mhba_error("Failed to register receive_bf memory");
         ibv_dereg_mr(send_bf_mr);
         return;
     }

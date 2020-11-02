@@ -113,7 +113,7 @@ xccl_status_t xccl_mhba_init_umr(xccl_mhba_context_t *ctx) {
 }
 
 static xccl_status_t
-create_matser_key(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node, struct mlx5dv_mkey **mkey_ptr) {
+create_master_key(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node, struct mlx5dv_mkey **mkey_ptr) {
     struct mlx5dv_mkey* mkey;
     xccl_mhba_debug("Create MasterMKey");
     struct mlx5dv_mkey_init_attr umr_mkey_init_attr;
@@ -137,12 +137,12 @@ create_matser_key(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node, struct mlx5d
 
 xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node) {
     xccl_status_t status;
-    status = create_matser_key(ctx, node, &node->send_mkey);
+    status = create_master_key(ctx, node, &node->send_mkey);
     if (status != XCCL_OK) {
         xccl_mhba_error("create send masterkey failed");
         return status;
     }
-    status = create_matser_key(ctx, node, &node->recv_mkey);
+    status = create_master_key(ctx, node, &node->recv_mkey);
     if (status != XCCL_OK) {
         xccl_mhba_error("create recv masterkey failed");
         if (mlx5dv_destroy_mkey(node->send_mkey)){
@@ -154,8 +154,8 @@ xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_context_t *ctx, xccl_mhba_node_t *n
 }
 
 static xccl_status_t poll_umr_cq(xccl_mhba_context_t *ctx) {
-    int expected_completions_num = 1;
-    struct ibv_wc work_completion[1];
+    const int expected_completions_num = 1;
+    struct ibv_wc work_completion[expected_completions_num];
     memset(work_completion, 0, expected_completions_num * sizeof(struct ibv_wc));
     int num_completions;
     xccl_status_t status = poll_cq(ctx->umr_cq, expected_completions_num, work_completion);
@@ -198,13 +198,13 @@ populate_mkey(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node, int mem_access_f
 xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node){
     xccl_status_t status;
     int send_mem_access_flags = 0;
-    status = populate_mkey(ctx,node,send_mem_access_flags,node->send_mkey,node->my_send_umr_data);
+    status = populate_mkey(ctx,node,send_mem_access_flags,node->send_mkey,node->send_umr_data);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate send umr");
         return status;
     }
     int recv_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
-    status = populate_mkey(ctx,node,recv_mem_access_flags,node->recv_mkey,node->my_recv_umr_data);
+    status = populate_mkey(ctx,node,recv_mem_access_flags,node->recv_mkey,node->recv_umr_data);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate recv umr");
         return status;
@@ -212,7 +212,7 @@ xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_context_t *ctx, xccl_
     return XCCL_OK;
 }
 
-static void update_mkey_entry(xccl_mhba_node_t *node, void *entry, struct ibv_mr *buff,char* direction){
+static void update_mkey_entry(xccl_mhba_node_t *node, void *entry, struct ibv_mr *buff,const char* direction){
     struct mlx5dv_mr_interleaved *mkey_entry = (struct mlx5dv_mr_interleaved *) entry;
     mkey_entry->addr = (uintptr_t) buff->addr; // TODO: Check why conversion to uintptr_t is needed and if it's correct
     mkey_entry->bytes_count = node->block_size;
@@ -225,9 +225,9 @@ static void update_mkey_entry(xccl_mhba_node_t *node, void *entry, struct ibv_mr
 
 xccl_status_t
 xccl_mhba_update_mkeys_entries(xccl_mhba_node_t *node, struct ibv_mr *send_bf_mr, struct ibv_mr *recv_bf_mr) {
-    xccl_mhba_debug("Updating Strided-KLM entries for node %i",node->sbgp->group_rank);
-    update_mkey_entry(node,node->my_send_umr_data,send_bf_mr,"send");
-    update_mkey_entry(node,node->my_recv_umr_data,recv_bf_mr,"recv");
+    xccl_mhba_debug("Updating Strided-KLM entries for node %i", node->sbgp->group_rank);
+    update_mkey_entry(node, node->my_send_umr_data, send_bf_mr, "send");
+    update_mkey_entry(node, node->my_recv_umr_data, recv_bf_mr, "recv");
     return XCCL_OK;
 }
 
