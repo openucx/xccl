@@ -25,8 +25,8 @@ typedef struct xccl_team {
     int                n_teams;
     int                last_team_create_posted;
     xccl_status_t      status;
-    xccl_tl_team_t     *tl_teams[1];
     xccl_team_params_t params;
+    xccl_tl_team_t     *tl_teams[1];
 } xccl_team_t;
 
 #endif
