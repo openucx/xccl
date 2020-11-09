@@ -12,7 +12,8 @@ static ucs_config_field_t xccl_lib_config_table[] = {
 
    {NULL}
 };
-UCS_CONFIG_REGISTER_TABLE(xccl_lib_config_table, "XCCL", NULL, xccl_lib_config_t)
+UCS_CONFIG_REGISTER_TABLE(xccl_lib_config_table, "XCCL", NULL,
+                          xccl_lib_config_t, &ucs_config_global_list);
 
 #define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{                        \
         if ((params->field_mask & XCCL_LIB_PARAM_FIELD_ ## _CAP_FIELD) && \
@@ -36,7 +37,7 @@ static void xccl_lib_filter(const xccl_lib_params_t *params, xccl_lib_t *lib)
         CHECK_LIB_CONFIG_CAP(thread_mode,  THREAD_MODE);
         CHECK_LIB_CONFIG_CAP(team_usage,   TEAM_USAGE);
         CHECK_LIB_CONFIG_CAP(coll_types,   COLL_TYPES);
-        
+
         lib->libs[lib->n_libs_opened++] = tl;
     }
 }

@@ -98,8 +98,8 @@ xccl_status_t xccl_team_create_test(xccl_team_t *team)
           compare_teams_by_priority);
     for (m = 0; m < UCS_MEMORY_TYPE_LAST; m++) {
         for (c = 0; c < XCCL_COLL_LAST; c++) {
+            team->coll_team_id[c][m] = -1;
             for (i=0; i<team->n_teams; i++) {
-                team->coll_team_id[c][m] = -1;
                 if ((team->tl_teams[i]->ctx->lib->params.coll_types & UCS_BIT(c)) &&
                     (team->tl_teams[i]->ctx->lib->mem_types & UCS_BIT(m))) {
                     team->coll_team_id[c][m] = i;

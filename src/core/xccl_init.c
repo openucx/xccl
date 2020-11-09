@@ -72,8 +72,8 @@ static xccl_status_t xccl_team_lib_init(const char *so_path,
     handle = dlopen(so_path, RTLD_LAZY);
     xccl_debug("Loading library %s\n", so_path);
     if (!handle) {
-        xccl_error("Failed to load XCCL Team library: %s\n. "
-                   "Check XCCL_TEAM_LIB_PATH or LD_LIBRARY_PATH\n", so_path);
+        fprintf(stderr, "Failed to load XCCL Team library: %s. "
+                "Check XCCL_TEAM_LIB_PATH or LD_LIBRARY_PATH\n", so_path);
         *team_lib = NULL;
         return XCCL_ERR_NO_MESSAGE;
     }
@@ -137,7 +137,7 @@ static void xccl_constructor(void)
 
     status = ucs_config_parser_fill_opts(&xccl_lib_global_config, xccl_lib_global_config_table,
                                          "XCCL_", NULL, 1);
-    
+
     if (strlen(xccl_lib_global_config.team_lib_path) == 0) {
         get_default_lib_path();
     }
@@ -162,4 +162,3 @@ static void xccl_constructor(void)
     xccl_local_proc_info.pid       = getpid();
     xccl_get_bound_socket_id(&xccl_local_proc_info.socketid);
 }
-
