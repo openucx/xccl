@@ -8,6 +8,7 @@
 
 #include <xccl_mhba_lib.h>
 #include <infiniband/verbs.h>
+#include <ucs/arch/bitops.h>
 
 typedef struct xccl_mhba_coll_req xccl_mhba_coll_req_t;
 typedef struct xccl_mhba_task {
@@ -23,7 +24,10 @@ typedef struct xccl_mhba_coll_req {
     xccl_mhba_team_t              *team;
     int                           asr_rank;
     int                           seq_num;
+    struct ibv_mr                 *send_bf_mr;
+    struct ibv_mr                 *receive_bf_mr;
     xccl_tl_coll_req_t            *barrier_req;
+    int                           block_size;
 } xccl_mhba_coll_req_t;
 
 xccl_status_t

@@ -21,7 +21,7 @@ typedef enum {
 
 typedef struct xccl_coll_task xccl_coll_task_t;
 
-typedef void (*xccl_task_event_handler_p)(xccl_coll_task_t *task);
+typedef xccl_status_t (*xccl_task_event_handler_p)(xccl_coll_task_t *task);
 
 typedef struct xccl_event_manager {
     xccl_coll_task_t  *listeners[XCCL_EVENT_LAST][MAX_LISTENERS];
@@ -53,7 +53,7 @@ void xccl_event_manager_init(xccl_event_manager_t *em);
 void xccl_event_manager_subscribe(xccl_event_manager_t *em,
                                  xccl_event_t event,
                                  xccl_coll_task_t *task);
-void xccl_event_manager_notify(xccl_event_manager_t *em, xccl_event_t event);
+xccl_status_t xccl_event_manager_notify(xccl_event_manager_t *em, xccl_event_t event);
 void xccl_coll_task_init(xccl_coll_task_t *task);
 void schedule_completed_handler(xccl_coll_task_t *task);
 void xccl_schedule_init(xccl_schedule_t *schedule, xccl_tl_context_t *tl_ctx);

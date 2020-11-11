@@ -341,13 +341,24 @@ xccl_status_t hier_task_progress_handler(xccl_coll_task_t *task)
     return XCCL_OK;
 }
 
-void hier_task_completed_handler(xccl_coll_task_t *task)
+xccl_status_t hier_task_completed_handler(xccl_coll_task_t *task)
 {
     xccl_hier_task_t *self = (xccl_hier_task_t *) task;
     /* start task if completion event received */
     task->state = XCCL_TASK_STATE_INPROGRESS;
     assert(NULL == self->req);
-    xccl_collective_init(&self->xccl_coll, &self->req, self->pair->team);
-    xccl_collective_post(self->req);
-    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+    xccl_status_t status;
+    status = xccl_collective_init(&self->xccl_coll, &self->req, self->pair->team);
+    if (status!=XCCL_OK){
+        return status;
+    }
+    status = xccl_collective_post(self->req);
+    if (status!=XCCL_OK){
+        return status;
+    }
+    status = xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+    if (status!=XCCL_OK){
+        return status;
+    }
+    return XCCL_OK;
 }

@@ -18,16 +18,21 @@ void xccl_event_manager_subscribe(xccl_event_manager_t *em,
     em->listeners_size[event]++;
 }
 
-void xccl_event_manager_notify(xccl_event_manager_t *em,
+xccl_status_t xccl_event_manager_notify(xccl_event_manager_t *em,
                               xccl_event_t event)
 {
     xccl_coll_task_t *task;
+    xccl_status_t status;
     int i;
 
     for (i = 0; i < em->listeners_size[event]; i++) {
         task = em->listeners[event][i];
-        task->handlers[event](task);
+        status = task->handlers[event](task);
+        if (status != XCCL_OK) {
+            return status;
+        }
     }
+    return XCCL_OK;
 }
 
 void xccl_coll_task_init(xccl_coll_task_t *task)

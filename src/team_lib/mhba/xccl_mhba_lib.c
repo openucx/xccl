@@ -292,7 +292,7 @@ static xccl_status_t xccl_mhba_test_net_ctrl(xccl_mhba_team_t *team, xccl_mhba_c
         .opcode     = IBV_WR_RDMA_WRITE,
         .send_flags = 0,
         .wr.rdma.remote_addr = (uintptr_t)team->net.remote_ctrl[peer].addr +
-        sizeof(uint32_t)*my_rank,
+        sizeof(uint32_t)*my_rank, //todo - change according to new ctrl
         .wr.rdma.rkey = team->net.remote_ctrl[peer].rkey,
     };
     struct ibv_send_wr *bad_wr;
@@ -304,7 +304,7 @@ static xccl_status_t xccl_mhba_test_net_ctrl(xccl_mhba_team_t *team, xccl_mhba_c
     ibv_dereg_mr(mr);
     free(tmp);
 
-    while (team->net.ctrl[peer] != 0xdeadbeef) { usleep(100) ;}
+    while (team->net.ctrl[peer] != 0xdeadbeef) { usleep(100) ;} //todo - change according to new ctrl
     xccl_mhba_info("test success");
     return status;
 }
@@ -336,6 +336,19 @@ oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len,
     return 0;
 }
 
+static void calc_block_size(xccl_mhba_team_t* team){
+    int i;
+    int block_size = team->node.sbgp->group_size;
+    int msg_len = MAX_MSG_SIZE;
+    for (i=MHBA_NUM_OF_BLOCKS_SIZE_BINS-1;i>=0;i--){
+        while ((block_size^2)*msg_len > MAX_TRANSPOSE_SIZE && block_size>MAX_BLOCK_SIZE){
+            block_size -= 1;
+        }
+        team->blocks_sizes[i] = block_size;
+        msg_len >> 1;
+    }
+}
+
 static xccl_status_t
 xccl_mhba_team_create_post(xccl_tl_context_t *context,
                            xccl_team_params_t *params,
@@ -351,11 +364,12 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     size_t storage_size, local_data_size;
     uint32_t *local_data, *global_data;
     mhba_team->context = ctx;
+    memset(mhba_team->occupied_operations_slots,0,MAX_CONCURRENT_OUTSTANDING_ALL2ALL*sizeof(int));
 
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     mhba_team->node.sbgp = node;
-    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size;
+    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
 
     if (0 == node->group_rank) {
         shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
@@ -380,27 +394,30 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
                         shmid);
         return XCCL_ERR_NO_RESOURCE;
     }
-    mhba_team->node.ctrl = mhba_team->node.storage;
-    mhba_team->node.send_umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
-        node->group_size*MHBA_CTRL_SIZE);
-    mhba_team->node.my_ctrl = (void*)((ptrdiff_t)mhba_team->node.ctrl +
-        node->group_rank*MHBA_CTRL_SIZE);
-    mhba_team->node.my_send_umr_data = (void*)((ptrdiff_t)mhba_team->node.send_umr_data +
-        node->group_rank*MHBA_DATA_SIZE);
-    mhba_team->node.recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.send_umr_data +
-                                            node->group_size*MHBA_DATA_SIZE);
-    mhba_team->node.my_recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.recv_umr_data +
-                                               node->group_rank*MHBA_DATA_SIZE);
+    for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++){
+        mhba_team->node.ctrl[i] = mhba_team->node.storage + MHBA_CTRL_SIZE*node->group_size*i;
+        mhba_team->node.my_ctrl[i] = (void*)((ptrdiff_t)mhba_team->node.ctrl[i] +
+                                          node->group_rank*MHBA_CTRL_SIZE);
+        memset(mhba_team->node.my_ctrl[i], 0, MHBA_CTRL_SIZE);
+        mhba_team->node.send_umr_data[i] = (void*)((ptrdiff_t)mhba_team->node.storage + node->group_size*MHBA_CTRL_SIZE
+                *MAX_CONCURRENT_OUTSTANDING_ALL2ALL)+i*MHBA_DATA_SIZE*node->group_size;
+        mhba_team->node.my_send_umr_data[i] = (void*)((ptrdiff_t)mhba_team->node.send_umr_data[i] +
+                                                   node->group_rank*MHBA_DATA_SIZE);
+        mhba_team->node.recv_umr_data[i] = (void*)((ptrdiff_t)mhba_team->node.send_umr_data[i] +
+                                                MHBA_DATA_SIZE*node->group_size*MAX_CONCURRENT_OUTSTANDING_ALL2ALL);
+        mhba_team->node.my_recv_umr_data[i] = (void*)((ptrdiff_t)mhba_team->node.recv_umr_data[i] +
+                                                   node->group_rank*MHBA_DATA_SIZE);
+    }
 
-    memset(mhba_team->node.my_ctrl, 0, MHBA_CTRL_SIZE);
     xccl_sbgp_oob_barrier(node, params->oob);
-    mhba_team->sequence_number = 1;
+    mhba_team->sequence_number = 0;
 
     net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
     mhba_team->net.sbgp = net;
     mhba_team->net.ctrl = NULL;
     mhba_team->net.ctrl_mr = NULL;
     mhba_team->net.remote_ctrl = NULL;
+    calc_block_size(mhba_team);
     if (XCCL_MHBA_IS_ASR(mhba_team)) {
 
         xccl_status_t status = xccl_mhba_init_umr(ctx);
@@ -430,8 +447,8 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             xccl_mhba_error("failed to allocate asr qps array");
             goto fail;
         }
-
-        local_data_size = (net->group_size+4)*sizeof(uint32_t);
+        // for each ASR - qp num, in addition to port lid, ctrl segment rkey and address, recieve mkey rkey
+        local_data_size = (net->group_size*sizeof(uint32_t))+sizeof(uint16_t)+2*sizeof(uint32_t)+sizeof(void*);
         local_data = malloc(local_data_size);
         if (!local_data) {
             xccl_mhba_error("failed to allocate local data");
@@ -452,14 +469,14 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             }
             local_data[i] = mhba_team->net.qps[i]->qp_num;
         }
-        mhba_team->net.ctrl = (uint32_t*)calloc(sizeof(uint32_t), net->group_size);
+        mhba_team->net.ctrl = (uint32_t*)calloc(sizeof(int)*MAX_CONCURRENT_OUTSTANDING_ALL2ALL, net->group_size);
         if (!mhba_team->net.ctrl) {
             xccl_mhba_error("failed to allocate ctrl");
             goto ctrl_fail;
         }
 
         mhba_team->net.ctrl_mr = ibv_reg_mr(ctx->ib_pd, mhba_team->net.ctrl,
-                                            sizeof(uint32_t)*net->group_size,
+                                            sizeof(int)*MAX_CONCURRENT_OUTSTANDING_ALL2ALL*net->group_size,
                                             IBV_ACCESS_REMOTE_WRITE |
                                             IBV_ACCESS_LOCAL_WRITE);
         if (!mhba_team->net.ctrl_mr) {
@@ -483,7 +500,10 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             goto remote_ctrl_fail;
         }
 
+        local_data[net->group_size+4] = mhba_team->node.team_recv_mkey->rkey; //todo check index and rkey/lkey
+
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net, params->oob);
+        mhba_team->net.rkeys = (uint32_t*) malloc(sizeof(uint32_t)*mhba_team->node.sbgp->group_size);
         for (i=0; i<net->group_size; i++) {
             uint32_t *remote_data = (uint32_t*)((uintptr_t)global_data + i*local_data_size);
             xccl_mhba_remote_qp_connect(mhba_team->net.qps[i], remote_data[net->group_rank],
@@ -491,6 +511,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             mhba_team->net.remote_ctrl[i].rkey = remote_data[net->group_size+1];
             mhba_team->net.remote_ctrl[i].addr =
                 (void*)(uintptr_t)(*((uint64_t*)&remote_data[net->group_size+2]));
+            mhba_team->net.rkeys[i] = remote_data[net->group_size+4];
         }
         xccl_sbgp_oob_barrier(net, params->oob);
         xccl_mhba_test_net_ctrl(mhba_team, ctx);
@@ -583,46 +604,47 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         if (status!=XCCL_OK){
             xccl_mhba_error("failed to destroy Mkeys");
         }
+        free(mhba_team->net.rkeys);
     }
     free(team);
     return status;
 }
 
-xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int fanin_value, int root)
+xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int seq_num, int root)
 {
     int i;
     int *ctrl_v;
+    int index = seq_index(seq_num);
     if (team->node.sbgp->group_rank != root) {
-        ctrl_v = (int*)team->node.my_ctrl;
-        int v = *ctrl_v;
-        __sync_fetch_and_add(ctrl_v, (v+fanin_value));
+        *team->node.my_ctrl[index] = 1;
     } else {
         for (i=0; i<team->node.sbgp->group_size; i++) {
             if (i == team->node.sbgp->group_rank) {
                 continue;
             }
-            ctrl_v = (int*)((ptrdiff_t)team->node.ctrl + MHBA_CTRL_SIZE*i);
-            if (*ctrl_v != fanin_value) {
+            ctrl_v = (int*)((ptrdiff_t)team->node.ctrl[index] + MHBA_CTRL_SIZE*i);
+            if (!*ctrl_v) {
                 return XCCL_INPROGRESS;
             }
         }
+        *team->node.my_ctrl[index] = 0; //reset from previous all2all
     }
     return XCCL_OK;
 }
 
-xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, int fanout_value, int root)
+xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, int seq_num, int root)
 {
     int i;
     int *ctrl_v;
+    int index = seq_index(seq_num);
     if (team->node.sbgp->group_rank != root) {
-        ctrl_v = (int*)((ptrdiff_t)team->node.ctrl + MHBA_CTRL_SIZE*root);
-        if (*ctrl_v != fanout_value) {
+        ctrl_v = (int*)((ptrdiff_t)team->node.ctrl[index] + MHBA_CTRL_SIZE*root);
+        if (!*ctrl_v) {
             return XCCL_INPROGRESS;
         }
+        *team->node.my_ctrl[index] = 0; //reset from previous all2all
     } else {
-        ctrl_v = (int*)team->node.my_ctrl;
-        int v = *ctrl_v;
-        __sync_fetch_and_add(ctrl_v, (v+fanout_value));
+        *team->node.my_ctrl[index] = 1;
     }
     return XCCL_OK;
 }

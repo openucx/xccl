@@ -24,12 +24,16 @@ xccl_status_t tasks_queue_progress(xccl_progress_queue_t *handle) {
     ucs_list_for_each_safe(task, tmp, &ctx->list, list_elem)
     {
         if (task->progress) {
-            if (0 < task->progress(task)) {
+            status = task->progress(task);
+            if (status != XCCL_OK) {
                 return status;
             }
         }
         if (XCCL_TASK_STATE_COMPLETED == task->state) {
-            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+            status = xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+            if (status != XCCL_OK) {
+                return status;
+            }
             ucs_list_del(&task->list_elem);
         }
     }
