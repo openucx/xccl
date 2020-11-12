@@ -33,17 +33,17 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
     request->send_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.src_buffer,
                             request->args.buffer_info.len, sr_mem_access_flags);
     if (!request->send_bf_mr) {
-        xccl_mhba_info("Failed to register send_bf memory");
-        return; // todo we will need to modify event manager iface to return XCCL_ERR
+        xccl_mhba_info("Failed to register send_bf memory (errno=%d)", errno);
+        return XCCL_ERR_NO_RESOURCE; // todo we will need to modify event manager iface to return XCCL_ERR
     }
     request->receive_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.dst_buffer,
                                request->args.buffer_info.len, dr_mem_access_flags);
     if (!request->receive_bf_mr) {
-        xccl_mhba_error("Failed to register receive_bf memory");
+        xccl_mhba_error("Failed to register receive_bf memory (errno=%d)", errno);
         ibv_dereg_mr(request->send_bf_mr);
-        return;
+        return XCCL_ERR_NO_RESOURCE;
     }
-    xccl_mhba_update_mkeys_entries(&team->node, request->send_bf_mr, request->receive_bf_mr,request->block_size,request->seq_num); // no option for failure status
+    xccl_mhba_update_mkeys_entries(&team->node, request->send_bf_mr, request->receive_bf_mr, request); // no option for failure status
 
 
     xccl_mhba_info("fanin start");

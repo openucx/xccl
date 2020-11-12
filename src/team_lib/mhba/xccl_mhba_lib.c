@@ -341,7 +341,7 @@ static void calc_block_size(xccl_mhba_team_t* team){
     int block_size = team->node.sbgp->group_size;
     int msg_len = MAX_MSG_SIZE;
     for (i=MHBA_NUM_OF_BLOCKS_SIZE_BINS-1;i>=0;i--){
-        while ((block_size^2)*msg_len > MAX_TRANSPOSE_SIZE && block_size>MAX_BLOCK_SIZE){
+        while ((block_size^2)*msg_len > MAX_TRANSPOSE_SIZE || block_size>MAX_BLOCK_SIZE){
             block_size -= 1;
         }
         team->blocks_sizes[i] = block_size;
@@ -365,7 +365,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     uint32_t *local_data, *global_data;
     mhba_team->context = ctx;
     memset(mhba_team->occupied_operations_slots,0,MAX_CONCURRENT_OUTSTANDING_ALL2ALL*sizeof(int));
-
+    mhba_team->size = params->oob.size;
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     mhba_team->node.sbgp = node;
@@ -494,13 +494,13 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             goto remote_ctrl_fail;
         }
 
-        status = xccl_mhba_init_mkeys(ctx,&mhba_team->node);
+        status = xccl_mhba_init_mkeys(ctx,&mhba_team->node,mhba_team->size);
         if (status!=XCCL_OK){
             xccl_mhba_error("Failed to init mkeys");
             goto remote_ctrl_fail;
         }
 
-        local_data[net->group_size+4] = mhba_team->node.team_recv_mkey->rkey; //todo check index and rkey/lkey
+        local_data[net->group_size+4] = mhba_team->node.team_recv_mkey->rkey; //todo check index
 
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net, params->oob);
         mhba_team->net.rkeys = (uint32_t*) malloc(sizeof(uint32_t)*mhba_team->node.sbgp->group_size);

@@ -108,6 +108,7 @@ typedef struct xccl_mhba_team {
     int                 occupied_operations_slots[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
     xccl_mhba_context_t *context;
     int                 blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
+    int                 size;
 } xccl_mhba_team_t;
 
 #define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
