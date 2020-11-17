@@ -28,6 +28,7 @@ typedef struct xccl_tl_ucx_context_config {
     unsigned                 num_to_probe;
     unsigned                 alltoall_pairwise_chunk;
     int                      alltoall_pairwise_reverse;
+    unsigned                 alltoall_pairwise_barrier;
 } xccl_tl_ucx_context_config_t;
 
 extern xccl_team_lib_ucx_t xccl_team_lib_ucx;
@@ -132,7 +133,11 @@ typedef struct xccl_ucx_collreq {
         } barrier;
         struct {
             xccl_ucx_request_t **reqs;
+            struct xccl_ucx_collreq_t *barrier_req;
+            int                phase;
+            int                ready_to_send;
             int                n_sreqs;
+            int                ready_to_recv;
             int                n_rreqs;
         } alltoall_pairwise;
         struct {

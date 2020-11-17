@@ -98,6 +98,7 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
     ctx->allreduce_alg_id          = cfg->allreduce_alg_id;
     ctx->alltoall_pairwise_chunk   = cfg->alltoall_pairwise_chunk;
     ctx->alltoall_pairwise_reverse = cfg->alltoall_pairwise_reverse;
+    ctx->alltoall_pairwise_barrier = cfg->alltoall_pairwise_barrier;
 
     ctx->next_cid           = 0;
     *context = &ctx->super;
