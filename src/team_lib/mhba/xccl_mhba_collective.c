@@ -43,8 +43,6 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
         ibv_dereg_mr(request->send_bf_mr);
         return XCCL_ERR_NO_RESOURCE;
     }
-    xccl_mhba_update_mkeys_entries(&team->node, request->send_bf_mr, request->receive_bf_mr, request); // no option for failure status
-
 
     xccl_mhba_info("fanin start");
     /* start task if completion event received */
@@ -54,7 +52,7 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
     /* .... */
 
     /* Start fanin */
-    if (XCCL_OK == xccl_mhba_node_fanin(team, request->seq_num, request->asr_rank)) {
+    if (XCCL_OK == xccl_mhba_node_fanin(team, request)) {
         xccl_mhba_info("fanin complete");
         task->state = XCCL_TASK_STATE_COMPLETED;
         xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
@@ -69,7 +67,7 @@ xccl_status_t xccl_mhba_reg_fanin_progress(xccl_coll_task_t *task) {
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
     assert(team->node.sbgp->group_rank == request->asr_rank);
-    if (XCCL_OK == xccl_mhba_node_fanin(team, request->seq_num, request->asr_rank)) {
+    if (XCCL_OK == xccl_mhba_node_fanin(team, request)) {
         xccl_mhba_info("fanin complete");
         task->state = XCCL_TASK_STATE_COMPLETED;
     }
@@ -77,15 +75,16 @@ xccl_status_t xccl_mhba_reg_fanin_progress(xccl_coll_task_t *task) {
 }
 
 static xccl_status_t dereg_mr_buffers(xccl_mhba_coll_req_t *request){
+    xccl_status_t status = XCCL_OK;
     if(ibv_dereg_mr(request->send_bf_mr)){
-        xccl_mhba_error("Faild to dereg_mr send buffer");
-        return XCCL_ERR_NO_MESSAGE;
+        xccl_mhba_error("Faild to dereg_mr send buffer (errno=%d)", errno);
+        status = XCCL_ERR_NO_MESSAGE;
     }
     if(ibv_dereg_mr(request->receive_bf_mr)){
-        xccl_mhba_error("Faild to dereg_mr send buffer");
-        return XCCL_ERR_NO_MESSAGE;
+        xccl_mhba_error("Faild to dereg_mr send buffer (errno=%d)", errno);
+        status = XCCL_ERR_NO_MESSAGE;
     }
-    return XCCL_OK;
+    return status;
 }
 
 static xccl_status_t xccl_mhba_fanout_start(xccl_coll_task_t *task) {
@@ -97,7 +96,7 @@ static xccl_status_t xccl_mhba_fanout_start(xccl_coll_task_t *task) {
     task->state = XCCL_TASK_STATE_INPROGRESS;
 
     /* Start fanin */
-    if (XCCL_OK == xccl_mhba_node_fanout(team, request->seq_num, request->asr_rank)) {
+    if (XCCL_OK == xccl_mhba_node_fanout(team, request)) {
         xccl_status_t status;
         task->state = XCCL_TASK_STATE_COMPLETED;
         status = dereg_mr_buffers(request);
@@ -107,7 +106,7 @@ static xccl_status_t xccl_mhba_fanout_start(xccl_coll_task_t *task) {
         /*Cleanup alg resources - all done */
         xccl_mhba_info("Algorithm completion");
         xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
-        team->occupied_operations_slots[seq_index(request->seq_num)] = 0;
+        team->occupied_operations_slots[seq_index(request->seq_num)] = 0; //todo MT
     } else {
         xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
     }
@@ -120,7 +119,7 @@ xccl_status_t xccl_mhba_fanout_progress(xccl_coll_task_t *task) {
     xccl_mhba_team_t *team = request->team;
     xccl_status_t status;
     assert(team->node.sbgp->group_rank != request->asr_rank);
-    if (XCCL_OK == xccl_mhba_node_fanout(team, request->seq_num, request->asr_rank)) {
+    if (XCCL_OK == xccl_mhba_node_fanout(team, request)) {
         task->state = XCCL_TASK_STATE_COMPLETED;
         status = dereg_mr_buffers(request);
         if(status != XCCL_OK){
@@ -134,7 +133,7 @@ xccl_status_t xccl_mhba_fanout_progress(xccl_coll_task_t *task) {
 }
 
 static xccl_status_t xccl_mhba_transpose_start(xccl_coll_task_t *task) {
-    xccl_mhba_info("tranpose start");
+    xccl_mhba_info("transpose start");
     task->state = XCCL_TASK_STATE_INPROGRESS;
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
     return XCCL_OK;
@@ -204,7 +203,7 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
                         xccl_mhba_coll_req_t *request,
                         xccl_mhba_team_t *team)
 {
-    if (coll_args->buffer_info.len > 128){
+    if (coll_args->buffer_info.len > MAX_MSG_SIZE){
         xccl_mhba_error("msg size too long");
         return XCCL_ERR_NO_RESOURCE;
     }
@@ -219,8 +218,6 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
     request->tasks = (xccl_mhba_task_t*)malloc(sizeof(xccl_mhba_task_t)*n_tasks);
     request->seq_num = team->sequence_number;
     team->sequence_number++;
-    while(team->occupied_operations_slots[seq_index(team->sequence_number)]){} //wait for slot to be open
-    team->occupied_operations_slots[seq_index(team->sequence_number)] = 1;
     for (i = 0; i < n_tasks; i++) {
         request->tasks[i].req = request;
         xccl_coll_task_init(&request->tasks[i].super);

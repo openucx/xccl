@@ -49,7 +49,7 @@ static xccl_status_t create_umr_qp(xccl_mhba_context_t *ctx) {
     // `max_inline_data` determines the WQE size that the QP will support.
     // The 'max_inline_data' should be modified only when the number of
     // arrays to interleave is greater than 3.
-    umr_init_attr_ex.cap.max_inline_data = 256;
+    umr_init_attr_ex.cap.max_inline_data = 828; // the max number possible, Sergey Gorenko's email
     umr_init_attr_ex.qp_type = IBV_QPT_RC;
     umr_init_attr_ex.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
     umr_init_attr_ex.pd = ctx->ib_pd;
@@ -91,6 +91,10 @@ static xccl_status_t create_umr_qp(xccl_mhba_context_t *ctx) {
     return XCCL_ERR_NO_MESSAGE;
 }
 
+/**
+ * Create and connect UMR qp & cq.
+ * @param ctx mhba team context
+ */
 xccl_status_t xccl_mhba_init_umr(xccl_mhba_context_t *ctx) {
     // singleton - in case of multiple teams
     if (ctx->umr_cq){
@@ -161,11 +165,11 @@ static xccl_status_t poll_umr_cq(xccl_mhba_context_t *ctx) {
 // Execute the UMR WQE for populating the UMR's MasterMKey
 static xccl_status_t
 populate_mkey(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node, int mem_access_flags, struct mlx5dv_mkey *mkey,
-              void *mkey_entries, int block_size, int team_size) {
+              void *mkey_entries, int block_size, int team_size, int strided) {
     xccl_status_t status;
     ibv_wr_start(ctx->umr_qpx);
     ctx->umr_qpx->wr_id = 1; // First (and only) WR todo: check meaning
-    if (block_size) {
+    if (strided) {
         int repeat_count = team_size / block_size;
         mlx5dv_wr_mr_interleaved(ctx->umr_mlx5dv_qp_ex, mkey, mem_access_flags,
                                  repeat_count, node->sbgp->group_size,
@@ -183,74 +187,89 @@ populate_mkey(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node, int mem_access_f
     return XCCL_OK;
 }
 
-static xccl_status_t create_and_populate_team_mkey(xccl_mhba_context_t *ctx,xccl_mhba_node_t *node,struct mlx5dv_mkey** mkey,
-        struct mlx5dv_mkey** mkeys_array,int mem_access_flags,int team_size){
+static xccl_status_t create_and_populate_team_mkey(xccl_mhba_context_t *ctx,xccl_mhba_node_t *node,
+        int team_size,int send){
     xccl_status_t status;
+    struct mlx5dv_mkey** mkey = send ? &node->team_send_mkey : &node->team_recv_mkey;
     int i;
     status = create_master_key(ctx, mkey, MAX_CONCURRENT_OUTSTANDING_ALL2ALL);
     if (status != XCCL_OK) {
         return status;
     }
-    struct ibv_sge* team_mkey_klm_entries = (struct ibv_sge*)calloc(MAX_CONCURRENT_OUTSTANDING_ALL2ALL, sizeof(struct ibv_sge)); //todo destroy
+    struct ibv_sge* team_mkey_klm_entries = (struct ibv_sge*)calloc(MAX_CONCURRENT_OUTSTANDING_ALL2ALL, sizeof(struct ibv_sge));
     for (i = 0; i < MAX_CONCURRENT_OUTSTANDING_ALL2ALL; i++) {
         team_mkey_klm_entries[i].addr = 0;
         team_mkey_klm_entries[i].length = node->sbgp->group_size*MAX_MSG_SIZE*team_size;
-        if(mem_access_flags) {
-            team_mkey_klm_entries[i].lkey = ((struct mlx5dv_mkey *) (*(mkeys_array + i)))->rkey;
-        }else{
-            team_mkey_klm_entries[i].lkey = ((struct mlx5dv_mkey *) (*(mkeys_array + i)))->lkey;
-        }
+        team_mkey_klm_entries[i].lkey = send ? node->operations[i].send_mkey->lkey : node->operations[i]
+                .recv_mkey->rkey;
     }
-    status = populate_mkey(ctx,node,mem_access_flags,*mkey,team_mkey_klm_entries,0,0);
+    status = populate_mkey(ctx,node,send ? 0 : IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE,*mkey,team_mkey_klm_entries,0,0,0);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate team mkey");
         return status;
     }
-    free(team_mkey_klm_entries); //todo check if legal to free at this point
+    free(team_mkey_klm_entries);
     return XCCL_OK;
 }
 
+/**
+ * Create mkeys for all outstanding AlltoAll operations in each rank. Creats team mkey, and execute the team mkey's
+ * population WQE
+ * @param ctx mhba team context
+ * @param node struct of the current process's node
+ * @param team_size number of processes in team
+ */
 xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node,int team_size) {
     xccl_status_t status;
     int i;
     for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++) {
-        status = create_master_key(ctx, &node->send_mkey[i], node->sbgp->group_size + 1);
+        status = create_master_key(ctx, &node->operations[i].send_mkey, node->sbgp->group_size + 1);
         if (status != XCCL_OK) {
             xccl_mhba_error("create send masterkey[%d] failed",i);
             return status;
         }
-        status = create_master_key(ctx, &node->recv_mkey[i], node->sbgp->group_size + 1);
+        status = create_master_key(ctx, &node->operations[i].recv_mkey, node->sbgp->group_size + 1);
         if (status != XCCL_OK) {
             xccl_mhba_error("create recv masterkey[%d] failed",i);
-            if (mlx5dv_destroy_mkey(node->send_mkey[i])) {
+            if (mlx5dv_destroy_mkey(node->operations[i].send_mkey)) {
                 xccl_mhba_error("mkey destroy failed (errno=%d)", errno);
             }
             return status;
         }
     }
-    status = create_and_populate_team_mkey(ctx,node,&node->team_send_mkey,node->send_mkey,0,team_size);
+    status = create_and_populate_team_mkey(ctx,node,team_size,1);
     if (status != XCCL_OK) {
         return status;
     }
-    status = create_and_populate_team_mkey(ctx,node,&node->team_recv_mkey,node->recv_mkey,
-                                           IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE,team_size);
+    status = create_and_populate_team_mkey(ctx,node,team_size,0);
     if (status != XCCL_OK) {
         return status;
     }
     return XCCL_OK;
 }
 
+/**
+ * Execute UMR WQE to populate mkey of specific AlltoAll operation, after the mkey entries were already updated
+ * @param ctx mhba team context
+ * @param node struct of the current process's node
+ * @param seq_num current AlltoAll operation id
+ * @param block_size size of block, according to the current message size
+ * @param team_size number of processes in team
+ */
 xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node,int seq_num,int block_size,int team_size){
     xccl_status_t status;
     int send_mem_access_flags = 0;
     int index = seq_index(seq_num);
-    status = populate_mkey(ctx,node,send_mem_access_flags,node->send_mkey[index],node->send_umr_data[index],block_size,team_size);
+    status = populate_mkey(ctx,node,send_mem_access_flags,node->operations[index].send_mkey,
+                           node->operations[index].send_umr_data,
+                           block_size,team_size,1);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate send umr[%d]",index);
         return status;
     }
     int recv_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
-    status = populate_mkey(ctx,node,recv_mem_access_flags,node->recv_mkey[index],node->recv_umr_data[index],block_size,team_size);
+    status = populate_mkey(ctx,node,recv_mem_access_flags,node->operations[index].recv_mkey,
+                           node->operations[index].recv_umr_data, block_size,team_size,1);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate recv umr[%d]",index);
         return status;
@@ -258,29 +277,36 @@ xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_context_t *ctx, xccl_
     return XCCL_OK;
 }
 
-static void update_mkey_entry(xccl_mhba_node_t *node, void *entry, struct ibv_mr *buff,const char* direction, xccl_mhba_coll_req_t *req){
-    struct mlx5dv_mr_interleaved *mkey_entry = (struct mlx5dv_mr_interleaved *) entry;
+static void update_mkey_entry(xccl_mhba_node_t *node, xccl_mhba_coll_req_t *req, int direction_send){
+    int index = seq_index(req->seq_num);
+    struct mlx5dv_mr_interleaved *mkey_entry = (struct mlx5dv_mr_interleaved *) (direction_send ?
+            node->operations[index].my_send_umr_data : node->operations[index].my_recv_umr_data);
+    struct ibv_mr *buff = direction_send ? req->send_bf_mr : req->receive_bf_mr;
     mkey_entry->addr = (uintptr_t) buff->addr; // TODO: Check why conversion to uintptr_t is needed and if it's correct
     mkey_entry->bytes_count = req->block_size*req->args.buffer_info.len;
     mkey_entry->bytes_skip = 0;
-    if(direction == "send") {
-        mkey_entry->lkey = buff->lkey;
-    }else{
-        mkey_entry->lkey = buff->rkey;
-    }
+    mkey_entry->lkey = direction_send ? buff->lkey : buff->rkey;
     xccl_mhba_debug("%s MasterMKey Strided KLM entries[%d]: addr = 0x%x, bytes_count = %d, bytes_skip = %d,lkey=0x%x",
-                    direction ,node->sbgp->group_rank, mkey_entry->addr , mkey_entry->bytes_count,
-                    mkey_entry->bytes_skip, mkey_entry->lkey);
+                    direction_send ? "send" : "recv" ,node->sbgp->group_rank, mkey_entry->addr ,
+                    mkey_entry->bytes_count, mkey_entry->bytes_skip, mkey_entry->lkey);
 }
 
+/**
+ * Update the UMR klm entry (ranks send & receive buffers) for specific AlltoAll operation
+ * @param node struct of the current process's node
+ * @param req AlltoAll operation request object
+ */
 xccl_status_t
-xccl_mhba_update_mkeys_entries(xccl_mhba_node_t *node, struct ibv_mr *send_bf_mr, struct ibv_mr *recv_bf_mr, xccl_mhba_coll_req_t *req) {
-    int index = seq_index(req->seq_num);
-    update_mkey_entry(node, node->my_send_umr_data[index], send_bf_mr, "send", req);
-    update_mkey_entry(node, node->my_recv_umr_data[index], recv_bf_mr, "recv", req);
+xccl_mhba_update_mkeys_entries(xccl_mhba_node_t *node, xccl_mhba_coll_req_t *req) {
+    update_mkey_entry(node, req, 1);
+    update_mkey_entry(node, req, 0);
     return XCCL_OK;
 }
 
+/**
+ * Clean UMR qp & cq
+ * @param ctx mhba team context
+ */
 xccl_status_t xccl_mhba_destroy_umr(xccl_mhba_context_t *ctx) {
     if(ctx->umr_cq == NULL){
         return XCCL_OK;
@@ -297,14 +323,18 @@ xccl_status_t xccl_mhba_destroy_umr(xccl_mhba_context_t *ctx) {
     return XCCL_OK;
 }
 
+/**
+ * Clean all mkeys -  operation mkeys, team mkeys
+ * @param node struct of the current process's node
+ */
 xccl_status_t xccl_mhba_destroy_mkeys(xccl_mhba_node_t *node) {
     int i;
     for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++) {
-        if (mlx5dv_destroy_mkey(node->send_mkey[i])) {
+        if (mlx5dv_destroy_mkey(node->operations[i].send_mkey)) {
             xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
             return XCCL_ERR_NO_MESSAGE;
         }
-        if (mlx5dv_destroy_mkey(node->recv_mkey[i])) {
+        if (mlx5dv_destroy_mkey(node->operations[i].recv_mkey)) {
             xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
             return XCCL_ERR_NO_MESSAGE;
         }

@@ -341,7 +341,7 @@ static void calc_block_size(xccl_mhba_team_t* team){
     int block_size = team->node.sbgp->group_size;
     int msg_len = MAX_MSG_SIZE;
     for (i=MHBA_NUM_OF_BLOCKS_SIZE_BINS-1;i>=0;i--){
-        while ((block_size^2)*msg_len > MAX_TRANSPOSE_SIZE || block_size>MAX_BLOCK_SIZE){
+        while ((block_size * block_size) * msg_len > MAX_TRANSPOSE_SIZE){
             block_size -= 1;
         }
         team->blocks_sizes[i] = block_size;
@@ -368,6 +368,10 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     mhba_team->size = params->oob.size;
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
+    if (node->group_size > MAX_STRIDED_ENTRIES){
+        xccl_mhba_error("PPN too large");
+        return XCCL_ERR_NO_RESOURCE;
+    } // todo temp - phase 1
     mhba_team->node.sbgp = node;
     storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
 
@@ -395,18 +399,18 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         return XCCL_ERR_NO_RESOURCE;
     }
     for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++){
-        mhba_team->node.ctrl[i] = mhba_team->node.storage + MHBA_CTRL_SIZE*node->group_size*i;
-        mhba_team->node.my_ctrl[i] = (void*)((ptrdiff_t)mhba_team->node.ctrl[i] +
+        mhba_team->node.operations[i].ctrl = mhba_team->node.storage + MHBA_CTRL_SIZE*node->group_size*i;
+        mhba_team->node.operations[i].my_ctrl = (void*)((ptrdiff_t)mhba_team->node.operations[i].ctrl +
                                           node->group_rank*MHBA_CTRL_SIZE);
-        memset(mhba_team->node.my_ctrl[i], 0, MHBA_CTRL_SIZE);
-        mhba_team->node.send_umr_data[i] = (void*)((ptrdiff_t)mhba_team->node.storage + node->group_size*MHBA_CTRL_SIZE
-                *MAX_CONCURRENT_OUTSTANDING_ALL2ALL)+i*MHBA_DATA_SIZE*node->group_size;
-        mhba_team->node.my_send_umr_data[i] = (void*)((ptrdiff_t)mhba_team->node.send_umr_data[i] +
-                                                   node->group_rank*MHBA_DATA_SIZE);
-        mhba_team->node.recv_umr_data[i] = (void*)((ptrdiff_t)mhba_team->node.send_umr_data[i] +
-                                                MHBA_DATA_SIZE*node->group_size*MAX_CONCURRENT_OUTSTANDING_ALL2ALL);
-        mhba_team->node.my_recv_umr_data[i] = (void*)((ptrdiff_t)mhba_team->node.recv_umr_data[i] +
-                                                   node->group_rank*MHBA_DATA_SIZE);
+        memset(mhba_team->node.operations[i].my_ctrl, 0, MHBA_CTRL_SIZE);
+        mhba_team->node.operations[i].send_umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
+                node->group_size*MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL)+i*MHBA_DATA_SIZE*node->group_size;
+        mhba_team->node.operations[i].my_send_umr_data = (void*)((ptrdiff_t)mhba_team->node.operations[i]
+                .send_umr_data + node->group_rank*MHBA_DATA_SIZE);
+        mhba_team->node.operations[i].recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.operations[i]
+                .send_umr_data + MHBA_DATA_SIZE*node->group_size*MAX_CONCURRENT_OUTSTANDING_ALL2ALL);
+        mhba_team->node.operations[i].my_recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.operations[i].recv_umr_data
+                + node->group_rank*MHBA_DATA_SIZE);
     }
 
     xccl_sbgp_oob_barrier(node, params->oob);
@@ -610,41 +614,46 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
     return status;
 }
 
-xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int seq_num, int root)
+xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request)
 {
     int i;
     int *ctrl_v;
-    int index = seq_index(seq_num);
-    if (team->node.sbgp->group_rank != root) {
-        *team->node.my_ctrl[index] = 1;
+    int index = seq_index(request->seq_num);
+
+    if(team->occupied_operations_slots[index]){
+        return XCCL_INPROGRESS;
+    } //wait for slot to be open
+    team->occupied_operations_slots[seq_index(team->sequence_number)] = 1;
+    xccl_mhba_update_mkeys_entries(&team->node, request); // no option for failure status
+
+    if (team->node.sbgp->group_rank != request->asr_rank) {
+        *team->node.operations[index].my_ctrl = request->seq_num;
     } else {
         for (i=0; i<team->node.sbgp->group_size; i++) {
             if (i == team->node.sbgp->group_rank) {
                 continue;
             }
-            ctrl_v = (int*)((ptrdiff_t)team->node.ctrl[index] + MHBA_CTRL_SIZE*i);
-            if (!*ctrl_v) {
+            ctrl_v = (int*)((ptrdiff_t)team->node.operations[index].ctrl + MHBA_CTRL_SIZE*i);
+            if (*ctrl_v != request->seq_num) {
                 return XCCL_INPROGRESS;
             }
         }
-        *team->node.my_ctrl[index] = 0; //reset from previous all2all
     }
     return XCCL_OK;
 }
 
-xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, int seq_num, int root)
+xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request)
 {
     int i;
     int *ctrl_v;
-    int index = seq_index(seq_num);
-    if (team->node.sbgp->group_rank != root) {
-        ctrl_v = (int*)((ptrdiff_t)team->node.ctrl[index] + MHBA_CTRL_SIZE*root);
-        if (!*ctrl_v) {
+    int index = seq_index(request->seq_num);
+    if (team->node.sbgp->group_rank != request->asr_rank) {
+        ctrl_v = (int*)((ptrdiff_t)team->node.operations[index].ctrl + MHBA_CTRL_SIZE*request->asr_rank);
+        if (*ctrl_v != request->seq_num) {
             return XCCL_INPROGRESS;
         }
-        *team->node.my_ctrl[index] = 0; //reset from previous all2all
     } else {
-        *team->node.my_ctrl[index] = 1;
+        *team->node.operations[index].my_ctrl = request->seq_num;
     }
     return XCCL_OK;
 }
