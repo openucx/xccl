@@ -42,13 +42,14 @@ void xccl_coll_task_init(xccl_coll_task_t *task)
     task->busy = 0;
 }
 
-void schedule_completed_handler(xccl_coll_task_t *task)
+xccl_status_t schedule_completed_handler(xccl_coll_task_t *task)
 {
     xccl_schedule_t *self = (xccl_schedule_t*)task;
     self->n_completed_tasks += 1;
     if (self->n_completed_tasks == self->n_tasks) {
         self->super.state = XCCL_TASK_STATE_COMPLETED;
     }
+    return XCCL_OK;
 }
 
 void xccl_schedule_init(xccl_schedule_t *schedule, xccl_tl_context_t *tl_ctx)

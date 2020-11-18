@@ -54,9 +54,6 @@ xccl_hier_init_tl(xccl_hier_context_t *ctx, int tl_idx,
         }
     }
     status = xccl_context_create(lib, &ctx_params, cfg, &ctx->tls[tl_idx].xccl_ctx);
-    if (status != XCCL_OK) {
-        xccl_hier_warn("Failed to open %s context", xccl_tl_str(tl_id));
-    }
     xccl_context_config_release(cfg);
     return status;
 }
@@ -97,17 +94,18 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
 
     hier_cfg = ucs_derived_of(config, xccl_tl_hier_context_config_t);
     /* Disable recursion */
-    ctx->tls[ucs_ilog2(XCCL_TL_HIER)].enabled    = 0;
-    ctx->tls[ucs_ilog2(XCCL_TL_MRAIL)].enabled   = 0;
-    ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled   = hier_cfg->enable_sharp;
-    ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled  = hier_cfg->enable_shmseg;
-    ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled     = hier_cfg->enable_vmc;
-    ctx->tls[ucs_ilog2(XCCL_TL_NCCL)].enabled    = hier_cfg->enable_nccl;
-    ctx->bcast_pipeline_thresh                   = hier_cfg->bcast_pipeline_thresh;
-    ctx->bcast_pipeline_depth                    = hier_cfg->bcast_pipeline_depth;
-    ctx->use_sm_get_bcast                        = hier_cfg->bcast_sm_get;
-    ctx->bcast_sm_get_thresh                     = hier_cfg->bcast_sm_get_thresh;
-    ctx->node_leader_rank_id                     = hier_cfg->node_leader_rank_id;
+    ctx->tls[ucs_ilog2(XCCL_TL_HIER)].enabled   = 0;
+    ctx->tls[ucs_ilog2(XCCL_TL_MRAIL)].enabled  = 0;
+    ctx->tls[ucs_ilog2(XCCL_TL_MHBA)].enabled   = 0;
+    ctx->tls[ucs_ilog2(XCCL_TL_NCCL)].enabled   = 0;
+    ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled  = hier_cfg->enable_sharp;
+    ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled = hier_cfg->enable_shmseg;
+    ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled    = hier_cfg->enable_vmc;
+    ctx->bcast_pipeline_thresh                  = hier_cfg->bcast_pipeline_thresh;
+    ctx->bcast_pipeline_depth                   = hier_cfg->bcast_pipeline_depth;
+    ctx->use_sm_get_bcast                       = hier_cfg->bcast_sm_get;
+    ctx->bcast_sm_get_thresh                    = hier_cfg->bcast_sm_get_thresh;
+    ctx->node_leader_rank_id                    = hier_cfg->node_leader_rank_id;
 
     ucs_for_each_bit(tl, XCCL_TL_ALL) {
         if (XCCL_OK != (status = xccl_hier_init_tl(ctx, tl, params->oob, hier_cfg, params->thread_mode))) {

@@ -11,7 +11,7 @@
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
 
-#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 64 //todo change
+#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 52 //todo change - according to limitations
 #define seq_index(seq_num) (seq_num % MAX_CONCURRENT_OUTSTANDING_ALL2ALL)
 
 typedef struct xccl_team_lib_mhba_config {

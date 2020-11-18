@@ -77,11 +77,11 @@ xccl_status_t xccl_mhba_reg_fanin_progress(xccl_coll_task_t *task) {
 static xccl_status_t dereg_mr_buffers(xccl_mhba_coll_req_t *request){
     xccl_status_t status = XCCL_OK;
     if(ibv_dereg_mr(request->send_bf_mr)){
-        xccl_mhba_error("Faild to dereg_mr send buffer (errno=%d)", errno);
+        xccl_mhba_error("Failed to dereg_mr send buffer (errno=%d)", errno);
         status = XCCL_ERR_NO_MESSAGE;
     }
     if(ibv_dereg_mr(request->receive_bf_mr)){
-        xccl_mhba_error("Faild to dereg_mr send buffer (errno=%d)", errno);
+        xccl_mhba_error("Failed to dereg_mr send buffer (errno=%d)", errno);
         status = XCCL_ERR_NO_MESSAGE;
     }
     return status;
@@ -105,8 +105,8 @@ static xccl_status_t xccl_mhba_fanout_start(xccl_coll_task_t *task) {
         }
         /*Cleanup alg resources - all done */
         xccl_mhba_info("Algorithm completion");
-        xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
         team->occupied_operations_slots[seq_index(request->seq_num)] = 0; //todo MT
+        xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
     } else {
         xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
     }

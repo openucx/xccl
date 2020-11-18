@@ -55,7 +55,7 @@ void xccl_event_manager_subscribe(xccl_event_manager_t *em,
                                  xccl_coll_task_t *task);
 xccl_status_t xccl_event_manager_notify(xccl_event_manager_t *em, xccl_event_t event);
 void xccl_coll_task_init(xccl_coll_task_t *task);
-void schedule_completed_handler(xccl_coll_task_t *task);
+xccl_status_t schedule_completed_handler(xccl_coll_task_t *task);
 void xccl_schedule_init(xccl_schedule_t *schedule, xccl_tl_context_t *tl_ctx);
 void xccl_schedule_add_task(xccl_schedule_t *schedule, xccl_coll_task_t *task);
 void xccl_schedule_start(xccl_schedule_t *schedule);

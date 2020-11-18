@@ -7,11 +7,11 @@
 #include "xccl_mhba_collective.h"
 
 
-static xccl_status_t poll_cq(struct ibv_cq *cq, int expected_wc_num, struct ibv_wc actual_wc[]) {
+static xccl_status_t poll_cq(struct ibv_cq *cq, int expected_wc_num, struct ibv_wc *actual_wc) {
     int total_received_completions = 0;
     int new_received_completions = 0;
     while (expected_wc_num > 0) {
-        new_received_completions = ibv_poll_cq(cq, expected_wc_num, &actual_wc[total_received_completions]);
+        new_received_completions = ibv_poll_cq(cq, expected_wc_num, actual_wc);
         if (new_received_completions < 0) {
             xccl_mhba_error("ibv_poll_cq() failed for UMR execution");
             return XCCL_ERR_NO_MESSAGE;
@@ -34,7 +34,7 @@ static xccl_status_t create_umr_qp(xccl_mhba_context_t *ctx) {
     }
 
     memset(&umr_mlx5dv_qp_attr, 0, sizeof(umr_mlx5dv_qp_attr));
-    umr_mlx5dv_qp_attr.comp_mask |= MLX5DV_QP_INIT_ATTR_MASK_SEND_OPS_FLAGS, IBV_QP_INIT_ATTR_PD;
+    umr_mlx5dv_qp_attr.comp_mask = MLX5DV_QP_INIT_ATTR_MASK_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD; //todo ask Rami
     umr_mlx5dv_qp_attr.create_flags = 0;
     memset(&umr_mlx5dv_qp_attr.dc_init_attr,0,sizeof(umr_mlx5dv_qp_attr.dc_init_attr)); //todo: check is right
     umr_mlx5dv_qp_attr.send_ops_flags = MLX5DV_QP_EX_WITH_MR_LIST | MLX5DV_QP_EX_WITH_MR_INTERLEAVED;
@@ -168,18 +168,21 @@ populate_mkey(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node, int mem_access_f
               void *mkey_entries, int block_size, int team_size, int strided) {
     xccl_status_t status;
     ibv_wr_start(ctx->umr_qpx);
-    ctx->umr_qpx->wr_id = 1; // First (and only) WR todo: check meaning
+    ctx->umr_qpx->wr_id = 1; // First (and only) WR
     if (strided) {
         int repeat_count = team_size / block_size;
         mlx5dv_wr_mr_interleaved(ctx->umr_mlx5dv_qp_ex, mkey, mem_access_flags,
                                  repeat_count, node->sbgp->group_size,
-                                 (struct mlx5dv_mr_interleaved *) mkey_entries); // todo check for error
+                                 (struct mlx5dv_mr_interleaved *) mkey_entries);
         xccl_mhba_debug("Execute the UMR WQE for populating the send/recv MasterMKey lkey 0x%x",mkey->lkey);
     } else{
         mlx5dv_wr_mr_list(ctx->umr_mlx5dv_qp_ex, mkey, mem_access_flags, MAX_CONCURRENT_OUTSTANDING_ALL2ALL, (struct ibv_sge*)mkey_entries);
         xccl_mhba_debug("Execute the UMR WQE for populating the team MasterMKeys lkey 0x%x",mkey->lkey);
     }
-    ibv_wr_complete(ctx->umr_qpx);
+    if (ibv_wr_complete(ctx->umr_qpx)){
+        xccl_mhba_error("UMR WQE failed (errno=%d)", errno);
+        return XCCL_ERR_NO_MESSAGE;
+    }
     status = poll_umr_cq(ctx);
     if (status != XCCL_OK) {
         return status;
