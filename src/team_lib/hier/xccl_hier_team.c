@@ -37,12 +37,14 @@ oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len,
         .cb.cb_ctx = (void*)sbgp,
     };
     team->params.oob.allgather(sbuf, rbuf, len, sbgp->group_rank,
-                                  range, team->params.oob.coll_context, req);
+                                     range, team->params.oob.coll_context,
+                                     req);
     return 0;
 }
 
 static xccl_status_t xccl_hier_create_pair(xccl_sbgp_t *sbgp, xccl_hier_team_t *team,
                                            xccl_tl_id_t tl_id, xccl_hier_pair_type_t pair) {
+    xccl_status_t status;
     xccl_hier_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_hier_context_t);
     if (sbgp->status != XCCL_SBGP_ENABLED) {
         return 0;
@@ -65,8 +67,14 @@ static xccl_status_t xccl_hier_create_pair(xccl_sbgp_t *sbgp, xccl_hier_team_t *
     };
 
     team->pairs[pair] = (xccl_hier_pair_t*)malloc(sizeof(xccl_hier_pair_t));
-    xccl_team_create_post(ctx->tls[ucs_ilog2(tl_id)].xccl_ctx, &team_params,
-                          &team->pairs[pair]->team);
+    status = xccl_team_create_post(ctx->tls[ucs_ilog2(tl_id)].xccl_ctx, &team_params,
+                                   &team->pairs[pair]->team);
+    if (status != XCCL_OK) {
+        xccl_hier_warn("Failed to create team for TL %s", xccl_tl_str(tl_id));
+        free(team->pairs[pair]);
+        team->pairs[pair] = NULL;
+        return status;
+    }
     while (XCCL_INPROGRESS ==
            xccl_team_create_test(team->pairs[pair]->team)) {;}
     team->pairs[pair]->sbgp = sbgp;

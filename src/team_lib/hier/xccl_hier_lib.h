@@ -18,6 +18,7 @@ typedef struct xccl_tl_hier_context_config {
     int                      enable_sharp;
     int                      enable_shmseg;
     int                      enable_vmc;
+    int                      enable_nccl;
     unsigned                 bcast_pipeline_depth;
     int                      bcast_sm_get;
     int                      node_leader_rank_id;

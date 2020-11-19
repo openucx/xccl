@@ -11,6 +11,9 @@
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
 
+#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 4 //todo change - according to limitations (52 top)
+#define seq_index(seq_num) (seq_num % MAX_CONCURRENT_OUTSTANDING_ALL2ALL)
+
 typedef struct xccl_team_lib_mhba_config {
     xccl_team_lib_config_t super;
 } xccl_team_lib_mhba_config_t;
@@ -59,23 +62,33 @@ typedef struct xccl_mhba_context {
     struct mlx5dv_qp_ex                *umr_mlx5dv_qp_ex;
 } xccl_mhba_context_t;
 
-/* This structure holds resources and data related to the "in-node"
-   part of the algorithm. */
-typedef struct xccl_mhba_node {
-    xccl_sbgp_t                  *sbgp;
-    void                         *storage;
+typedef struct xccl_mhba_operation{
     void                         *ctrl;
-    void                         *my_ctrl;
+    int                          *my_ctrl;
     void                         *send_umr_data;
     void                         *my_send_umr_data;
     void                         *recv_umr_data;
     void                         *my_recv_umr_data;
     struct mlx5dv_mkey*          send_mkey;
     struct mlx5dv_mkey*          recv_mkey;
-    int                          block_size; // todo fill
+} xccl_mhba_operation_t;
+
+/* This structure holds resources and data related to the "in-node"
+   part of the algorithm. */
+typedef struct xccl_mhba_node {
+    xccl_sbgp_t                  *sbgp;
+    void                         *storage;
+    xccl_mhba_operation_t        operations[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
+    struct mlx5dv_mkey*          team_send_mkey;
+    struct mlx5dv_mkey*          team_recv_mkey;
 } xccl_mhba_node_t;
-#define MHBA_CTRL_SIZE 128
+#define MHBA_CTRL_SIZE 128 //todo change according to arch
 #define MHBA_DATA_SIZE sizeof(struct mlx5dv_mr_interleaved)
+#define MHBA_NUM_OF_BLOCKS_SIZE_BINS 7
+#define MAX_TRANSPOSE_SIZE 8000 // HW transpose unit is limited to matrix size
+#define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
+#define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
+
 
 typedef struct xccl_mhba_net {
     xccl_sbgp_t    *sbgp;
@@ -87,6 +100,7 @@ typedef struct xccl_mhba_net {
         void *addr;
         uint32_t rkey;
     } *remote_ctrl;
+    uint32_t       *rkeys;
     xccl_tl_team_t *ucx_team;
 } xccl_mhba_net_t;
 
@@ -95,13 +109,17 @@ typedef struct xccl_mhba_team {
     xccl_mhba_node_t    node;
     xccl_mhba_net_t     net;
     int                 sequence_number;
+    int                 occupied_operations_slots[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
     xccl_mhba_context_t *context;
+    int                 blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
+    int                 size;
 } xccl_mhba_team_t;
 
 #define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
 
-xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, int fanin_value, int root);
-xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, int fanout_value, int root);
+xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request); //todo change name -
+// because of mkey update
+xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request);
 xccl_status_t xccl_mhba_remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, uint16_t lid, int port);
 
 #endif

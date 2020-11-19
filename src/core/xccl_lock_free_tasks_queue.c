@@ -56,12 +56,16 @@ xccl_status_t lf_tasks_queue_progress(xccl_progress_queue_t *handle) {
     }
     if (task) {
         if (task->progress) {
-            if (0 < task->progress(task)) {
+            status = task->progress(task);
+            if (status != XCCL_OK) {
                 return status;
             }
         }
         if (XCCL_TASK_STATE_COMPLETED == task->state) {
-            xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+            status = xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
+            if (status != XCCL_OK) {
+                return status;
+            }
         } else {
             return lf_tasks_queue_insert(handle, task);
         }

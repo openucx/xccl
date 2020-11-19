@@ -3,6 +3,7 @@
 #include <ucs/debug/log_def.h>
 #include <ucs/config/parser.h>
 #include "utils/xccl_log.h"
+#include "utils/mem_component.h"
 #include <xccl_team_lib.h>
 
 extern xccl_lib_t xccl_static_lib;
@@ -11,7 +12,7 @@ static ucs_config_field_t xccl_lib_config_table[] = {
 
    {NULL}
 };
-UCS_CONFIG_REGISTER_TABLE(xccl_lib_config_table, "XCCL", NULL, xccl_lib_config_t)
+UCS_CONFIG_REGISTER_TABLE(xccl_lib_config_table, "XCCL", NULL, xccl_lib_config_t, &ucs_config_global_list);
 
 #define CHECK_LIB_CONFIG_CAP(_cap, _CAP_FIELD) do{                        \
         if ((params->field_mask & XCCL_LIB_PARAM_FIELD_ ## _CAP_FIELD) && \

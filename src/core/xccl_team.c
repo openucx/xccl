@@ -50,18 +50,24 @@ xccl_status_t xccl_team_create_post(xccl_context_h context,
         tl_ctx = context->tl_ctx[i];
         status = tl_ctx->lib->team_create_post(tl_ctx, params, team,
                                                &team->tl_teams[team->n_teams]);
-        if (XCCL_OK == status) {
-            /* fprintf(stderr, "Created team %s\n", team->tl_teams[team->n_teams]->ctx->lib->name); */
-            team->n_teams++;
+        if (status != XCCL_OK) {
+            continue;
+        }
+        status = tl_ctx->lib->team_create_test(team->tl_teams[team->n_teams]);
+        team->n_teams++;
+        if (status == XCCL_INPROGRESS) {
+            /* workaround to fix oob allgather issue if multiple teams use it 
+               simultaneously*/
+            break;
         }
     }
     if (team->n_teams == 0) {
-        free(team);
-        xccl_error("No teams were opened");
+        xccl_warn("no teams were opened");
         return XCCL_ERR_NO_MESSAGE;
     }
-    team->status = XCCL_INPROGRESS;
-    *xccl_team = team;
+    team->last_team_create_posted = i;
+    team->status                  = XCCL_INPROGRESS;
+    *xccl_team                    = team;
     return XCCL_OK;
 }
 
@@ -69,9 +75,27 @@ xccl_status_t xccl_team_create_test(xccl_team_t *team)
 {
     int i, c, m;
     xccl_tl_context_t *tl_ctx;
-    for (i=0; i<team->n_teams; i++) {
-        tl_ctx = team->tl_teams[i]->ctx;
-        if (XCCL_INPROGRESS == tl_ctx->lib->team_create_test(team->tl_teams[i])) {
+    xccl_status_t status;
+
+    tl_ctx = team->ctx->tl_ctx[team->n_teams - 1];
+    status = tl_ctx->lib->team_create_test(team->tl_teams[team->n_teams-1]);
+    if (status != XCCL_OK) {
+        return status;
+    }
+
+    for (i = team->last_team_create_posted + 1; i < team->ctx->n_tl_ctx; i++) {
+        tl_ctx = team->ctx->tl_ctx[i];
+        status = tl_ctx->lib->team_create_post(tl_ctx, &team->params, team,
+                                               &team->tl_teams[team->n_teams]);
+        team->last_team_create_posted = i;
+        if (status != XCCL_OK) {
+            continue;
+        }
+        status = tl_ctx->lib->team_create_test(team->tl_teams[team->n_teams]);
+        team->n_teams++;
+        if (status == XCCL_INPROGRESS) {
+            /* workaround to fix oob allgather issue if multiple teams use it 
+               simultaneously*/
             return XCCL_INPROGRESS;
         }
     }
