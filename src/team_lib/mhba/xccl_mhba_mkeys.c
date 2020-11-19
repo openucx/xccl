@@ -209,6 +209,9 @@ static xccl_status_t create_and_populate_team_mkey(xccl_mhba_context_t *ctx,xccl
     status = populate_mkey(ctx,node,send ? 0 : IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE,*mkey,team_mkey_klm_entries,0,0,0);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate team mkey");
+        if (mlx5dv_destroy_mkey(*mkey)) {
+            xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
+        }
         return status;
     }
     free(team_mkey_klm_entries);
@@ -246,6 +249,9 @@ xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_context_t *ctx, xccl_mhba_node_t *n
     }
     status = create_and_populate_team_mkey(ctx,node,team_size,0);
     if (status != XCCL_OK) {
+        if (mlx5dv_destroy_mkey(node->team_send_mkey)) {
+            xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
+        }
         return status;
     }
     return XCCL_OK;

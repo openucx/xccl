@@ -11,7 +11,7 @@
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
 
-#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 52 //todo change - according to limitations
+#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 4 //todo change - according to limitations (52 top)
 #define seq_index(seq_num) (seq_num % MAX_CONCURRENT_OUTSTANDING_ALL2ALL)
 
 typedef struct xccl_team_lib_mhba_config {
@@ -117,7 +117,8 @@ typedef struct xccl_mhba_team {
 
 #define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
 
-xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request);
+xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request); //todo change name -
+// because of mkey update
 xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request);
 xccl_status_t xccl_mhba_remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, uint16_t lid, int port);
 

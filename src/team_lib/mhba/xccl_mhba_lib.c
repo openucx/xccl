@@ -370,7 +370,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     if (node->group_size > MAX_STRIDED_ENTRIES){
         xccl_mhba_error("PPN too large");
-        return XCCL_ERR_NO_RESOURCE;
+        goto fail;
     } // todo temp - phase 1
     mhba_team->node.sbgp = node;
     storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
@@ -567,6 +567,7 @@ global_data_fail:
 local_data_fail:
     free(mhba_team->net.qps);
 fail:
+    free(mhba_team);
     return XCCL_ERR_NO_MESSAGE;
 }
 
