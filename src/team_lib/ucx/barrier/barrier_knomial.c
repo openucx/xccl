@@ -177,6 +177,7 @@ xccl_status_t xccl_ucx_barrier_knomial_start(xccl_ucx_collreq_t *req)
     req->barrier.iteration      = 0;
     req->barrier.radix_mask_pow = 1;
     req->barrier.active_reqs    = 0;
+    req->complete               = XCCL_INPROGRESS;
     req->progress = xccl_ucx_barrier_knomial_progress;
     return xccl_ucx_barrier_knomial_progress(req);
 }

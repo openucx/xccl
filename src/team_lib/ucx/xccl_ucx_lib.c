@@ -93,6 +93,12 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
      UCS_CONFIG_TYPE_BOOL
     },
 
+    {"ALLTOALL_PAIRWISE_BARRIER", "0",
+     "Number of rounds in alltoall after which barrier posted",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, alltoall_pairwise_barrier),
+     UCS_CONFIG_TYPE_UINT
+    },
+
     {NULL}
 };
 
@@ -143,8 +149,8 @@ xccl_ucx_allreduce_init(xccl_coll_op_args_t *coll_args,
     if (status != XCCL_OK) {
         return status;
     }
-    ctx = ucs_derived_of(team->ctx, xccl_team_lib_ucx_context_t); 
-    
+    ctx = ucs_derived_of(team->ctx, xccl_team_lib_ucx_context_t);
+
     if (!coll_args->alg.set_by_user) {
         if (ctx->allreduce_alg_id == XCCL_UCX_ALLREDUCE_ALG_AUTO) {
             if (coll_args->buffer_info.len < 4096) {
@@ -425,7 +431,7 @@ static xccl_status_t xccl_ucx_lib_open(xccl_team_lib_h self,
                                        xccl_team_lib_config_t *config) {
     xccl_team_lib_ucx_t        *tl  = ucs_derived_of(self, xccl_team_lib_ucx_t);
     xccl_team_lib_ucx_config_t *cfg = ucs_derived_of(config, xccl_team_lib_ucx_config_t);
-    
+
     tl->log_component.log_level = cfg->super.log_component.log_level;
     sprintf(tl->log_component.name, "%s", "TEAM_UCX");
     xccl_ucx_debug("Team UCX opened");
