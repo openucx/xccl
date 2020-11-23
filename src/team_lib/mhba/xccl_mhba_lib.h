@@ -7,6 +7,7 @@
 #define XCCL_TEAM_LIB_MHBA_H_
 #include "xccl_team_lib.h"
 #include "xccl_mhba_mkeys.h"
+#include "xccl_mhba_socket_comm.h"
 #include "topo/xccl_topo.h"
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
@@ -56,10 +57,6 @@ typedef struct xccl_mhba_context {
     struct ibv_context                 *ib_ctx;
     struct ibv_pd                      *ib_pd;
     int                                ib_port;
-    struct ibv_cq                      *umr_cq;
-    struct ibv_qp                      *umr_qp;
-    struct ibv_qp_ex                   *umr_qpx;
-    struct mlx5dv_qp_ex                *umr_mlx5dv_qp_ex;
 } xccl_mhba_context_t;
 
 typedef struct xccl_mhba_operation{
@@ -81,6 +78,12 @@ typedef struct xccl_mhba_node {
     xccl_mhba_operation_t        operations[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
     struct mlx5dv_mkey*          team_send_mkey;
     struct mlx5dv_mkey*          team_recv_mkey;
+    struct ibv_context           *shared_ctx;
+    struct ibv_pd                *shared_pd;
+    struct ibv_cq                *umr_cq;
+    struct ibv_qp                *umr_qp;
+    struct ibv_qp_ex             *umr_qpx;
+    struct mlx5dv_qp_ex          *umr_mlx5dv_qp_ex;
 } xccl_mhba_node_t;
 #define MHBA_CTRL_SIZE 128 //todo change according to arch
 #define MHBA_DATA_SIZE sizeof(struct mlx5dv_mr_interleaved)

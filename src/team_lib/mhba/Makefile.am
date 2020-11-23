@@ -7,12 +7,14 @@
 # $HEADER$
 #
 
-sources =                  \
-	xccl_mhba_lib.c        \
-    xccl_mhba_collective.c \
-	xccl_mhba_lib.h        \
-	xccl_mhba_mkeys.c      \
-	xccl_mhba_mkeys.h
+sources =                   \
+	xccl_mhba_lib.c         \
+	xccl_mhba_collective.c  \
+	xccl_mhba_lib.h         \
+	xccl_mhba_mkeys.c       \
+	xccl_mhba_mkeys.h       \
+	xccl_mhba_socket_comm.c \
+	xccl_mhba_socket_comm.h
 
 component_noinst =
 component_install = xccl_team_lib_mhba.la
