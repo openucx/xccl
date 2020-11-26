@@ -29,6 +29,7 @@ typedef struct xccl_tl_ucx_context_config {
     unsigned                 alltoall_pairwise_chunk;
     int                      alltoall_pairwise_reverse;
     unsigned                 alltoall_pairwise_barrier;
+    int                      ppn;
 } xccl_tl_ucx_context_config_t;
 
 extern xccl_team_lib_ucx_t xccl_team_lib_ucx;

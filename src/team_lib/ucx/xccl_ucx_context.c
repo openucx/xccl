@@ -42,12 +42,15 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
                                    UCP_PARAM_FIELD_REQUEST_SIZE |
                                    UCP_PARAM_FIELD_REQUEST_INIT |
                                    UCP_PARAM_FIELD_REQUEST_CLEANUP |
-                                   UCP_PARAM_FIELD_TAG_SENDER_MASK;
+                                   UCP_PARAM_FIELD_TAG_SENDER_MASK |
+                                   UCP_PARAM_FIELD_ESTIMATED_NUM_PPN;
+
     ucp_params.features          = UCP_FEATURE_TAG;
     ucp_params.request_size      = sizeof(xccl_ucx_request_t);
     ucp_params.request_init      = xccl_ucx_req_init;
     ucp_params.request_cleanup   = xccl_ucx_req_cleanup;
     ucp_params.tag_sender_mask   = TEAM_UCX_TAG_SENDER_MASK;
+    ucp_params.estimated_num_ppn = cfg->ppn;
     if (params->oob.size > 0) {
         ucp_params.field_mask |= UCP_PARAM_FIELD_ESTIMATED_NUM_EPS;
         ucp_params.estimated_num_eps = params->oob.size;
