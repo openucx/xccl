@@ -99,6 +99,12 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
      UCS_CONFIG_TYPE_UINT
     },
 
+    {"PPN", "32",
+     "Estimated number of processes per node",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, ppn),
+     UCS_CONFIG_TYPE_UINT
+    },
+
     {NULL}
 };
 
