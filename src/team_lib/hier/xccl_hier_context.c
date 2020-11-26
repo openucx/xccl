@@ -156,7 +156,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     ctx->tls[ucs_ilog2(XCCL_TL_MRAIL)].enabled   = 0;
     ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled   = hier_cfg->enable_sharp;
     ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled  = hier_cfg->enable_shmseg;
-    ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled     = hier_cfg->enable_vmc;
+    ctx->tls[ucs_ilog2(XCCL_TL_HMC)].enabled     = hier_cfg->enable_hmc;
     ctx->tls[ucs_ilog2(XCCL_TL_NCCL)].enabled    = hier_cfg->enable_nccl;
     ctx->bcast_pipeline_thresh                   = hier_cfg->bcast_pipeline_thresh;
     ctx->bcast_pipeline_depth                    = hier_cfg->bcast_pipeline_depth;

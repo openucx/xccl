@@ -13,8 +13,8 @@ endif
 if HAVE_SHARP
 SUBDIRS += team_lib/sharp
 endif
-if HAVE_VMC
-SUBDIRS += team_lib/vmc
+if HAVE_HMC
+SUBDIRS += team_lib/hmc
 endif
 if HAVE_NCCL
 SUBDIRS += team_lib/nccl

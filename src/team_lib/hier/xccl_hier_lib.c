@@ -52,9 +52,9 @@ static ucs_config_field_t xccl_tl_hier_context_config_table[] = {
      UCS_CONFIG_TYPE_BOOL
      },
 
-    {"ENABLE_VMC", "no",
-     "Enables vmc team in hier team",
-     ucs_offsetof(xccl_tl_hier_context_config_t, enable_vmc),
+    {"ENABLE_HMC", "no",
+     "Enables hmc team in hier team",
+     ucs_offsetof(xccl_tl_hier_context_config_t, enable_hmc),
      UCS_CONFIG_TYPE_BOOL
      },
 
@@ -187,8 +187,8 @@ xccl_hier_bcast_init(xccl_coll_op_args_t *coll_args,
     xccl_hier_bcast_spec_t spec = {
         .use_sm_fanout_get  = 0,
         .pairs              = {
-            .node_leaders   = ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled ?
-                                XCCL_HIER_PAIR_NODE_LEADERS_VMC :
+            .node_leaders   = ctx->tls[ucs_ilog2(XCCL_TL_HMC)].enabled ?
+                                XCCL_HIER_PAIR_NODE_LEADERS_HMC :
                                 XCCL_HIER_PAIR_NODE_LEADERS_UCX,
             .socket         = ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled ?
                                 XCCL_HIER_PAIR_SOCKET_SHMSEG :

@@ -140,9 +140,9 @@ xccl_status_t xccl_hier_team_create_post(xccl_tl_context_t *context,
                               XCCL_TL_SHARP, XCCL_HIER_PAIR_NODE_LEADERS_SHARP);
     }
 
-    if (ctx->tls[ucs_ilog2(XCCL_TL_VMC)].enabled) {
+    if (ctx->tls[ucs_ilog2(XCCL_TL_HMC)].enabled) {
         xccl_hier_create_pair(&hier_team->sbgps[SBGP_NODE_LEADERS], hier_team,
-                              XCCL_TL_VMC, XCCL_HIER_PAIR_NODE_LEADERS_VMC);
+                              XCCL_TL_HMC, XCCL_HIER_PAIR_NODE_LEADERS_HMC);
     }
 
     if (ctx->tls[ucs_ilog2(XCCL_TL_NCCL)].enabled) {

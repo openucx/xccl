@@ -341,8 +341,8 @@ static xccl_status_t coll_schedule_progress_bcast_sm_get(coll_schedule_t *sched)
             xccl_hier_bcast_spec_t spec = {
                 .use_sm_fanout_get   = 1,
                 .pairs               = {
-                    .node_leaders    = ctx->tls[XCCL_TL_VMC].enabled ?
-                                       XCCL_HIER_PAIR_NODE_LEADERS_VMC :
+                    .node_leaders    = ctx->tls[XCCL_TL_HMC].enabled ?
+                                       XCCL_HIER_PAIR_NODE_LEADERS_HMC :
                                        XCCL_HIER_PAIR_NODE_LEADERS_UCX,
                     .socket          = XCCL_HIER_PAIR_SOCKET_SHMSEG,
                     .socket_leaders  = XCCL_HIER_PAIR_SOCKET_LEADERS_SHMSEG,

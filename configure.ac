@@ -101,11 +101,11 @@ XCCL_CHECK_SHARP
 
 AC_MSG_RESULT([SHARP support: $sharp_happy])
 
-AM_CONDITIONAL([HAVE_VMC], [false])
-m4_include([m4/vmc.m4])
-XCCL_CHECK_VMC
+AM_CONDITIONAL([HAVE_HMC], [false])
+m4_include([m4/hmc.m4])
+XCCL_CHECK_HMC
 
-AC_MSG_RESULT([VMC support: $vmc_happy])
+AC_MSG_RESULT([HMC support: $hmc_happy])
 
 AC_ARG_WITH([cuda],
             AC_HELP_STRING([--with-cuda=PATH], [Path to non-standard CUDA installation]),
@@ -132,7 +132,7 @@ AC_CONFIG_FILES([
                  src/Makefile
                  src/team_lib/ucx/Makefile
                  src/team_lib/sharp/Makefile
-                 src/team_lib/vmc/Makefile
+                 src/team_lib/hmc/Makefile
                  src/team_lib/hier/Makefile
                  src/team_lib/multirail/Makefile
                  src/team_lib/nccl/Makefile
