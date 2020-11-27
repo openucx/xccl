@@ -14,7 +14,7 @@ typedef enum xccl_tl_id {
     XCCL_TL_UCX    = UCS_BIT(0),
     XCCL_TL_HIER   = UCS_BIT(1),
     XCCL_TL_SHARP  = UCS_BIT(2),
-    XCCL_TL_VMC    = UCS_BIT(3),
+    XCCL_TL_HMC    = UCS_BIT(3),
     XCCL_TL_SHMSEG = UCS_BIT(4),
     XCCL_TL_MRAIL  = UCS_BIT(5),
     XCCL_TL_NCCL   = UCS_BIT(6),
@@ -34,8 +34,8 @@ const char* xccl_tl_str(xccl_tl_id_t tl_id)
         return "mrail";
     case XCCL_TL_SHARP:
         return "sharp";
-    case XCCL_TL_VMC:
-        return "vmc";
+    case XCCL_TL_HMC:
+        return "hmc";
     case XCCL_TL_SHMSEG:
         return "shmseg";
     case XCCL_TL_NCCL:

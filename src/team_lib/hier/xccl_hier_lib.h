@@ -17,7 +17,7 @@ typedef struct xccl_tl_hier_context_config {
     ucs_config_names_array_t devices;
     int                      enable_sharp;
     int                      enable_shmseg;
-    int                      enable_vmc;
+    int                      enable_hmc;
     int                      enable_nccl;
     unsigned                 bcast_pipeline_depth;
     int                      bcast_sm_get;

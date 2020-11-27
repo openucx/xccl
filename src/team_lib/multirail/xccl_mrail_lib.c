@@ -14,7 +14,7 @@ static const char *xccl_tl_names[] = {
     "ucx",
     "hier",
     "sharp",
-    "vmc",
+    "hmc",
     "shmseg",
     "mrail",
 };
