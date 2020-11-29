@@ -153,6 +153,7 @@ static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task) {
     xccl_mhba_team_t *team = request->team;
 
     xccl_mhba_info("asr barrier start");
+    //todo check problem with case 1 node 3 proc
     task->state = XCCL_TASK_STATE_INPROGRESS;
     xccl_coll_op_args_t coll = {
         .coll_type = XCCL_BARRIER,
