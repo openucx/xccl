@@ -5,8 +5,7 @@
 SUBDIRS =              \
     .                  \
 	team_lib/hier      \
-	team_lib/multirail \
-	team_lib/mhba
+	team_lib/multirail
 
 if HAVE_UCX
 SUBDIRS += team_lib/ucx
