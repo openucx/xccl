@@ -13,9 +13,6 @@
 #include <netdb.h>
 #include <sys/un.h>
 
-#define PORT 50000
-#define SOCKPATH "/tmp/socket" //todo change?
-
 typedef struct
 {
     int sock, fd;
@@ -107,7 +104,7 @@ static xccl_status_t do_recvmsg(int sock, int* shared_cmd_fd, uint32_t* shared_p
     return XCCL_OK;
 }
 
-static xccl_status_t client_recv_data(int* shared_cmd_fd,uint32_t *shared_pd_handle)
+static xccl_status_t client_recv_data(int* shared_cmd_fd,uint32_t *shared_pd_handle, char *sock_path)
 {
     int sock;
     struct sockaddr_storage sockaddr = {};
@@ -122,7 +119,7 @@ static xccl_status_t client_recv_data(int* shared_cmd_fd,uint32_t *shared_pd_han
 
     addr = (struct sockaddr_un *)&sockaddr;
     addr->sun_family = AF_UNIX;
-    strncpy(addr->sun_path, SOCKPATH, sizeof(addr->sun_path));
+    strncpy(addr->sun_path, sock_path, sizeof(addr->sun_path));
     addr->sun_path[sizeof(addr->sun_path) -1 ] = '\0';
 
     if (connect(sock, (struct sockaddr *)addr, SUN_LEN(addr)) == -1) {
@@ -147,10 +144,10 @@ fail:
     return XCCL_ERR_NO_MESSAGE;
 }
 
-static xccl_status_t server_send_data(int command_fd, uint32_t pd_handle, int num_of_connections)
+static xccl_status_t server_send_data(int command_fd, uint32_t pd_handle, int num_of_connections, xccl_mhba_node_t
+                                        *node, xccl_team_params_t *params, char *sock_path)
 {
     int sock, i, num_of_curr_connections = 0;
-
     struct sockaddr_storage storage= {};
     struct sockaddr_un *addr;
 
@@ -158,15 +155,14 @@ static xccl_status_t server_send_data(int command_fd, uint32_t pd_handle, int nu
     pthread_t thread[num_of_connections];
 
     sock = socket(PF_LOCAL, SOCK_STREAM, 0);
-    if (sock == -1)
-    {
+    if (sock == -1){
         xccl_mhba_error("Failed to create server socket errno %d", errno);
         return XCCL_ERR_NO_MESSAGE;
     }
 
     addr = (struct sockaddr_un *)&storage;
     addr->sun_family = AF_UNIX;
-    strncpy(addr->sun_path, SOCKPATH, sizeof(addr->sun_path));
+    strncpy(addr->sun_path, sock_path, sizeof(addr->sun_path));
     addr->sun_path[sizeof(addr->sun_path) -1 ] = '\0';
 
     if (bind(sock, (struct sockaddr *)addr, sizeof(struct sockaddr_un)) == -1) {
@@ -177,6 +173,8 @@ static xccl_status_t server_send_data(int command_fd, uint32_t pd_handle, int nu
         xccl_mhba_error("Failed to listen to server socket errno %d", errno);
         goto listen_fail;
     }
+
+    xccl_sbgp_oob_barrier(node->sbgp, params->oob);
 
     while (num_of_curr_connections < num_of_connections)
     {
@@ -189,12 +187,12 @@ static xccl_status_t server_send_data(int command_fd, uint32_t pd_handle, int nu
             /* start a new thread but do not wait for it */
             pthread_create(&thread[num_of_curr_connections], 0, do_sendmsg, (void *)
             &connection[num_of_curr_connections]);
-            pthread_join(thread[num_of_curr_connections],NULL);
             num_of_curr_connections += 1;
         }
     }
 
     for(i=0; i<num_of_connections;i++){
+        pthread_join(thread[i],NULL);
         if (connection[i].return_val != XCCL_OK){
             xccl_mhba_error("Failed to send cmd_fd");
             goto listen_fail;
@@ -228,13 +226,13 @@ fail:
 }
 
 xccl_status_t xccl_mhba_share_ctx_pd(int root, xccl_mhba_node_t *node, int ctx_fd, uint32_t pd_handle,
-                                     xccl_mhba_context_t *ctx){
+                                     xccl_mhba_context_t *ctx, xccl_team_params_t *params, char *sock_path){
     int      shared_ctx_fd;
     uint32_t shared_pd_handle;
     xccl_status_t status;
     if (root != node->sbgp->group_rank) {
-        sleep(1); //todo change? clients after server
-        status = client_recv_data(&shared_ctx_fd,&shared_pd_handle);
+        xccl_sbgp_oob_barrier(node->sbgp, params->oob);
+        status = client_recv_data(&shared_ctx_fd,&shared_pd_handle, sock_path);
         if (XCCL_OK != status){
             return status;
         }
@@ -243,8 +241,7 @@ xccl_status_t xccl_mhba_share_ctx_pd(int root, xccl_mhba_node_t *node, int ctx_f
             xccl_mhba_error("Import context failed");
             return XCCL_ERR_NO_MESSAGE;
         }
-        node->shared_pd = ibv_import_pd(node->shared_ctx, shared_pd_handle); //todo if working - allocate pd from
-        // shared ctx instead of importing - should work
+        node->shared_pd = ibv_import_pd(node->shared_ctx, shared_pd_handle); //todo if working - allocate pd from shared ctx instead of importing - should work
         if (!node->shared_pd) {
             xccl_mhba_error("Import PD failed");
             if(ibv_close_device(node->shared_ctx)){
@@ -252,9 +249,8 @@ xccl_status_t xccl_mhba_share_ctx_pd(int root, xccl_mhba_node_t *node, int ctx_f
             }
             return XCCL_ERR_NO_MESSAGE;
         }
-    }
-    else{
-        status = server_send_data(ctx_fd,pd_handle,node->sbgp->group_size -1);
+    } else{
+        status = server_send_data(ctx_fd,pd_handle,node->sbgp->group_size -1, node, params, sock_path);
         if (XCCL_OK != status){
             xccl_mhba_error("Failed to Share ctx & pd from server side");
             return status;

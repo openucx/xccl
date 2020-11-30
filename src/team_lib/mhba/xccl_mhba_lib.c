@@ -15,6 +15,11 @@
 #include <errno.h>
 #include <infiniband/mlx5dv.h>
 
+struct Bcast_data{
+    int  shmid;
+    char sock_path[L_tmpnam];
+};
+
 static ucs_config_field_t xccl_team_lib_mhba_config_table[] = {
     {"", "",
      NULL,
@@ -362,7 +367,8 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     xccl_sbgp_t *node, *net;
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_port_attr port_attr;
-    int shmid, i;
+    int i, asr_rank = 0; //todo is rank 0?
+    struct Bcast_data bcastData;
     size_t storage_size, local_data_size;
     uint32_t *local_data, *global_data;
     mhba_team->context = ctx;
@@ -376,36 +382,39 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     } // todo temp - phase 1
     mhba_team->node.sbgp = node;
 
-    xccl_status_t status = xccl_mhba_share_ctx_pd(0, &mhba_team->node, mhba_team->context->ib_ctx->cmd_fd,
-                                                  mhba_team->context->ib_pd->handle, ctx); //todo change root
+    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
+
+    if (asr_rank == node->group_rank) {
+        bcastData.shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
+        tmpnam(bcastData.sock_path); //todo make sure security warning mentioned in tempnam API
+    }
+
+    xccl_sbgp_oob_bcast(&bcastData, sizeof(struct Bcast_data), asr_rank, node, params->oob);
+
+    xccl_status_t status = xccl_mhba_share_ctx_pd(asr_rank, &mhba_team->node, mhba_team->context->ib_ctx->cmd_fd,
+                                                  mhba_team->context->ib_pd->handle, ctx, params, bcastData.sock_path);
     if(status != XCCL_OK){
         xccl_mhba_error("Failed to create shared ctx & pd");
         goto fail;
     }
 
-    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
-
-    if (0 == node->group_rank) {
-        shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
-    }
-    xccl_sbgp_oob_bcast(&shmid, sizeof(int), 0, node, params->oob);
-    if (shmid == -1) {
+    if (bcastData.shmid == -1) {
         xccl_mhba_error("failed to allocate sysv shm segment for %d bytes",
                         storage_size);
         goto fail_after_share_pd;
     }
 
-    mhba_team->node.storage = shmat(shmid, NULL, 0);
-    if (0 == node->group_rank) {
-        if (shmctl(shmid, IPC_RMID, NULL) == -1) {
+    mhba_team->node.storage = shmat(bcastData.shmid, NULL, 0);
+    if (asr_rank == node->group_rank) {
+        if (shmctl(bcastData.shmid, IPC_RMID, NULL) == -1) {
             xccl_mhba_error("failed to shmctl IPC_RMID seg %d",
-                            shmid);
+                            bcastData.shmid);
             goto fail_after_shmat;
         }
     }
     if (mhba_team->node.storage == (void*)(-1)) {
         xccl_mhba_error("failed to shmat seg %d",
-                        shmid);
+                        bcastData.shmid);
         goto fail_after_shmat;
     }
     for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++){
@@ -586,7 +595,7 @@ fail_after_shmat:
                         mhba_team->node.storage, errno);
     }
 fail_after_share_pd:
-    status = xccl_mhba_remove_shared_ctx_pd(0, &mhba_team->node); //todo change root
+    status = xccl_mhba_remove_shared_ctx_pd(asr_rank, &mhba_team->node);
     if (status != XCCL_OK){
         xccl_mhba_error("failed removing shared ctx & pd");
     }
@@ -606,13 +615,13 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
 {
     xccl_status_t status = XCCL_OK;
     xccl_mhba_team_t *mhba_team = ucs_derived_of(team, xccl_mhba_team_t);
-    int i;
+    int i, asr_rank = 0; //todo change root
     xccl_mhba_info("destroying team %p", team);
     if (-1 == shmdt(mhba_team->node.storage)) {
         xccl_mhba_error("failed to shmdt %p, errno %d",
                         mhba_team->node.storage, errno);
     }
-    status = xccl_mhba_remove_shared_ctx_pd(0, &mhba_team->node); //todo change root
+    status = xccl_mhba_remove_shared_ctx_pd(asr_rank, &mhba_team->node);
     if (status != XCCL_OK){
         xccl_mhba_error("failed removing shared ctx & pd");
     }
