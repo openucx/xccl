@@ -38,6 +38,7 @@ jobs:
       run: |
         source /tmp/${HPCX_PKG_NAME}/hpcx-mt-init.sh; hpcx_load
         export LD_LIBRARY_PATH=/tmp/ucx/install/lib:$LD_LIBRARY_PATH
+        export UCX_SOCKADDR_CM_ENABLE=n
         mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_allreduce
         mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_bcast
         mpirun --oversubscribe -x XCCL_TEST_TLS=hier -np 8 -H localhost:8 --bind-to none -mca coll ^hcoll ./test/test_mpi_barrier
