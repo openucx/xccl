@@ -193,6 +193,8 @@ static xccl_status_t server_send_data(int command_fd, uint32_t pd_handle, int nu
 
     for(i=0; i<num_of_connections;i++){
         pthread_join(thread[i],NULL);
+    }
+    for(i=0; i<num_of_connections;i++){
         if (connection[i].return_val != XCCL_OK){
             xccl_mhba_error("Failed to send cmd_fd");
             goto listen_fail;
