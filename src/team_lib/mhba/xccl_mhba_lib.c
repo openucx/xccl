@@ -153,7 +153,9 @@ xccl_mhba_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
     if (cfg->devices.count > 0) {
         ib_devname = cfg->devices.names[0];
         char *pos = strstr(ib_devname, ":");
-        strncpy(tmp, ib_devname, (int)(pos - ib_devname));
+        int devname_len = (int)(pos - ib_devname);
+        strncpy(tmp, ib_devname, devname_len);
+        tmp[devname_len] = '\0';
         ib_devname = tmp;
         port = atoi(pos+1);
     }
