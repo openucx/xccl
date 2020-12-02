@@ -30,13 +30,13 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
     int sr_mem_access_flags = 0;
     int dr_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
     xccl_mhba_info("register memory buffers");
-    request->send_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.src_buffer,
+    request->send_bf_mr = ibv_reg_mr(team->node.shared_pd, (void*)request->args.buffer_info.src_buffer,
                             request->args.buffer_info.len, sr_mem_access_flags);
     if (!request->send_bf_mr) {
         xccl_mhba_info("Failed to register send_bf memory (errno=%d)", errno);
-        return XCCL_ERR_NO_RESOURCE; // todo we will need to modify event manager iface to return XCCL_ERR
+        return XCCL_ERR_NO_RESOURCE;
     }
-    request->receive_bf_mr = ibv_reg_mr(team->context->ib_pd, (void*)request->args.buffer_info.dst_buffer,
+    request->receive_bf_mr = ibv_reg_mr(team->node.shared_pd, (void*)request->args.buffer_info.dst_buffer,
                                request->args.buffer_info.len, dr_mem_access_flags);
     if (!request->receive_bf_mr) {
         xccl_mhba_error("Failed to register receive_bf memory (errno=%d)", errno);
@@ -153,6 +153,7 @@ static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task) {
     xccl_mhba_team_t *team = request->team;
 
     xccl_mhba_info("asr barrier start");
+    //todo check problem with case 1 node 3 proc
     task->state = XCCL_TASK_STATE_INPROGRESS;
     xccl_coll_op_args_t coll = {
         .coll_type = XCCL_BARRIER,
