@@ -57,7 +57,8 @@ if rv != 0:
 	sys.exit(1)
 
 # get libtool version
-fd = os.popen("libtool --version")
+libtool_path = os.path.join(os.path.dirname(__file__), "libtool")
+fd = os.popen(libtool_path + " --version")
 libtool_version = fd.readline()
 fd.close()
 
