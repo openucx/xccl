@@ -367,7 +367,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     xccl_sbgp_t *node, *net;
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_port_attr port_attr;
-    int i, asr_rank = 0; //todo is rank 0?
+    int i, j, asr_rank = 0; //todo is rank 0?
     struct Bcast_data bcastData;
     size_t storage_size, local_data_size;
     uint32_t *local_data, *global_data;
@@ -382,7 +382,16 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     } // todo temp - phase 1
     mhba_team->node.sbgp = node;
 
-    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
+
+    //todo check if code location is ok
+    net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
+    mhba_team->net.sbgp = net;
+    mhba_team->net.ctrl = NULL;
+    mhba_team->net.ctrl_mr = NULL;
+    mhba_team->net.remote_ctrl = NULL;
+
+    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE*net->group_size)) * node->group_size *
+            MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
 
     if (asr_rank == node->group_rank) {
         bcastData.shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
@@ -418,28 +427,30 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         goto fail_after_shmat;
     }
     for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++){
+        mhba_team->node.operations[i].nodes_umr = (xccl_mhba_node_umr_t*) malloc(sizeof(xccl_mhba_node_umr_t)*net->group_size);
+
         mhba_team->node.operations[i].ctrl = mhba_team->node.storage + MHBA_CTRL_SIZE*node->group_size*i;
         mhba_team->node.operations[i].my_ctrl = (void*)((ptrdiff_t)mhba_team->node.operations[i].ctrl +
                                           node->group_rank*MHBA_CTRL_SIZE);
         memset(mhba_team->node.operations[i].my_ctrl, 0, MHBA_CTRL_SIZE);
-        mhba_team->node.operations[i].send_umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
-                node->group_size*MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL)+i*MHBA_DATA_SIZE*node->group_size;
-        mhba_team->node.operations[i].my_send_umr_data = (void*)((ptrdiff_t)mhba_team->node.operations[i]
-                .send_umr_data + node->group_rank*MHBA_DATA_SIZE);
-        mhba_team->node.operations[i].recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.operations[i]
-                .send_umr_data + MHBA_DATA_SIZE*node->group_size*MAX_CONCURRENT_OUTSTANDING_ALL2ALL);
-        mhba_team->node.operations[i].my_recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.operations[i].recv_umr_data
-                + node->group_rank*MHBA_DATA_SIZE);
+        for(j=0;j<net->group_size;j++) {
+            mhba_team->node.operations[i].nodes_umr[j].send_umr_data = (void *) ((ptrdiff_t) mhba_team->node.storage +
+                                                                    node->group_size * MHBA_CTRL_SIZE *
+                                                                    MAX_CONCURRENT_OUTSTANDING_ALL2ALL) +
+                                                          i * j * MHBA_DATA_SIZE * node->group_size;
+            mhba_team->node.operations[i].nodes_umr[j].my_send_umr_data = (void *) ((ptrdiff_t) mhba_team->node
+                    .operations[i].nodes_umr[j].send_umr_data + node->group_rank * MHBA_DATA_SIZE);
+            mhba_team->node.operations[i].nodes_umr[j].recv_umr_data = (void *) ((ptrdiff_t) mhba_team->node.operations[i]
+                    .nodes_umr[j].send_umr_data+MHBA_DATA_SIZE*node->group_size*MAX_CONCURRENT_OUTSTANDING_ALL2ALL
+                    *net->group_size);
+            mhba_team->node.operations[i].nodes_umr[j].my_recv_umr_data = (void *) ((ptrdiff_t) mhba_team->node
+                    .operations[i].nodes_umr[j].recv_umr_data + node->group_rank * MHBA_DATA_SIZE);
+        }
     }
 
     xccl_sbgp_oob_barrier(node, params->oob);
     mhba_team->sequence_number = 0;
 
-    net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
-    mhba_team->net.sbgp = net;
-    mhba_team->net.ctrl = NULL;
-    mhba_team->net.ctrl_mr = NULL;
-    mhba_team->net.remote_ctrl = NULL;
     calc_block_size(mhba_team);
     if (XCCL_MHBA_IS_ASR(mhba_team)) {
 
@@ -517,7 +528,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             goto remote_ctrl_fail;
         }
 
-        status = xccl_mhba_init_mkeys(&mhba_team->node,mhba_team->size);
+        status = xccl_mhba_init_mkeys(&mhba_team->node, mhba_team->net.sbgp->group_size, mhba_team->size);
         if (status!=XCCL_OK){
             xccl_mhba_error("Failed to init mkeys");
             goto remote_ctrl_fail;
@@ -526,7 +537,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         local_data[net->group_size+4] = mhba_team->node.team_recv_mkey->rkey; //todo check index
 
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net, params->oob);
-        mhba_team->net.rkeys = (uint32_t*) malloc(sizeof(uint32_t)*mhba_team->node.sbgp->group_size);
+        mhba_team->net.rkeys = (uint32_t*) malloc(sizeof(uint32_t)*mhba_team->net.sbgp->group_size);
         for (i=0; i<net->group_size; i++) {
             uint32_t *remote_data = (uint32_t*)((uintptr_t)global_data + i*local_data_size);
             xccl_mhba_remote_qp_connect(mhba_team->net.qps[i], remote_data[net->group_rank],
@@ -644,11 +655,14 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         }
         mhba_team->net.ucx_team->ctx->lib->team_destroy(mhba_team->net.ucx_team);
 
-        status = xccl_mhba_destroy_mkeys(&mhba_team->node);
+        status = xccl_mhba_destroy_mkeys(&mhba_team->node,mhba_team->net.sbgp->group_size,0);
         if (status!=XCCL_OK){
             xccl_mhba_error("failed to destroy Mkeys");
         }
         free(mhba_team->net.rkeys);
+    }
+    for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++) {
+        free(mhba_team->node.operations[i].nodes_umr);
     }
     free(team);
     return status;
@@ -664,7 +678,7 @@ xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t 
         return XCCL_INPROGRESS;
     } //wait for slot to be open
     team->occupied_operations_slots[seq_index(team->sequence_number)] = 1;
-    xccl_mhba_update_mkeys_entries(&team->node, request); // no option for failure status
+    xccl_mhba_update_mkeys_entries(&team->node, request,&team->net); // no option for failure status
 
     if (team->node.sbgp->group_rank != request->asr_rank) {
         *team->node.operations[index].my_ctrl = request->seq_num;

@@ -132,25 +132,12 @@ xccl_status_t xccl_mhba_fanout_progress(xccl_coll_task_t *task) {
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_mhba_transpose_start(xccl_coll_task_t *task) {
-    xccl_mhba_info("transpose start");
-    task->state = XCCL_TASK_STATE_INPROGRESS;
-    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
-    return XCCL_OK;
-}
-
-xccl_status_t xccl_mhba_transpose_progress(xccl_coll_task_t *task) {
-    xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
-    xccl_mhba_coll_req_t *request = self->req;
-    xccl_mhba_team_t *team = request->team;
-    task->state = XCCL_TASK_STATE_COMPLETED;
-    return XCCL_OK;
-}
-
 static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task) {
     xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
+
+    xccl_mhba_populate_send_recv_mkeys(team,request); //todo check blocking since we wait for WQE CQ in here
 
     xccl_mhba_info("asr barrier start");
     //todo check problem with case 1 node 3 proc
@@ -179,25 +166,68 @@ xccl_status_t xccl_mhba_asr_barrier_progress(xccl_coll_task_t *task) {
     return XCCL_OK;
 }
 
+static xccl_status_t send_data(struct ibv_qp *qp, uint64_t src_addr, uint32_t msg_size, uint32_t lkey, uint64_t
+        remote_addr, uint32_t rkey){
+    struct ibv_sge list = {
+            .addr	= src_addr,
+            .length = msg_size,
+            .lkey	= lkey,
+    };
+
+    struct ibv_send_wr wr = {
+            .wr_id	    = 1,
+            .sg_list    = &list,
+            .num_sge    = 1,
+            .opcode     = IBV_WR_RDMA_WRITE,
+            .send_flags = 0,
+            .wr.rdma.remote_addr = remote_addr,
+            .wr.rdma.rkey = rkey,
+    };
+    struct ibv_send_wr *bad_wr;
+    if (ibv_post_send(qp, &wr, &bad_wr)) {
+        xccl_mhba_error("failed to post send");
+        return XCCL_ERR_NO_MESSAGE;
+    }
+}
+
 static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
+    //todo add transpose
     xccl_mhba_info("send blocks start");
     task->state = XCCL_TASK_STATE_INPROGRESS;
+    xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
+    xccl_mhba_coll_req_t *request = self->req;
+    xccl_mhba_team_t *team = request->team;
+
+    int i,j;
+//    for(i=0;i<team->net.group_size;i++){
+//        for(j=0;j<;j++){
+//
+//        }
+//
+//    }
+
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+    return XCCL_OK;
 }
+
 xccl_status_t xccl_mhba_send_blocks_progress(xccl_coll_task_t *task) {
     task->state = XCCL_TASK_STATE_COMPLETED;
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_mhba_wait_blocks_start(xccl_coll_task_t *task) {
-    xccl_mhba_info("wait blocks start");
-    task->state = XCCL_TASK_STATE_INPROGRESS;
-    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
-}
-xccl_status_t xccl_mhba_wait_blocks_progress(xccl_coll_task_t *task) {
-    task->state = XCCL_TASK_STATE_COMPLETED;
-    return XCCL_OK;
-}
+// todo once wait_on_data is functional, check which option is faster - only ASR wait_on_data and mark flag for
+//  fanout, or all procs wait_on_data. currently all proc will wait_on_data in fanout
+
+//static xccl_status_t xccl_mhba_wait_blocks_start(xccl_coll_task_t *task) {
+//    xccl_mhba_info("wait blocks start");
+//    task->state = XCCL_TASK_STATE_INPROGRESS;
+//    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+//}
+//
+//xccl_status_t xccl_mhba_wait_blocks_progress(xccl_coll_task_t *task) {
+//    task->state = XCCL_TASK_STATE_COMPLETED;
+//    return XCCL_OK;
+//}
 
 xccl_status_t
 xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
@@ -210,11 +240,22 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
     }
     int asr_rank = 0; // TODO select?
     int is_asr = (team->node.sbgp->group_rank == asr_rank);
-    int n_tasks = (!is_asr) ? 2 : 6;
+    int n_tasks = (!is_asr) ? 2 : 4;
     int i;
     xccl_schedule_init(&request->schedule, team->super.ctx);
     request->asr_rank = asr_rank;
     request->block_size = team->blocks_sizes[__ucs_ilog2_u32(coll_args->buffer_info.len-1)];
+    if(team->node.sbgp->group_size % request->block_size != 0) { //todo change to last node only
+        xccl_mhba_warn("Block size was decreased to fit last node PPN");
+        while (team->node.sbgp->group_size % request->block_size != 0 && request->block_size) {
+            request->block_size -= 1;
+        }
+    }
+    xccl_mhba_info("Block size is %d",request->block_size);
+    if(!request->block_size){
+        xccl_mhba_error("last node PPN can't be divided by any block size - NOT SUPPORTED");
+        return XCCL_ERR_NO_RESOURCE;
+    }
     assert(asr_rank < team->node.sbgp->group_size);
     request->tasks = (xccl_mhba_task_t*)malloc(sizeof(xccl_mhba_task_t)*n_tasks);
     request->seq_num = team->sequence_number;
@@ -240,20 +281,14 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
         request->tasks[1].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_fanout_start;
         request->tasks[1].super.progress = xccl_mhba_fanout_progress;
     } else {
-        request->tasks[1].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_transpose_start;
-        request->tasks[1].super.progress = xccl_mhba_transpose_progress;
+        request->tasks[1].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_asr_barrier_start;
+        request->tasks[1].super.progress = xccl_mhba_asr_barrier_progress;
 
-        request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_asr_barrier_start;
-        request->tasks[2].super.progress = xccl_mhba_asr_barrier_progress;
+        request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_send_blocks_start;
+        request->tasks[2].super.progress = xccl_mhba_send_blocks_progress;
 
-        request->tasks[3].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_send_blocks_start;
-        request->tasks[3].super.progress = xccl_mhba_send_blocks_progress;
-
-        request->tasks[4].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_wait_blocks_start;
-        request->tasks[4].super.progress = xccl_mhba_wait_blocks_progress;
-
-        request->tasks[5].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_fanout_start;
-        request->tasks[5].super.progress = xccl_mhba_fanout_progress;
+        request->tasks[3].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_fanout_start;
+        request->tasks[3].super.progress = xccl_mhba_fanout_progress;
     }
 
     return XCCL_OK;

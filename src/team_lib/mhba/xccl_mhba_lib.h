@@ -59,15 +59,21 @@ typedef struct xccl_mhba_context {
     int                                ib_port;
 } xccl_mhba_context_t;
 
-typedef struct xccl_mhba_operation{
-    void                         *ctrl;
-    int                          *my_ctrl;
+typedef struct xccl_mhba_node_umr{
     void                         *send_umr_data;
     void                         *my_send_umr_data;
     void                         *recv_umr_data;
     void                         *my_recv_umr_data;
+    struct mlx5dv_mkey*          node_send_mkey;
+    struct mlx5dv_mkey*          node_recv_mkey;
+} xccl_mhba_node_umr_t;
+
+typedef struct xccl_mhba_operation{
+    void                         *ctrl;
+    int                          *my_ctrl;
     struct mlx5dv_mkey*          send_mkey;
     struct mlx5dv_mkey*          recv_mkey;
+    xccl_mhba_node_umr_t*         nodes_umr;
 } xccl_mhba_operation_t;
 
 /* This structure holds resources and data related to the "in-node"
