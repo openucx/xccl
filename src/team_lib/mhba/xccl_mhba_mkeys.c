@@ -167,7 +167,7 @@ populate_mkey(xccl_mhba_node_t *node, int mem_access_flags, struct mlx5dv_mkey *
     ibv_wr_start(node->umr_qpx);
     node->umr_qpx->wr_id = 1; // First (and only) WR
     if (strided) {
-        int repeat_count = team_size / block_size;
+        int repeat_count = round_up(team_size, block_size);
         mlx5dv_wr_mr_interleaved(node->umr_mlx5dv_qp_ex, mkey, mem_access_flags,
                                  repeat_count, node->sbgp->group_size,
                                  (struct mlx5dv_mr_interleaved *) mkey_entries);
@@ -228,26 +228,26 @@ xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_node_t *node,int team_size) {
         status = create_master_key(node, &node->operations[i].send_mkey, node->sbgp->group_size + 1);
         if (status != XCCL_OK) {
             xccl_mhba_error("create send masterkey[%d] failed",i);
+            xccl_mhba_destroy_mkeys(node,1);
             return status;
         }
         status = create_master_key(node, &node->operations[i].recv_mkey, node->sbgp->group_size + 1);
         if (status != XCCL_OK) {
             xccl_mhba_error("create recv masterkey[%d] failed",i);
-            if (mlx5dv_destroy_mkey(node->operations[i].send_mkey)) {
-                xccl_mhba_error("mkey destroy failed (errno=%d)", errno);
-            }
+            xccl_mhba_destroy_mkeys(node,1);
             return status;
         }
     }
     status = create_and_populate_team_mkey(node,team_size,1);
     if (status != XCCL_OK) {
+        xccl_mhba_error("create send top masterkey failed");
+        xccl_mhba_destroy_mkeys(node,1);
         return status;
     }
     status = create_and_populate_team_mkey(node,team_size,0);
     if (status != XCCL_OK) {
-        if (mlx5dv_destroy_mkey(node->team_send_mkey)) {
-            xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
-        }
+        xccl_mhba_error("create recv top masterkey failed");
+        xccl_mhba_destroy_mkeys(node,1);
         return status;
     }
     return XCCL_OK;
@@ -255,25 +255,24 @@ xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_node_t *node,int team_size) {
 
 /**
  * Execute UMR WQE to populate mkey of specific AlltoAll operation, after the mkey entries were already updated
- * @param node struct of the current process's node
- * @param seq_num current AlltoAll operation id
- * @param block_size size of block, according to the current message size
- * @param team_size number of processes in team
+ * @param team struct of the current team
+ * @param req current AlltoAll operation request
  */
-xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_node_t *node,int seq_num,int block_size,int team_size){
+xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_team_t* team, xccl_mhba_coll_req_t* req){
     xccl_status_t status;
     int send_mem_access_flags = 0;
-    int index = seq_index(seq_num);
+    int index = seq_index(req->seq_num);
+    xccl_mhba_node_t *node = &team->node;
     status = populate_mkey(node,send_mem_access_flags,node->operations[index].send_mkey,
                            node->operations[index].send_umr_data,
-                           block_size,team_size,1);
+                           req->block_size,team->size,1);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate send umr[%d]",index);
         return status;
     }
     int recv_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
     status = populate_mkey(node,recv_mem_access_flags,node->operations[index].recv_mkey,
-                           node->operations[index].recv_umr_data, block_size,team_size,1);
+                           node->operations[index].recv_umr_data, req->block_size,team->size,1);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate recv umr[%d]",index);
         return status;
@@ -312,9 +311,6 @@ xccl_mhba_update_mkeys_entries(xccl_mhba_node_t *node, xccl_mhba_coll_req_t *req
  * @param node struct of the current process's node
  */
 xccl_status_t xccl_mhba_destroy_umr(xccl_mhba_node_t *node) {
-    if(node->umr_cq == NULL){
-        return XCCL_OK;
-    }
     if(ibv_destroy_qp(node->umr_qp)){
         xccl_mhba_error("umr qp destroy failed (errno=%d)", errno);
         return XCCL_ERR_NO_MESSAGE;
@@ -329,28 +325,38 @@ xccl_status_t xccl_mhba_destroy_umr(xccl_mhba_node_t *node) {
 /**
  * Clean all mkeys -  operation mkeys, team mkeys
  * @param node struct of the current process's node
+ * @param error_mode boolean - ordinary destroy or destroy due to an earlier error
  */
-xccl_status_t xccl_mhba_destroy_mkeys(xccl_mhba_node_t *node) {
+xccl_status_t xccl_mhba_destroy_mkeys(xccl_mhba_node_t *node, int error_mode) {
     int i;
+    xccl_status_t status = XCCL_OK;
     for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++) {
         if (mlx5dv_destroy_mkey(node->operations[i].send_mkey)) {
-            xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
-            return XCCL_ERR_NO_MESSAGE;
+            if(!error_mode) {
+                xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
+                status = XCCL_ERR_NO_MESSAGE;
+            }
         }
         if (mlx5dv_destroy_mkey(node->operations[i].recv_mkey)) {
-            xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
-            return XCCL_ERR_NO_MESSAGE;
+            if(!error_mode) {
+                xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
+                status = XCCL_ERR_NO_MESSAGE;
+            }
         }
     }
     if (mlx5dv_destroy_mkey(node->team_send_mkey)) {
-        xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
-        return XCCL_ERR_NO_MESSAGE;
+        if(!error_mode) {
+            xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
+            status = XCCL_ERR_NO_MESSAGE;
+        }
     }
     if (mlx5dv_destroy_mkey(node->team_recv_mkey)) {
-        xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
-        return XCCL_ERR_NO_MESSAGE;
+        if(!error_mode) {
+            xccl_mhba_error("mkey destroy failed(errno=%d)", errno);
+            status = XCCL_ERR_NO_MESSAGE;
+        }
     }
-    return XCCL_OK;
+    return status;
 }
 
 

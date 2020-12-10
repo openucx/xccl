@@ -43,12 +43,6 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
      UCS_CONFIG_TYPE_STRING_ARRAY
     },
 
-    {"ASR_CQ_SIZE", "4",
-     "Size of the ASR completion queue",
-     ucs_offsetof(xccl_tl_mhba_context_config_t, asr_cq_size),
-     UCS_CONFIG_TYPE_UINT
-    },
-
     {"ASR_TX_SIZE", "4",
      "Size of the ASR Send queue for RC QP",
      ucs_offsetof(xccl_tl_mhba_context_config_t, asr_tx_size),
@@ -274,47 +268,47 @@ xccl_status_t xccl_mhba_remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, ui
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_mhba_test_net_ctrl(xccl_mhba_team_t *team, xccl_mhba_context_t *ctx)
-{
-    xccl_status_t status = XCCL_OK;
-    int *tmp = malloc(sizeof(int));
-    struct ibv_mr *mr = ibv_reg_mr(ctx->ib_pd, tmp, sizeof(int),
-                                   IBV_ACCESS_REMOTE_WRITE |
-                                   IBV_ACCESS_LOCAL_WRITE); //todo didnt change ctx & pd- only test
-    *tmp = 0xdeadbeef;
-
-    struct ibv_sge list = {
-        .addr	= (uintptr_t)tmp,
-        .length = sizeof(int),
-        .lkey	= mr->lkey,
-    };
-
-    int my_rank = team->net.sbgp->group_rank;
-    int peer = (my_rank + 1) % team->net.sbgp->group_size;
-
-    struct ibv_send_wr wr = {
-        .wr_id	    = 1,
-        .sg_list    = &list,
-        .num_sge    = 1,
-        .opcode     = IBV_WR_RDMA_WRITE,
-        .send_flags = 0,
-        .wr.rdma.remote_addr = (uintptr_t)team->net.remote_ctrl[peer].addr +
-        sizeof(uint32_t)*my_rank, //todo - change according to new ctrl
-        .wr.rdma.rkey = team->net.remote_ctrl[peer].rkey,
-    };
-    struct ibv_send_wr *bad_wr;
-    int ret = ibv_post_send(team->net.qps[peer], &wr, &bad_wr);
-    if (ret) {
-        xccl_mhba_error("failed to post send during %s", __FUNCTION__);
-        status = XCCL_ERR_NO_MESSAGE;
-    }
-    ibv_dereg_mr(mr);
-    free(tmp);
-
-    while (team->net.ctrl[peer] != 0xdeadbeef) { usleep(100) ;} //todo - change according to new ctrl
-    xccl_mhba_info("test success");
-    return status;
-}
+//static xccl_status_t xccl_mhba_test_net_ctrl(xccl_mhba_team_t *team, xccl_mhba_context_t *ctx)
+//{
+//    xccl_status_t status = XCCL_OK;
+//    int *tmp = malloc(sizeof(int));
+//    struct ibv_mr *mr = ibv_reg_mr(ctx->ib_pd, tmp, sizeof(int),
+//                                   IBV_ACCESS_REMOTE_WRITE |
+//                                   IBV_ACCESS_LOCAL_WRITE); //todo didnt change ctx & pd- only test
+//    *tmp = 0xdeadbeef;
+//
+//    struct ibv_sge list = {
+//        .addr	= (uintptr_t)tmp,
+//        .length = sizeof(int),
+//        .lkey	= mr->lkey,
+//    };
+//
+//    int my_rank = team->net.sbgp->group_rank;
+//    int peer = (my_rank + 1) % team->net.sbgp->group_size;
+//
+//    struct ibv_send_wr wr = {
+//        .wr_id	    = 1,
+//        .sg_list    = &list,
+//        .num_sge    = 1,
+//        .opcode     = IBV_WR_RDMA_WRITE,
+//        .send_flags = 0,
+//        .wr.rdma.remote_addr = (uintptr_t)team->net.remote_ctrl[peer].addr +
+//        sizeof(uint32_t)*my_rank, //todo - change according to new ctrl
+//        .wr.rdma.rkey = team->net.remote_ctrl[peer].rkey,
+//    };
+//    struct ibv_send_wr *bad_wr;
+//    int ret = ibv_post_send(team->net.qps[peer], &wr, &bad_wr);
+//    if (ret) {
+//        xccl_mhba_error("failed to post send during %s", __FUNCTION__);
+//        status = XCCL_ERR_NO_MESSAGE;
+//    }
+//    ibv_dereg_mr(mr);
+//    free(tmp);
+//
+//    while (team->net.ctrl[peer] != 0xdeadbeef) { usleep(100) ;} //todo - change according to new ctrl
+//    xccl_mhba_info("test success");
+//    return status;
+//}
 
 static int xccl_sbgp_rank_to_context(int rank, void *rank_mapper_ctx) {
     xccl_sbgp_t *sbgp = (xccl_sbgp_t*)rank_mapper_ctx;
@@ -382,7 +376,8 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     } // todo temp - phase 1
     mhba_team->node.sbgp = node;
 
-    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
+    storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL +
+            MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
 
     if (asr_rank == node->group_rank) {
         bcastData.shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
@@ -418,9 +413,11 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         goto fail_after_shmat;
     }
     for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++){
-        mhba_team->node.operations[i].ctrl = mhba_team->node.storage + MHBA_CTRL_SIZE*node->group_size*i;
-        mhba_team->node.operations[i].my_ctrl = (void*)((ptrdiff_t)mhba_team->node.operations[i].ctrl +
-                                          node->group_rank*MHBA_CTRL_SIZE);
+        //todo remove spare mem for asr in ctrl
+        mhba_team->node.operations[i].ctrl = mhba_team->node.storage + MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL
+                +MHBA_CTRL_SIZE*node->group_size*i;
+        mhba_team->node.operations[i].my_ctrl = (void *) ((ptrdiff_t) mhba_team->node.operations[i].ctrl +
+                                                          node->group_rank * MHBA_CTRL_SIZE);
         memset(mhba_team->node.operations[i].my_ctrl, 0, MHBA_CTRL_SIZE);
         mhba_team->node.operations[i].send_umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
                 node->group_size*MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL)+i*MHBA_DATA_SIZE*node->group_size;
@@ -437,7 +434,6 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
 
     net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
     mhba_team->net.sbgp = net;
-    mhba_team->net.ctrl = NULL;
     mhba_team->net.ctrl_mr = NULL;
     mhba_team->net.remote_ctrl = NULL;
     calc_block_size(mhba_team);
@@ -449,7 +445,9 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             goto fail_after_shmat;
         }
 
-        mhba_team->net.cq = ibv_create_cq(mhba_team->node.shared_ctx, ctx->cfg.asr_cq_size, NULL, NULL, 0);
+        int asr_cq_size = mhba_team->net.sbgp->group_size*MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
+
+        mhba_team->net.cq = ibv_create_cq(mhba_team->node.shared_ctx, asr_cq_size, NULL, NULL, 0);
         if (!mhba_team->net.cq) {
             xccl_mhba_error("failed to allocate ASR CQ");
             goto fail_after_shmat;
@@ -488,23 +486,18 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             if (!mhba_team->net.qps[i]) {
                 xccl_mhba_error("failed to create qp for dest %d, errno %d",
                                 i, errno);
-                goto create_qp_failed;
+                goto ctrl_fail;
             }
             local_data[i] = mhba_team->net.qps[i]->qp_num;
         }
-        mhba_team->net.ctrl = (uint32_t*)calloc(sizeof(int)*MAX_CONCURRENT_OUTSTANDING_ALL2ALL, net->group_size);
-        if (!mhba_team->net.ctrl) {
-            xccl_mhba_error("failed to allocate ctrl");
-            goto ctrl_fail;
-        }
 
-        mhba_team->net.ctrl_mr = ibv_reg_mr(ctx->ib_pd, mhba_team->net.ctrl,
-                                            sizeof(int)*MAX_CONCURRENT_OUTSTANDING_ALL2ALL*net->group_size,
+        mhba_team->net.ctrl_mr = ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->node.storage,
+                                            MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL,
                                             IBV_ACCESS_REMOTE_WRITE |
                                             IBV_ACCESS_LOCAL_WRITE);
         if (!mhba_team->net.ctrl_mr) {
             xccl_mhba_error("failed to register control data, errno %d", errno);
-            goto ctrl_mr_fail;
+            goto ctrl_fail;
         }
         ibv_query_port(ctx->ib_ctx, ctx->ib_port, &port_attr);
         local_data[net->group_size] = port_attr.lid;
@@ -526,7 +519,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         local_data[net->group_size+4] = mhba_team->node.team_recv_mkey->rkey; //todo check index
 
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net, params->oob);
-        mhba_team->net.rkeys = (uint32_t*) malloc(sizeof(uint32_t)*mhba_team->node.sbgp->group_size);
+        mhba_team->net.rkeys = (uint32_t*) malloc(sizeof(uint32_t)*mhba_team->net.sbgp->group_size);
         for (i=0; i<net->group_size; i++) {
             uint32_t *remote_data = (uint32_t*)((uintptr_t)global_data + i*local_data_size);
             xccl_mhba_remote_qp_connect(mhba_team->net.qps[i], remote_data[net->group_rank],
@@ -537,7 +530,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             mhba_team->net.rkeys[i] = remote_data[net->group_size+4];
         }
         xccl_sbgp_oob_barrier(net, params->oob);
-        xccl_mhba_test_net_ctrl(mhba_team, ctx);
+//        xccl_mhba_test_net_ctrl(mhba_team, ctx);
 
         xccl_tl_context_t *ucx_ctx = xccl_get_tl_context(context->ctx, XCCL_TL_UCX);
         if (!ucx_ctx) {
@@ -570,16 +563,29 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
 
         free(local_data);
         free(global_data);
+
+        mhba_team->dummy_bf_mr = ibv_reg_mr(mhba_team->node.shared_pd, (void*)&mhba_team->dummy_atomic_buff,
+                                            sizeof(mhba_team->dummy_atomic_buff), IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+        if (!mhba_team->dummy_bf_mr) {
+            xccl_mhba_error("Failed to register dummy buff (errno=%d)", errno);
+            goto remote_ctrl_fail;
+        }
+
+        mhba_team->work_completion = (struct ibv_wc*) malloc(sizeof(struct ibv_wc)*mhba_team->net.sbgp->group_size);
+        if (!mhba_team->work_completion) {
+            xccl_mhba_error("Failed to allocate wc (errno=%d)", errno);
+            goto wc_alloc_fail;
+        }
+        memset(&mhba_team->cq_completions,0,sizeof(mhba_team->cq_completions));
     }
     *team = &mhba_team->super;
     return XCCL_OK;
 
+wc_alloc_fail:
+    ibv_dereg_mr(mhba_team->dummy_bf_mr);
 remote_ctrl_fail:
     ibv_dereg_mr(mhba_team->net.ctrl_mr);
-ctrl_mr_fail:
-    free(mhba_team->net.ctrl);
 ctrl_fail:
-create_qp_failed:
     free(global_data);
 global_data_fail:
     free(local_data);
@@ -633,7 +639,6 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         }
 
         ibv_dereg_mr(mhba_team->net.ctrl_mr);
-        free(mhba_team->net.ctrl);
         free(mhba_team->net.remote_ctrl);
         for (i=0; i<mhba_team->net.sbgp->group_size; i++) {
             ibv_destroy_qp(mhba_team->net.qps[i]);
@@ -644,11 +649,13 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         }
         mhba_team->net.ucx_team->ctx->lib->team_destroy(mhba_team->net.ucx_team);
 
-        status = xccl_mhba_destroy_mkeys(&mhba_team->node);
+        status = xccl_mhba_destroy_mkeys(&mhba_team->node, 0);
         if (status!=XCCL_OK){
             xccl_mhba_error("failed to destroy Mkeys");
         }
         free(mhba_team->net.rkeys);
+        ibv_dereg_mr(mhba_team->dummy_bf_mr);
+        free(mhba_team->work_completion);
     }
     free(team);
     return status;
@@ -687,13 +694,9 @@ xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t
     int i;
     int *ctrl_v;
     int index = seq_index(request->seq_num);
-    if (team->node.sbgp->group_rank != request->asr_rank) {
-        ctrl_v = (int*)((ptrdiff_t)team->node.operations[index].ctrl + MHBA_CTRL_SIZE*request->asr_rank);
-        if (*ctrl_v != request->seq_num) {
-            return XCCL_INPROGRESS;
-        }
-    } else {
-        *team->node.operations[index].my_ctrl = request->seq_num;
+    ctrl_v = (int*)((ptrdiff_t)team->node.storage + MHBA_CTRL_SIZE*index);
+    if (*ctrl_v != team->net.sbgp->group_size) {
+        return XCCL_INPROGRESS;
     }
     return XCCL_OK;
 }
