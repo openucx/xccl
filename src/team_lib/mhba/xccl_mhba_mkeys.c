@@ -200,6 +200,7 @@ static xccl_status_t create_and_populate_team_mkey(xccl_mhba_node_t *node, int t
     for (i = 0; i < MAX_CONCURRENT_OUTSTANDING_ALL2ALL; i++) {
         team_mkey_klm_entries[i].addr = 0;
         team_mkey_klm_entries[i].length = node->sbgp->group_size*MAX_MSG_SIZE*team_size;
+        //todo check lkey or rkey
         team_mkey_klm_entries[i].lkey = send ? node->operations[i].send_mkey->lkey : node->operations[i]
                 .recv_mkey->rkey;
     }
@@ -264,8 +265,7 @@ xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_team_t* team, xccl_mh
     int index = seq_index(req->seq_num);
     xccl_mhba_node_t *node = &team->node;
     status = populate_mkey(node,send_mem_access_flags,node->operations[index].send_mkey,
-                           node->operations[index].send_umr_data,
-                           req->block_size,team->size,1);
+                           node->operations[index].send_umr_data, req->block_size,team->size,1);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate send umr[%d]",index);
         return status;

@@ -197,7 +197,7 @@ static xccl_status_t send_atomic(struct ibv_qp *qp, uint64_t remote_addr, uint32
 
     //todo no need sg
     struct ibv_sge list = {
-            .addr	= team->dummy_bf_mr->addr,
+            .addr	= (uint64_t) team->dummy_bf_mr->addr, //todo check why differnet values
             .length = team->dummy_bf_mr->length,
             .lkey	= team->dummy_bf_mr->lkey,
     };
@@ -232,25 +232,26 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
     int column_size = request->args.buffer_info.len*request->block_size*team->node.sbgp->group_size;
     int node_size = squared(team->node.sbgp->group_size)*request->args.buffer_info.len;
     int block_size = squared(request->block_size)*request->args.buffer_info.len;
-    int i, j, k, src_addr, remote_addr;
+    int i, j, k;
+    uint64_t src_addr, remote_addr;
     for(i=0;i<team->net.sbgp->group_size;i++){
         //send all blocks from curr node to some ARR
         for(j=0;j<round_up(team->node.sbgp->group_size,request->block_size);j++){
             for(k=0;k<round_up(team->node.sbgp->group_size,request->block_size);k++){
                 //todo add transpose here
-                src_addr = operation_size*index + node_size*i + column_size*j + block_size*k;
-                remote_addr = operation_size*index + node_size*team->net.sbgp->group_rank + block_size*j +
-                              column_size*k; //todo check correctness of node_size*team->net.sbgp->group_rank
-                status = send_block_data(team->net.qps[i],src_addr,block_size,team->node.operations[index]
-                .send_mkey->lkey, remote_addr,team->net.rkeys[i]);
+                src_addr = (uintptr_t)(operation_size*index + node_size*i + column_size*j + block_size*k);
+                remote_addr = (uintptr_t)(operation_size*index + node_size*team->net.sbgp->group_rank +
+                        block_size*j + column_size*k); //todo check correctness of node_size*team->net.sbgp->group_rank
+                status = send_block_data(team->net.qps[i],src_addr,block_size,team->node.team_send_mkey->lkey, remote_addr,
+                                         team->net.rkeys[i]);
                 if(status!=XCCL_OK){
                     xccl_mhba_error("Failed sending block [%d,%d,%d]",i,j,k);
                     return status;
                 }
             }
         }
-        status = send_atomic(team->net.qps[i],team->net.ctrl_mr->addr+(index*MHBA_CTRL_SIZE),team->net.ctrl_mr->rkey,
-                             team, request);
+        status = send_atomic(team->net.qps[i],(uintptr_t)team->net.remote_ctrl[i].addr+(index*MHBA_CTRL_SIZE),team->net
+        .remote_ctrl[i].rkey, team, request);
         if(status!=XCCL_OK){
             xccl_mhba_error("Failed sending atomic to node [%d]",i);
             return status;
@@ -271,7 +272,6 @@ xccl_status_t xccl_mhba_send_blocks_progress(xccl_coll_task_t *task) {
         return XCCL_ERR_NO_MESSAGE;
     }
     for(i=0;i<completions_num;i++){
-        printf("num is %d\n",i);
         if (team->work_completion[i].status != IBV_WC_SUCCESS) {
             xccl_mhba_error("atomic CQ returned completion with status %s (%d)",
                             ibv_wc_status_str(team->work_completion[i].status), team->work_completion[i].status);

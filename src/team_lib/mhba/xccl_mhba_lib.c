@@ -420,7 +420,8 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
                                                           node->group_rank * MHBA_CTRL_SIZE);
         memset(mhba_team->node.operations[i].my_ctrl, 0, MHBA_CTRL_SIZE);
         mhba_team->node.operations[i].send_umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
-                node->group_size*MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL)+i*MHBA_DATA_SIZE*node->group_size;
+                (node->group_size+1)*MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL
+                        +i*MHBA_DATA_SIZE*node->group_size);
         mhba_team->node.operations[i].my_send_umr_data = (void*)((ptrdiff_t)mhba_team->node.operations[i]
                 .send_umr_data + node->group_rank*MHBA_DATA_SIZE);
         mhba_team->node.operations[i].recv_umr_data = (void*)((ptrdiff_t)mhba_team->node.operations[i]
@@ -469,7 +470,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             goto fail_after_cq;
         }
         // for each ASR - qp num, in addition to port lid, ctrl segment rkey and address, recieve mkey rkey
-        local_data_size = (net->group_size*sizeof(uint32_t))+sizeof(uint16_t)+2*sizeof(uint32_t)+sizeof(void*);
+        local_data_size = (net->group_size*sizeof(uint32_t))+sizeof(uint32_t)+2*sizeof(uint32_t)+sizeof(void*);
         local_data = malloc(local_data_size);
         if (!local_data) {
             xccl_mhba_error("failed to allocate local data");
