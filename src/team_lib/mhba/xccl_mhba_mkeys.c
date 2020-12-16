@@ -34,9 +34,9 @@ static xccl_status_t create_umr_qp(xccl_mhba_node_t *node) {
     }
 
     memset(&umr_mlx5dv_qp_attr, 0, sizeof(umr_mlx5dv_qp_attr));
-    umr_mlx5dv_qp_attr.comp_mask = MLX5DV_QP_INIT_ATTR_MASK_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD; //todo ask Rami
+    umr_mlx5dv_qp_attr.comp_mask = MLX5DV_QP_INIT_ATTR_MASK_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
     umr_mlx5dv_qp_attr.create_flags = 0;
-    memset(&umr_mlx5dv_qp_attr.dc_init_attr,0,sizeof(umr_mlx5dv_qp_attr.dc_init_attr)); //todo: check is right
+    memset(&umr_mlx5dv_qp_attr.dc_init_attr,0,sizeof(umr_mlx5dv_qp_attr.dc_init_attr)); //todo check rc/dc
     umr_mlx5dv_qp_attr.send_ops_flags = MLX5DV_QP_EX_WITH_MR_LIST | MLX5DV_QP_EX_WITH_MR_INTERLEAVED;
 
     memset(&umr_init_attr_ex, 0, sizeof(umr_init_attr_ex));
@@ -286,7 +286,7 @@ static void update_mkey_entry(xccl_mhba_node_t *node, xccl_mhba_coll_req_t *req,
     struct mlx5dv_mr_interleaved *mkey_entry = (struct mlx5dv_mr_interleaved *) (direction_send ?
             node->operations[index].my_send_umr_data : node->operations[index].my_recv_umr_data);
     struct ibv_mr *buff = direction_send ? req->send_bf_mr : req->receive_bf_mr;
-    mkey_entry->addr = (uintptr_t) buff->addr; // TODO: Check why conversion to uintptr_t is needed and if it's correct
+    mkey_entry->addr = (uintptr_t) buff->addr;
     mkey_entry->bytes_count = req->block_size*req->args.buffer_info.len;
     mkey_entry->bytes_skip = 0;
     mkey_entry->lkey = direction_send ? buff->lkey : buff->rkey;

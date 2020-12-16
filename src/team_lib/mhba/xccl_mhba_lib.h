@@ -23,10 +23,10 @@ typedef struct xccl_team_lib_mhba_config {
 typedef struct xccl_tl_mhba_context_config {
     xccl_tl_context_config_t super;
     ucs_config_names_array_t devices;
-    int                      asr_tx_size;
-    int                      asr_rx_size;
     int                      ib_global;
 } xccl_tl_mhba_context_config_t;
+
+//todo add block_size config
 
 typedef struct xccl_team_lib_mhba {
     xccl_team_lib_t             super;
@@ -73,6 +73,7 @@ typedef struct xccl_mhba_operation{
 /* This structure holds resources and data related to the "in-node"
    part of the algorithm. */
 typedef struct xccl_mhba_node {
+    int                          asr_rank;
     xccl_sbgp_t                  *sbgp;
     void                         *storage;
     xccl_mhba_operation_t        operations[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];

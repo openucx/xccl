@@ -67,7 +67,7 @@ xccl_status_t xccl_mhba_reg_fanin_progress(xccl_coll_task_t *task) {
     xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
-    assert(team->node.sbgp->group_rank == request->asr_rank);
+    assert(team->node.sbgp->group_rank == team->node.asr_rank);
     if (XCCL_OK == xccl_mhba_node_fanin(team, request)) {
         xccl_mhba_info("fanin complete");
         task->state = XCCL_TASK_STATE_COMPLETED;
@@ -137,19 +137,20 @@ static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task) {
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
 
-    xccl_mhba_populate_send_recv_mkeys(team,request); //todo check blocking since we wait for WQE CQ in here
+    // despite while statement, non blocking because have independent cq, will be finished in a finite time
+    xccl_mhba_populate_send_recv_mkeys(team,request);
 
     memset(team->node.storage+MHBA_CTRL_SIZE*seq_index(request->seq_num),0,MHBA_CTRL_SIZE);
 
     xccl_mhba_info("asr barrier start");
-    //todo check problem with case 1 node 3 proc
     task->state = XCCL_TASK_STATE_INPROGRESS;
     xccl_coll_op_args_t coll = {
         .coll_type = XCCL_BARRIER,
         .alg.set_by_user = 0,
     };
+    //todo create special barrier to support multiple parallel operations - with seq_id
     team->net.ucx_team->ctx->lib->collective_init(&coll, &request->barrier_req,
-                                                  team->net.ucx_team); //todo can barriers of different concurrent operations mix?
+                                                  team->net.ucx_team);
     team->net.ucx_team->ctx->lib->collective_post(request->barrier_req);
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
     return XCCL_OK;
@@ -164,7 +165,6 @@ xccl_status_t xccl_mhba_asr_barrier_progress(xccl_coll_task_t *task) {
         team->net.ucx_team->ctx->lib->collective_finalize(request->barrier_req);
         task->state = XCCL_TASK_STATE_COMPLETED;
     }
-
     return XCCL_OK;
 }
 
@@ -195,9 +195,8 @@ static xccl_status_t send_block_data(struct ibv_qp *qp, uint64_t src_addr, uint3
 
 static xccl_status_t send_atomic(struct ibv_qp *qp, uint64_t remote_addr, uint32_t rkey, xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request){
 
-    //todo no need sg
     struct ibv_sge list = {
-            .addr	= (uint64_t) team->dummy_bf_mr->addr, //todo check why differnet values
+            .addr	= (uint64_t) team->dummy_bf_mr->addr,
             .length = team->dummy_bf_mr->length,
             .lkey	= team->dummy_bf_mr->lkey,
     };
@@ -242,7 +241,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
                 //todo add transpose here
                 src_addr = (uintptr_t)(operation_size*index + node_size*i + column_size*j + block_size*k);
                 remote_addr = (uintptr_t)(operation_size*index + node_size*team->net.sbgp->group_rank +
-                        block_size*j + column_size*k); //todo check correctness of node_size*team->net.sbgp->group_rank
+                        block_size*j + column_size*k);
                 status = send_block_data(team->net.qps[i],src_addr,block_size,team->node.team_send_mkey->lkey, remote_addr,
                                          team->net.rkeys[i]);
                 if(status!=XCCL_OK){
@@ -309,28 +308,25 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
         xccl_mhba_error("msg size too long");
         return XCCL_ERR_NO_RESOURCE;
     }
-    int asr_rank = 0; // TODO select?
-    int is_asr = (team->node.sbgp->group_rank == asr_rank);
+    int is_asr = (team->node.sbgp->group_rank == team->node.asr_rank);
     int n_tasks = (!is_asr) ? 2 : 4;
     int i;
     xccl_schedule_init(&request->schedule, team->super.ctx);
-    request->asr_rank = asr_rank;
     request->block_size = team->blocks_sizes[__ucs_ilog2_u32(coll_args->buffer_info.len-1)];
 
     //todo following section correct assuming homogenous PPN across all nodes
     if(team->node.sbgp->group_size % request->block_size != 0) {
         xccl_mhba_warn("Block size was decreased to fit node PPN");
-        while (team->node.sbgp->group_size % request->block_size != 0 && request->block_size) {
+        while (team->node.sbgp->group_size % request->block_size != 0 && request->block_size > 2) {
             request->block_size -= 1;
         }
     }
     xccl_mhba_info("Block size is %d",request->block_size);
     if(!request->block_size){
-        xccl_mhba_error("node PPN can't be divided by any block size - NOT SUPPORTED");
+        xccl_mhba_error("node PPN can't be divided by any block size, or block size is 1 - NOT SUPPORTED");
         return XCCL_ERR_NO_RESOURCE;
     }
 
-    assert(asr_rank < team->node.sbgp->group_size);
     request->tasks = (xccl_mhba_task_t*)malloc(sizeof(xccl_mhba_task_t)*n_tasks);
     request->seq_num = team->sequence_number;
     team->sequence_number++;
