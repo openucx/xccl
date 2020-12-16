@@ -17,6 +17,7 @@
 
 struct Bcast_data{
     int  shmid;
+    int  net_size;
     char sock_path[L_tmpnam];
 };
 
@@ -211,6 +212,7 @@ xccl_status_t xccl_mhba_remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, ui
     qp_attr.port_num = port;
     qp_attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE |
                               IBV_ACCESS_REMOTE_READ |
+                              IBV_ACCESS_REMOTE_ATOMIC |
                               IBV_ACCESS_LOCAL_WRITE;
     if (ibv_modify_qp(qp, &qp_attr, IBV_QP_STATE |
                                     IBV_QP_PKEY_INDEX |
@@ -369,18 +371,23 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     memset(mhba_team->occupied_operations_slots,0,MAX_CONCURRENT_OUTSTANDING_ALL2ALL*sizeof(int));
     mhba_team->size = params->oob.size;
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
+
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     if (node->group_size > MAX_STRIDED_ENTRIES){
         xccl_mhba_error("PPN too large");
         goto fail;
     } // todo temp - phase 1
+    net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
+
     mhba_team->node.sbgp = node;
+    mhba_team->net.sbgp = net;
 
     storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL +
             MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL;
 
     if (asr_rank == node->group_rank) {
         bcastData.shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
+        bcastData.net_size = mhba_team->net.sbgp->group_size;
         tmpnam(bcastData.sock_path); //todo make sure security warning mentioned in tempnam API
     }
 
@@ -398,7 +405,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
                         storage_size);
         goto fail_after_share_pd;
     }
-
+    mhba_team->net.net_size = bcastData.net_size;
     mhba_team->node.storage = shmat(bcastData.shmid, NULL, 0);
     if (asr_rank == node->group_rank) {
         if (shmctl(bcastData.shmid, IPC_RMID, NULL) == -1) {
@@ -419,6 +426,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         mhba_team->node.operations[i].my_ctrl = (void *) ((ptrdiff_t) mhba_team->node.operations[i].ctrl +
                                                           node->group_rank * MHBA_CTRL_SIZE);
         memset(mhba_team->node.operations[i].my_ctrl, 0, MHBA_CTRL_SIZE);
+        *((int*)mhba_team->node.operations[i].my_ctrl) = -1; // because sequence number begin from 0
         mhba_team->node.operations[i].send_umr_data = (void*)((ptrdiff_t)mhba_team->node.storage +
                 (node->group_size+1)*MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL
                         +i*MHBA_DATA_SIZE*node->group_size);
@@ -433,8 +441,6 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     xccl_sbgp_oob_barrier(node, params->oob);
     mhba_team->sequence_number = 0;
 
-    net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
-    mhba_team->net.sbgp = net;
     mhba_team->net.ctrl_mr = NULL;
     mhba_team->net.remote_ctrl = NULL;
     calc_block_size(mhba_team);
@@ -495,6 +501,8 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         mhba_team->net.ctrl_mr = ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->node.storage,
                                             MHBA_CTRL_SIZE*MAX_CONCURRENT_OUTSTANDING_ALL2ALL,
                                             IBV_ACCESS_REMOTE_WRITE |
+                                            IBV_ACCESS_REMOTE_READ |
+                                            IBV_ACCESS_REMOTE_ATOMIC |
                                             IBV_ACCESS_LOCAL_WRITE);
         if (!mhba_team->net.ctrl_mr) {
             xccl_mhba_error("failed to register control data, errno %d", errno);
@@ -577,7 +585,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             xccl_mhba_error("Failed to allocate wc (errno=%d)", errno);
             goto wc_alloc_fail;
         }
-        memset(&mhba_team->cq_completions,0,sizeof(mhba_team->cq_completions));
+        memset(mhba_team->cq_completions,0,sizeof(mhba_team->cq_completions));
     }
     *team = &mhba_team->super;
     return XCCL_OK;
@@ -695,8 +703,23 @@ xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t
     int i;
     int *ctrl_v;
     int index = seq_index(request->seq_num);
+
+
+    /* First phase of fanout: asr signals it completed local ops
+       and other ranks wait for asr */
+    if (team->node.sbgp->group_rank == request->asr_rank) {
+        *team->node.operations[index].my_ctrl = request->seq_num;
+    } else {
+        ctrl_v = (int*)((ptrdiff_t)team->node.operations[index].ctrl + MHBA_CTRL_SIZE*request->asr_rank);
+        if (*ctrl_v != request->seq_num) {
+            return XCCL_INPROGRESS;
+        }
+    }
+
+    /*Second phase of fanout: wait for remote atomic counters -
+      ie wait for the remote data */
     ctrl_v = (int*)((ptrdiff_t)team->node.storage + MHBA_CTRL_SIZE*index);
-    if (*ctrl_v != team->net.sbgp->group_size) {
+    if ( *ctrl_v != team->net.net_size) {
         return XCCL_INPROGRESS;
     }
     return XCCL_OK;

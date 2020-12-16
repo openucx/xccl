@@ -264,13 +264,14 @@ xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_team_t* team, xccl_mh
     int send_mem_access_flags = 0;
     int index = seq_index(req->seq_num);
     xccl_mhba_node_t *node = &team->node;
+    int recv_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
     status = populate_mkey(node,send_mem_access_flags,node->operations[index].send_mkey,
                            node->operations[index].send_umr_data, req->block_size,team->size,1);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to populate send umr[%d]",index);
         return status;
     }
-    int recv_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
+
     status = populate_mkey(node,recv_mem_access_flags,node->operations[index].recv_mkey,
                            node->operations[index].recv_umr_data, req->block_size,team->size,1);
     if (status != XCCL_OK) {

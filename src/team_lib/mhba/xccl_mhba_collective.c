@@ -30,14 +30,15 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task) {
     int sr_mem_access_flags = 0;
     int dr_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
     xccl_mhba_info("register memory buffers");
+
     request->send_bf_mr = ibv_reg_mr(team->node.shared_pd, (void*)request->args.buffer_info.src_buffer,
-                            request->args.buffer_info.len, sr_mem_access_flags);
+                            request->args.buffer_info.len*team->size, sr_mem_access_flags);
     if (!request->send_bf_mr) {
         xccl_mhba_error("Failed to register send_bf memory (errno=%d)", errno);
         return XCCL_ERR_NO_RESOURCE;
     }
     request->receive_bf_mr = ibv_reg_mr(team->node.shared_pd, (void*)request->args.buffer_info.dst_buffer,
-                               request->args.buffer_info.len, dr_mem_access_flags);
+                               request->args.buffer_info.len*team->size, dr_mem_access_flags);
     if (!request->receive_bf_mr) {
         xccl_mhba_error("Failed to register receive_bf memory (errno=%d)", errno);
         ibv_dereg_mr(request->send_bf_mr);
@@ -118,7 +119,6 @@ xccl_status_t xccl_mhba_fanout_progress(xccl_coll_task_t *task) {
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t *team = request->team;
     xccl_status_t status;
-    assert(team->node.sbgp->group_rank != request->asr_rank);
     if (XCCL_OK == xccl_mhba_node_fanout(team, request)) {
         task->state = XCCL_TASK_STATE_COMPLETED;
         status = dereg_mr_buffers(request);
@@ -169,7 +169,7 @@ xccl_status_t xccl_mhba_asr_barrier_progress(xccl_coll_task_t *task) {
 }
 
 static xccl_status_t send_block_data(struct ibv_qp *qp, uint64_t src_addr, uint32_t msg_size, uint32_t lkey, uint64_t
-                                    remote_addr, uint32_t rkey){
+                                     remote_addr, uint32_t rkey){
     struct ibv_sge list = {
             .addr	= src_addr,
             .length = msg_size,
@@ -234,7 +234,8 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
     int block_size = squared(request->block_size)*request->args.buffer_info.len;
     int i, j, k;
     uint64_t src_addr, remote_addr;
-    for(i=0;i<team->net.sbgp->group_size;i++){
+
+    for(i=0;i<team->net.sbgp->group_size;i++) {
         //send all blocks from curr node to some ARR
         for(j=0;j<round_up(team->node.sbgp->group_size,request->block_size);j++){
             for(k=0;k<round_up(team->node.sbgp->group_size,request->block_size);k++){
@@ -250,8 +251,9 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
                 }
             }
         }
-        status = send_atomic(team->net.qps[i],(uintptr_t)team->net.remote_ctrl[i].addr+(index*MHBA_CTRL_SIZE),team->net
-        .remote_ctrl[i].rkey, team, request);
+
+        status = send_atomic(team->net.qps[i],(uintptr_t)team->net.remote_ctrl[i].addr+(index*MHBA_CTRL_SIZE),
+                             team->net.remote_ctrl[i].rkey, team, request);
         if(status!=XCCL_OK){
             xccl_mhba_error("Failed sending atomic to node [%d]",i);
             return status;
