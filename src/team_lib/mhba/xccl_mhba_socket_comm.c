@@ -4,13 +4,6 @@
  */
 
 #include "xccl_mhba_lib.h"
-//todo check not-needed includes
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
 #include <sys/un.h>
 
 typedef struct

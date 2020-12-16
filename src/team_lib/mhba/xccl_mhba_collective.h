@@ -10,6 +10,8 @@
 #include <infiniband/verbs.h>
 #include <ucs/arch/bitops.h>
 
+#define squared(num) (num*num)
+
 typedef struct xccl_mhba_coll_req xccl_mhba_coll_req_t;
 typedef struct xccl_mhba_task {
     xccl_coll_task_t super;
@@ -22,7 +24,6 @@ typedef struct xccl_mhba_coll_req {
     xccl_mhba_task_t              *tasks;
     xccl_coll_op_args_t           args;
     xccl_mhba_team_t              *team;
-    int                           asr_rank;
     int                           seq_num;
     struct ibv_mr                 *send_bf_mr;
     struct ibv_mr                 *receive_bf_mr;

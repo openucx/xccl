@@ -14,6 +14,7 @@
 
 #define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 4 //todo change - according to limitations (52 top)
 #define seq_index(seq_num) (seq_num % MAX_CONCURRENT_OUTSTANDING_ALL2ALL)
+#define round_up(divided,divisor) ((divided+(divisor-1))/divisor)
 
 typedef struct xccl_team_lib_mhba_config {
     xccl_team_lib_config_t super;
@@ -22,11 +23,10 @@ typedef struct xccl_team_lib_mhba_config {
 typedef struct xccl_tl_mhba_context_config {
     xccl_tl_context_config_t super;
     ucs_config_names_array_t devices;
-    int                      asr_cq_size;
-    int                      asr_tx_size;
-    int                      asr_rx_size;
     int                      ib_global;
 } xccl_tl_mhba_context_config_t;
+
+//todo add block_size config
 
 typedef struct xccl_team_lib_mhba {
     xccl_team_lib_t             super;
@@ -73,6 +73,7 @@ typedef struct xccl_mhba_operation{
 /* This structure holds resources and data related to the "in-node"
    part of the algorithm. */
 typedef struct xccl_mhba_node {
+    int                          asr_rank;
     xccl_sbgp_t                  *sbgp;
     void                         *storage;
     xccl_mhba_operation_t        operations[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
@@ -95,9 +96,9 @@ typedef struct xccl_mhba_node {
 
 typedef struct xccl_mhba_net {
     xccl_sbgp_t    *sbgp;
+    int            net_size;
     struct ibv_qp  **qps;
     struct ibv_cq  *cq;
-    uint32_t       *ctrl;
     struct ibv_mr  *ctrl_mr;
     struct {
         void *addr;
@@ -113,9 +114,13 @@ typedef struct xccl_mhba_team {
     xccl_mhba_net_t     net;
     int                 sequence_number;
     int                 occupied_operations_slots[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
+    int                 cq_completions[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
     xccl_mhba_context_t *context;
     int                 blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
     int                 size;
+    uint64_t            dummy_atomic_buff;
+    struct ibv_mr       *dummy_bf_mr;
+    struct ibv_wc       *work_completion;
 } xccl_mhba_team_t;
 
 #define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
