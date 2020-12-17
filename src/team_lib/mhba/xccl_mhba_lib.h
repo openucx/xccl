@@ -12,7 +12,7 @@
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
 
-#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 4 //todo change - according to limitations (52 top)
+#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 1 //todo change - according to limitations (52 top)
 #define seq_index(seq_num) (seq_num % MAX_CONCURRENT_OUTSTANDING_ALL2ALL)
 #define round_up(divided,divisor) ((divided+(divisor-1))/divisor)
 

@@ -29,6 +29,7 @@ typedef struct xccl_mhba_coll_req {
     struct ibv_mr                 *receive_bf_mr;
     xccl_tl_coll_req_t            *barrier_req;
     int                           block_size;
+    int                           started;
 } xccl_mhba_coll_req_t;
 
 xccl_status_t

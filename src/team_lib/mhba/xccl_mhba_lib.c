@@ -158,7 +158,7 @@ xccl_mhba_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
     if (-1 == port || !xccl_mhba_check_port_active(ctx->ib_ctx, port)) {
         xccl_mhba_error("no active ports found on %s", ib_devname);
     }
-    xccl_mhba_info("using %s:%d", ib_devname, port);
+    xccl_mhba_debug("using %s:%d", ib_devname, port);
 
     ctx->ib_pd = ibv_alloc_pd(ctx->ib_ctx);
     if (!ctx->ib_pd) {
@@ -620,7 +620,7 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
     xccl_status_t status = XCCL_OK;
     xccl_mhba_team_t *mhba_team = ucs_derived_of(team, xccl_mhba_team_t);
     int i;
-    xccl_mhba_info("destroying team %p", team);
+    xccl_mhba_debug("destroying team %p", team);
     if (-1 == shmdt(mhba_team->node.storage)) {
         xccl_mhba_error("failed to shmdt %p, errno %d",
                         mhba_team->node.storage, errno);
@@ -665,11 +665,11 @@ xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t 
     int i;
     int *ctrl_v;
     int index = seq_index(request->seq_num);
-
-    if(team->occupied_operations_slots[index]){
+    if(team->occupied_operations_slots[index] && !request->started){
         return XCCL_INPROGRESS;
     } //wait for slot to be open
-    team->occupied_operations_slots[seq_index(team->sequence_number)] = 1;
+    team->occupied_operations_slots[index] = 1;
+    request->started = 1;
     xccl_mhba_update_mkeys_entries(&team->node, request); // no option for failure status
 
     if (team->node.sbgp->group_rank != team->node.asr_rank) {
