@@ -16,6 +16,7 @@ typedef struct xccl_team_lib_nccl_config {
     int enable_alltoall;
     int enable_alltoallv;
     int enable_allgather;
+    int enable_bcast;
 } xccl_team_lib_nccl_config_t;
 
 typedef struct xccl_tl_nccl_context_config {
