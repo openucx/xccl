@@ -46,7 +46,7 @@ static ucs_config_field_t xccl_team_lib_nccl_config_table[] = {
      UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
     },
 
-    {"ALLREUCE", "1",
+    {"ALLREDUCE", "1",
      "Enable NCCL allreduce",
      ucs_offsetof(xccl_team_lib_nccl_config_t, enable_allreduce),
      UCS_CONFIG_TYPE_BOOL

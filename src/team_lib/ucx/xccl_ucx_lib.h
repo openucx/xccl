@@ -64,7 +64,8 @@ typedef struct xccl_ucx_request_t {
 typedef struct xccl_ucx_collreq {
     xccl_tl_coll_req_t  super;
     xccl_coll_op_args_t args;
-    ucs_memory_type_t   mem_type;
+    ucs_memory_type_t   src_mem_type;
+    ucs_memory_type_t   dst_mem_type;
     xccl_tl_team_t      *team;
     xccl_status_t       complete;
     uint16_t            tag;

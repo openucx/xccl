@@ -80,7 +80,7 @@ xccl_status_t xccl_ucx_reduce_knomial_progress(xccl_ucx_collreq_t *req)
                                                 data_size,
                                                 req->args.reduce_info.dt,
                                                 req->args.reduce_info.op,
-                                                req->mem_type);
+                                                req->src_mem_type);
                 req->reduce_kn.data_buf = dst_buffer;
                 src_buffer = dst_buffer;
             }
@@ -89,7 +89,7 @@ xccl_status_t xccl_ucx_reduce_knomial_progress(xccl_ucx_collreq_t *req)
             memset(reqs, 0, req->reduce_kn.active_reqs*sizeof(*reqs));
         }
     }
-    xccl_mem_component_free(req->reduce_kn.scratch, req->mem_type);
+    xccl_mem_component_free(req->reduce_kn.scratch, req->src_mem_type);
     req->complete = XCCL_OK;
     return XCCL_OK;
 }
@@ -114,7 +114,7 @@ xccl_status_t xccl_ucx_reduce_knomial_start(xccl_ucx_collreq_t *req)
     CALC_DIST(group_size, req->reduce_kn.radix, req->reduce_kn.max_dist);
 
     xccl_mem_component_alloc(&req->reduce_kn.scratch,
-                             req->reduce_kn.radix*data_size, req->mem_type);
+                             req->reduce_kn.radix*data_size, req->src_mem_type);
     req->progress = xccl_ucx_reduce_knomial_progress;
     return xccl_ucx_reduce_knomial_progress(req);
 }

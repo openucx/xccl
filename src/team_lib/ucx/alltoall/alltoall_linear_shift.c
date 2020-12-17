@@ -51,7 +51,7 @@ xccl_status_t xccl_ucx_alltoall_linear_shift_progress(xccl_ucx_collreq_t *req)
             }
             n_polls = 0;
             req->alltoall_linear_shift.step++;
-        }        
+        }
     }
 
     if (req->alltoall_linear_shift.step < group_size) {
@@ -64,7 +64,8 @@ xccl_status_t xccl_ucx_alltoall_linear_shift_progress(xccl_ucx_collreq_t *req)
 
     req->complete = XCCL_OK;
     if (req->alltoall_linear_shift.scratch) {
-        xccl_mem_component_free(req->alltoall_linear_shift.scratch, req->mem_type);
+        xccl_mem_component_free(req->alltoall_linear_shift.scratch,
+                                req->src_mem_type);
     }
 
     return XCCL_OK;
@@ -74,8 +75,8 @@ xccl_status_t xccl_ucx_alltoall_linear_shift_start(xccl_ucx_collreq_t *req)
 {
     size_t data_size = req->args.buffer_info.len;
     xccl_mem_component_alloc(&req->alltoall_linear_shift.scratch,
-                             data_size, req->mem_type);
- 
+                             data_size, req->src_mem_type);
+
     req->alltoall_linear_shift.reqs[0] = NULL;
     req->alltoall_linear_shift.reqs[1] = NULL;
     req->alltoall_linear_shift.step    = 0;

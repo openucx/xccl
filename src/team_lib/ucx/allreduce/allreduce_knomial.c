@@ -74,14 +74,14 @@ PHASE_EXTRA:
                                       req->args.reduce_info.count,
                                       req->args.reduce_info.dt,
                                       req->args.reduce_info.op,
-                                      req->mem_type);
+                                      req->src_mem_type);
         }
     }
 
     for (; iteration < pow_k_sup; iteration++) {
         src_buffer  = ((iteration == 0) && (node_type == KN_BASE)) ?
                       req->args.buffer_info.src_buffer:
-                      req->args.buffer_info.dst_buffer;        
+                      req->args.buffer_info.dst_buffer;
         dst_buffer  = req->args.buffer_info.dst_buffer;
         step_size   = radix_pow * radix;
         active_reqs = 0;
@@ -109,7 +109,7 @@ PHASE_EXTRA:
         PHASE_1:
             src_buffer = ((iteration == 0) && (node_type == KN_BASE)) ?
                          req->args.buffer_info.src_buffer:
-                         req->args.buffer_info.dst_buffer;        
+                         req->args.buffer_info.dst_buffer;
             dst_buffer = req->args.buffer_info.dst_buffer;
             if (XCCL_INPROGRESS == xccl_ucx_testall((xccl_ucx_team_t *)team,
                                                        reqs, active_reqs)) {
@@ -117,14 +117,14 @@ PHASE_EXTRA:
                 return XCCL_OK;
             }
             assert(active_reqs % 2 == 0);
- 
+
             xccl_mem_component_reduce_multi(src_buffer, scratch, dst_buffer,
                                             active_reqs/2,
                                             req->args.reduce_info.count,
                                             data_size,
                                             req->args.reduce_info.dt,
                                             req->args.reduce_info.op,
-                                            req->mem_type);
+                                            req->src_mem_type);
         }
     }
     if (KN_PROXY == node_type) {
@@ -149,7 +149,7 @@ completion:
     /*         COLL_ID_IN_SCHEDULE(bcol_args), bcol_args->next_frag-1); */
     req->complete = XCCL_OK;
     if (req->allreduce.scratch) {
-        xccl_mem_component_free(req->allreduce.scratch, req->mem_type);
+        xccl_mem_component_free(req->allreduce.scratch, req->src_mem_type);
     }
     return XCCL_OK;
 }
@@ -170,6 +170,7 @@ xccl_status_t xccl_ucx_allreduce_knomial_start(xccl_ucx_collreq_t *req)
     req->allreduce.active_reqs    = 0;
     req->progress                 = xccl_ucx_allreduce_knomial_progress;
     xccl_mem_component_alloc(&req->allreduce.scratch,
-                             (req->allreduce.radix-1)*data_size, req->mem_type);
+                             (req->allreduce.radix-1)*data_size,
+                             req->src_mem_type);
     return xccl_ucx_allreduce_knomial_progress(req);
 }
