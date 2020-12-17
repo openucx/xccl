@@ -298,6 +298,37 @@ static void calc_block_size(xccl_mhba_team_t* team){
     }
 }
 
+struct rank_data {
+    int team_rank;
+    int sbgp_rank;
+};
+
+static int compare_rank_data(const void* a, const void* b)
+{
+    const struct rank_data *d1 = (const struct rank_data *)a;
+    const struct rank_data *d2 = (const struct rank_data *)b;
+    return d1->team_rank > d2->team_rank ? 1 : -1;
+}
+
+static void build_rank_map(xccl_mhba_team_t *mhba_team)
+{
+    int i;
+    struct rank_data *data = malloc(sizeof(*data)*mhba_team->net.net_size);
+    struct rank_data my_data = {
+        .team_rank = mhba_team->super.params.oob.rank,
+        .sbgp_rank = mhba_team->net.sbgp->group_rank};
+
+    xccl_sbgp_oob_allgather(&my_data, data, sizeof(my_data), mhba_team->net.sbgp,
+                            mhba_team->super.params.oob);
+
+    mhba_team->net.rank_map = malloc(sizeof(int)*mhba_team->net.net_size);
+    qsort(data, mhba_team->net.net_size, sizeof(*data), compare_rank_data);
+    for (i=0; i<mhba_team->net.net_size; i++) {
+        mhba_team->net.rank_map[data[i].sbgp_rank] = i;
+    }
+    free(data);
+}
+
 static xccl_status_t
 xccl_mhba_team_create_post(xccl_tl_context_t *context,
                            xccl_team_params_t *params,
@@ -400,9 +431,10 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
 
     mhba_team->net.ctrl_mr = NULL;
     mhba_team->net.remote_ctrl = NULL;
+    mhba_team->net.rank_map = NULL;
     calc_block_size(mhba_team);
     if (mhba_team->node.asr_rank == node->group_rank) {
-
+        build_rank_map(mhba_team);
         xccl_status_t status = xccl_mhba_init_umr(ctx, &mhba_team->node);
         if (status!=XCCL_OK){
             xccl_mhba_error("Failed to init UMR");
@@ -622,6 +654,7 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         free(mhba_team->net.rkeys);
         ibv_dereg_mr(mhba_team->dummy_bf_mr);
         free(mhba_team->work_completion);
+        free(mhba_team->net.rank_map);
     }
     free(team);
     return status;

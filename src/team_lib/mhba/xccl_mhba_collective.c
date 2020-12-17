@@ -231,16 +231,18 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
     int column_size = request->args.buffer_info.len*request->block_size*team->node.sbgp->group_size;
     int node_size = squared(team->node.sbgp->group_size)*request->args.buffer_info.len;
     int block_size = squared(request->block_size)*request->args.buffer_info.len;
-    int i, j, k;
+    int i, j, k, dest_rank, rank;
     uint64_t src_addr, remote_addr;
 
+    rank = team->net.rank_map[team->net.sbgp->group_rank];
     for(i=0;i<team->net.sbgp->group_size;i++) {
+        dest_rank = team->net.rank_map[i];
         //send all blocks from curr node to some ARR
         for(j=0;j<round_up(team->node.sbgp->group_size,request->block_size);j++){
             for(k=0;k<round_up(team->node.sbgp->group_size,request->block_size);k++){
                 //todo add transpose here
-                src_addr = (uintptr_t)(operation_size*index + node_size*i + column_size*j + block_size*k);
-                remote_addr = (uintptr_t)(operation_size*index + node_size*team->net.sbgp->group_rank +
+                src_addr = (uintptr_t)(operation_size*index + node_size*dest_rank + column_size*j + block_size*k);
+                remote_addr = (uintptr_t)(operation_size*index + node_size*rank +
                         block_size*j + column_size*k);
                 status = send_block_data(team->net.qps[i],src_addr,block_size,team->node.team_send_mkey->lkey, remote_addr,
                                          team->net.rkeys[i]);
