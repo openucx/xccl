@@ -24,15 +24,23 @@ xccl_status_t xccl_mem_component_init(const char* components_path)
 
     for (mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
         snprintf(mem_comp_path, mem_comp_path_len, "%s/xccl_%s_mem_component.so",
-                 components_path, ucs_memory_type_names[mt]);        
+                 components_path, ucs_memory_type_names[mt]);
         handle = dlopen(mem_comp_path, RTLD_LAZY);
         if (handle) {
             mem_components[mt] = (xccl_mem_component_t*)dlsym(handle, "xccl_cuda_mem_component");
+            status = mem_components[mt]->open();
+            if (status != XCCL_OK) {
+                dlclose(handle);
+                mem_components[mt] = NULL;
+                continue;
+            }
             mem_components[mt]->dlhandle   = handle;
             mem_components[mt]->cache.size = xccl_lib_global_config.mem_component_cache_size;
-            mem_components[mt]->cache.used = 0; 
+            mem_components[mt]->cache.used = 0;
             mem_components[mt]->cache.buf  = NULL;
             xccl_debug("%s mem component found", ucs_memory_type_names[mt]);
+        } else {
+            mem_components[mt] = NULL;
         }
     }
 
@@ -59,7 +67,7 @@ xccl_status_t xccl_mem_component_alloc(void **ptr, size_t len,
 
     if ((mem_components[mt]->cache.used == 0) &&
         (mem_components[mt]->cache.size >= len)) {
-        
+
         if (mem_components[mt]->cache.buf == NULL) {
             st = mem_components[mt]->mem_alloc(&mem_components[mt]->cache.buf,
                                                mem_components[mt]->cache.size);
@@ -185,6 +193,7 @@ void xccl_mem_component_finalize()
 
     for(mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
         if (mem_components[mt] != NULL) {
+            mem_components[mt]->close();
             dlclose(mem_components[mt]->dlhandle);
         }
     }

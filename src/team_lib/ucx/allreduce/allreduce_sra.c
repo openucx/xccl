@@ -173,7 +173,7 @@ xccl_status_t xccl_ucx_scatter_reduce_knomial_progress(xccl_ucx_collreq_t *req)
     if ((req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) ||
         (KN_PROXY == node_type)) {
         xccl_mem_component_alloc(&req->allreduce_sra.scratch,
-                                 data_size, req->mem_type);
+                                 data_size, req->src_mem_type);
     }
 
     if (KN_EXTRA == node_type) {
@@ -207,7 +207,7 @@ PHASE_EXTRA:
                                       req->args.reduce_info.count,
                                       req->args.reduce_info.dt,
                                       req->args.reduce_info.op,
-                                      req->mem_type);
+                                      req->src_mem_type);
             req->args.buffer_info.src_buffer = req->args.buffer_info.dst_buffer;
         }
     }
@@ -270,7 +270,7 @@ PHASE_1:
             xccl_mem_component_reduce_multi(local_data, dst_buffer, reduce_data,
                                             active_reqs/2, local_seg_count,
                                             local_seg_count*dt_size, req->args.reduce_info.dt,
-                                            req->args.reduce_info.op, req->mem_type);
+                                            req->args.reduce_info.op, req->src_mem_type);
             radix_pow *= radix;
         }
     }
@@ -284,7 +284,7 @@ PHASE_1:
 //prepare for allgather
     if ((req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) ||
         (KN_PROXY == node_type)) {
-        xccl_mem_component_free(req->allreduce_sra.scratch, req->mem_type);
+        xccl_mem_component_free(req->allreduce_sra.scratch, req->src_mem_type);
     }
     req->args.buffer_info.src_buffer = (void*)((ptrdiff_t)req->args.buffer_info.dst_buffer + offset);
     req->allreduce_sra.iteration = pow_k_sup - 1;

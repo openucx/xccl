@@ -12,6 +12,7 @@ xccl_cuda_mem_component_t xccl_cuda_mem_component;
 static xccl_status_t xccl_cuda_open()
 {
     xccl_cuda_mem_component.stream = 0;
+    return XCCL_OK;
 }
 
 static xccl_status_t xccl_cuda_mem_alloc(void **ptr, size_t len)
@@ -62,7 +63,7 @@ xccl_status_t xccl_cuda_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf,
 xccl_status_t xccl_cuda_mem_type(void *ptr, ucs_memory_type_t *mem_type) {
     struct      cudaPointerAttributes attr;
     cudaError_t err;
-    
+
     err = cudaPointerGetAttributes(&attr, ptr);
     if (err != cudaSuccess) {
         cudaGetLastError();

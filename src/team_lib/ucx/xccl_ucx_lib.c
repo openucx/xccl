@@ -113,29 +113,47 @@ xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
                         xccl_ucx_collreq_t **request)
 {
     xccl_status_t     status;
-    ucs_memory_type_t mem_type;
-
+    ucs_memory_type_t src_mem_type, dst_mem_type;
     /* TODO: where to handle MPI_INPLACE? */
     if ((ptrdiff_t)coll_args->buffer_info.src_buffer == 0x1) {
         coll_args->buffer_info.src_buffer = coll_args->buffer_info.dst_buffer;
     }
 
-    status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
-                                     &mem_type);
-    if (status != XCCL_OK) {
-        xccl_ucx_error("Memtype detection error");
-        return XCCL_ERR_INVALID_PARAM;
+    if ((coll_args->coll_type == XCCL_BCAST) ||
+        (coll_args->coll_type == XCCL_ALLREDUCE) ||
+        (coll_args->coll_type == XCCL_REDUCE) ||
+        (coll_args->coll_type == XCCL_ALLTOALL) ||
+        (coll_args->coll_type == XCCL_ALLTOALLV) ||
+        (coll_args->coll_type == XCCL_ALLGATHER)) {
+        status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
+                                         &src_mem_type);
+        if (status != XCCL_OK) {
+            xccl_ucx_error("memtype detection error");
+            return XCCL_ERR_INVALID_PARAM;
+        }
+        if (coll_args->buffer_info.src_buffer != coll_args->buffer_info.dst_buffer) {
+            status = xccl_mem_component_type(coll_args->buffer_info.dst_buffer,
+                                             &dst_mem_type);
+            if (status != XCCL_OK) {
+                xccl_ucx_error("memtype detection error");
+                return XCCL_ERR_INVALID_PARAM;
+            }
+        } else {
+            dst_mem_type = src_mem_type;
+        }
     }
-    xccl_ucx_trace_req("src_buffer memory type: %s", ucs_memory_type_names[mem_type]);
-
+    xccl_ucx_trace_req("memory types: src %s, dst %s",
+                       ucs_memory_type_names[src_mem_type],
+                       ucs_memory_type_names[dst_mem_type]);
     //todo malloc ->mpool
     xccl_ucx_collreq_t *req = (xccl_ucx_collreq_t *)malloc(sizeof(*req));
     memcpy(&req->args, coll_args, sizeof(*coll_args));
-    req->complete  = XCCL_INPROGRESS;
-    req->team      = team;
-    req->super.lib = &xccl_team_lib_ucx.super;
-    req->tag       = ((xccl_ucx_team_t*)team)->seq_num++;
-    req->mem_type  = mem_type;
+    req->complete     = XCCL_INPROGRESS;
+    req->team         = team;
+    req->super.lib    = &xccl_team_lib_ucx.super;
+    req->tag          = ((xccl_ucx_team_t*)team)->seq_num++;
+    req->src_mem_type = src_mem_type;
+    req->dst_mem_type = dst_mem_type;
 
     (*request)     = req;
     return XCCL_OK;
@@ -154,6 +172,14 @@ xccl_ucx_allreduce_init(xccl_coll_op_args_t *coll_args,
     status = xccl_ucx_coll_base_init(coll_args, team, &req);
     if (status != XCCL_OK) {
         return status;
+    }
+    if (req->src_mem_type != req->dst_mem_type) {
+        xccl_ucx_error("Different mem types are not supported in allreduce"
+                       "(%s, %s)",
+                        ucs_memory_type_names[req->src_mem_type],
+                        ucs_memory_type_names[req->dst_mem_type]);
+        free(req);
+        return XCCL_ERR_INVALID_PARAM;
     }
     ctx = ucs_derived_of(team->ctx, xccl_team_lib_ucx_context_t);
 
@@ -282,7 +308,21 @@ xccl_ucx_reduce_init(xccl_coll_op_args_t *coll_args,
     //TODO alg selection for allreduce should happen here
     xccl_ucx_collreq_t *req;
     xccl_status_t status = XCCL_OK;
-    xccl_ucx_coll_base_init(coll_args, team, &req);
+
+    status = xccl_ucx_coll_base_init(coll_args, team, &req);
+    if (status != XCCL_OK) {
+        return status;
+    }
+
+    if (req->src_mem_type != req->dst_mem_type) {
+        xccl_ucx_error("Different mem types are not supported in reduce"
+                       "(%s, %s)",
+                        ucs_memory_type_names[req->src_mem_type],
+                        ucs_memory_type_names[req->dst_mem_type]);
+        free(req);
+        return XCCL_ERR_INVALID_PARAM;
+    }
+
     if (!coll_args->alg.set_by_user) {
         /* Automatic algorithm selection - take knomial */
         req->start = xccl_ucx_reduce_knomial_start;

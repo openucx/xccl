@@ -30,7 +30,7 @@ xccl_status_t xccl_ucx_reduce_linear_progress(xccl_ucx_collreq_t *req)
                                       req->args.reduce_info.count,
                                       req->args.reduce_info.dt,
                                       req->args.reduce_info.op,
-                                      req->mem_type);
+                                      req->src_mem_type);
 
             if (req->reduce_linear.step != group_rank) {
                 xccl_ucx_recv_nb(scratch, data_size, req->reduce_linear.step,
@@ -59,7 +59,7 @@ completion:
     /*         COLL_ID_IN_SCHEDULE(bcol_args), bcol_args->next_frag-1); */
     req->complete = XCCL_OK;
     if (req->reduce_linear.scratch) {
-        xccl_mem_component_free(req->reduce_linear.scratch, req->mem_type);
+        xccl_mem_component_free(req->reduce_linear.scratch, req->src_mem_type);
     }
     return XCCL_OK;
 }
@@ -75,7 +75,7 @@ xccl_status_t xccl_ucx_reduce_linear_start(xccl_ucx_collreq_t *req)
     if (req->args.root == group_rank) {
         xccl_mem_component_alloc(&req->reduce_linear.scratch,
                                  data_size,
-                                 req->mem_type);
+                                 req->src_mem_type);
         xccl_ucx_send_recv(req->args.buffer_info.src_buffer, data_size,
                            group_rank, req->tag, req->args.buffer_info.dst_buffer,
                            data_size, group_rank, req->tag,

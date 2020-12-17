@@ -4,28 +4,44 @@
 * See file LICENSE for terms.
 */
 #include "test_mpi.h"
+#include "test_utils.h"
 
 int main (int argc, char **argv) {
     int rank, size, i, r, count,
         status = 0, status_global;
     int *buf, *buf_mpi;
-    xccl_coll_req_h request;    
+    xccl_coll_req_h request;
+    test_mem_type_t mtype;
+    int not_equal;
+
+    count = argc > 1 ? atoi(argv[1]) : 32;
+    mtype = argc > 2 ? atoi(argv[2]) : TEST_MEM_TYPE_HOST;
+
+    XCCL_CHECK(test_xccl_set_device(mtype));
     XCCL_CHECK(xccl_mpi_test_init(argc, argv, XCCL_COLL_CAP_BCAST, XCCL_THREAD_MODE_SINGLE));
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
+    if (rank == 0) {
+        test_print_header(XCCL_BCAST, mtype, count, count);
+    }
 
-    count = argc > 1 ? atoi(argv[1]) : 32;
-    buf = (int*)malloc(count*sizeof(int));
-    buf_mpi = (int*)malloc(count*sizeof(int));
-
+    XCCL_CHECK(test_xccl_mem_alloc((void**)&buf, count*sizeof(int),
+                                   mtype));
+    XCCL_CHECK(test_xccl_mem_alloc((void**)&buf_mpi, count*sizeof(int),
+                                   TEST_MEM_TYPE_HOST));
     for (r=0; r<size; r++) {
         if (rank != r) {
-            memset(buf, 0, sizeof(int)*count);
-            memset(buf_mpi, 0, sizeof(int)*count);
+            XCCL_CHECK(test_xccl_memset(buf, 0, count*sizeof(int),
+                                        mtype))
+            XCCL_CHECK(test_xccl_memset(buf_mpi, 0, count*sizeof(int),
+                                        TEST_MEM_TYPE_HOST))
         } else {
             for (i=0; i<count; i++) {
-                buf[i] = buf_mpi[i] = rank+1+12345 + i;
+                buf_mpi[i] = rank+1+12345 + i;
             }
+            XCCL_CHECK(test_xccl_memcpy(buf, buf_mpi, count*sizeof(int),
+                                        (mtype == TEST_MEM_TYPE_HOST) ? TEST_MEMCPY_H2H:
+                                        TEST_MEMCPY_H2D));
         }
 
         xccl_coll_op_args_t coll = {
@@ -49,7 +65,12 @@ int main (int argc, char **argv) {
         XCCL_CHECK(xccl_collective_finalize(request));
 
         MPI_Bcast(buf_mpi, count, MPI_INT, r, MPI_COMM_WORLD);
-        if (0 != memcmp(buf, buf_mpi, count*sizeof(int))) {
+        XCCL_CHECK(test_xccl_memcmp(buf, mtype,
+                                    buf_mpi, TEST_MEM_TYPE_HOST,
+                                    count*sizeof(int),
+                                    &not_equal));
+
+        if (not_equal) {
             fprintf(stderr, "RST CHECK FAILURE at rank %d\n", rank);
             status = 1;
         }
@@ -62,8 +83,8 @@ int main (int argc, char **argv) {
     if (0 == rank) {
         printf("Correctness check: %s\n", status_global == 0 ? "PASS" : "FAIL");
     }
-    free(buf);
-    free(buf_mpi);
+    XCCL_CHECK(test_xccl_mem_free(buf, mtype));
+    XCCL_CHECK(test_xccl_mem_free(buf_mpi, TEST_MEM_TYPE_HOST));
     xccl_mpi_test_finalize();
     return 0;
 }

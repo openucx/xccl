@@ -16,7 +16,6 @@
 xccl_status_t xccl_collective_init(xccl_coll_op_args_t *coll_args,
                                    xccl_coll_req_h *request, xccl_team_h team)
 {
-    XCCL_CHECK_TEAM(team);
     int               tl_team_id;
     xccl_tl_team_t    *tl_team;
     xccl_team_lib_t   *lib;
@@ -24,15 +23,26 @@ xccl_status_t xccl_collective_init(xccl_coll_op_args_t *coll_args,
     xccl_status_t     status;
     ucs_memory_type_t mtype;
 
-    status = xccl_mem_component_type(coll_args->buffer_info.src_buffer, &mtype);
-    if (status != XCCL_OK) {
-        xccl_error("Memtype detection error");
-        return XCCL_ERR_INVALID_PARAM;
+
+    XCCL_CHECK_TEAM(team);
+    mtype = UCS_MEMORY_TYPE_HOST;
+    if ((coll_args->coll_type == XCCL_BCAST) ||
+        (coll_args->coll_type == XCCL_ALLREDUCE) ||
+        (coll_args->coll_type == XCCL_REDUCE) ||
+        (coll_args->coll_type == XCCL_ALLTOALL) ||
+        (coll_args->coll_type == XCCL_ALLTOALLV) ||
+        (coll_args->coll_type == XCCL_ALLGATHER)) {
+        status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
+                                         &mtype);
+        if (status != XCCL_OK) {
+            xccl_error("memtype detection error");
+            return XCCL_ERR_INVALID_PARAM;
+        }
     }
 
     tl_team_id = team->coll_team_id[coll_args->coll_type][mtype];
     if (tl_team_id < 0) {
-        xccl_error("No teams supported col %d memory type %s found",
+        xccl_error("no teams supported col %d memory type %s found",
                    coll_args->coll_type,
                    ucs_memory_type_names[mtype]);
         return XCCL_ERR_UNSUPPORTED;

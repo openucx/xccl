@@ -46,7 +46,7 @@ static ucs_config_field_t xccl_team_lib_nccl_config_table[] = {
      UCS_CONFIG_TYPE_TABLE(xccl_team_lib_config_table)
     },
 
-    {"ALLREUCE", "1",
+    {"ALLREDUCE", "1",
      "Enable NCCL allreduce",
      ucs_offsetof(xccl_team_lib_nccl_config_t, enable_allreduce),
      UCS_CONFIG_TYPE_BOOL
@@ -67,6 +67,12 @@ static ucs_config_field_t xccl_team_lib_nccl_config_table[] = {
     {"ALLGATHER", "1",
      "Enable NCCL allgather",
      ucs_offsetof(xccl_team_lib_nccl_config_t, enable_allgather),
+     UCS_CONFIG_TYPE_BOOL
+    },
+
+    {"BCAST", "1",
+     "Enable NCCL broadcast",
+     ucs_offsetof(xccl_team_lib_nccl_config_t, enable_bcast),
      UCS_CONFIG_TYPE_BOOL
     },
 
@@ -107,6 +113,10 @@ static xccl_status_t xccl_nccl_lib_open(xccl_team_lib_h self,
     if (cfg->enable_allgather) {
         tl->super.params.coll_types |= XCCL_COLL_CAP_ALLGATHER;
     }
+    if (cfg->enable_bcast) {
+        tl->super.params.coll_types |= XCCL_COLL_CAP_BCAST;
+    }
+
     map_xccl_to_nccl_dtype();
     map_xccl_to_nccl_reduce_op_type();
 
@@ -240,6 +250,9 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
         break;
     case XCCL_ALLGATHER:
         status = xccl_nccl_allgather_init(coll_args, req, nccl_team);
+        break;
+    case XCCL_BCAST:
+        status = xccl_nccl_bcast_init(coll_args, req, nccl_team);
         break;
     default:
         status = XCCL_ERR_INVALID_PARAM;
