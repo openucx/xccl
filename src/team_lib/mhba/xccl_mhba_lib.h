@@ -97,6 +97,7 @@ typedef struct xccl_mhba_node {
 typedef struct xccl_mhba_net {
     xccl_sbgp_t    *sbgp;
     int            net_size;
+    int            *rank_map;
     struct ibv_qp  **qps;
     struct ibv_cq  *cq;
     struct ibv_mr  *ctrl_mr;
