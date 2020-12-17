@@ -24,6 +24,8 @@ typedef struct xccl_tl_mhba_context_config {
     xccl_tl_context_config_t super;
     ucs_config_names_array_t devices;
     int                      ib_global;
+    int                      transpose;
+    int                      transpose_hw_limitations;
 } xccl_tl_mhba_context_config_t;
 
 //todo add block_size config
@@ -111,6 +113,9 @@ typedef struct xccl_mhba_net {
 
 typedef struct xccl_mhba_team {
     xccl_tl_team_t      super;
+    int                 transpose;
+    int                 transpose_hw_limitations;
+    uint64_t            max_msg_size;
     xccl_mhba_node_t    node;
     xccl_mhba_net_t     net;
     int                 sequence_number;

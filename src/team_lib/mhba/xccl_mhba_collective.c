@@ -231,7 +231,7 @@ static void transpose_square_mat(void* addr, int side_len, int unit_size, void* 
 }
 
 // add polling mechanism for blocks in order to maintain const qp tx rx
-static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
+static xccl_status_t xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task) {
     xccl_mhba_debug("send blocks start");
     task->state = XCCL_TASK_STATE_INPROGRESS;
     xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
@@ -239,7 +239,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
     xccl_mhba_team_t *team = request->team;
     xccl_status_t status;
     int index = seq_index(request->seq_num);
-    int operation_size = team->node.sbgp->group_size*MAX_MSG_SIZE*team->size;
+    int operation_size = team->node.sbgp->group_size*team->max_msg_size*team->size;
     int column_size = request->args.buffer_info.len*request->block_size*team->node.sbgp->group_size;
     int node_size = squared(team->node.sbgp->group_size)*request->args.buffer_info.len;
     int block_size = squared(request->block_size)*request->args.buffer_info.len;
@@ -309,6 +309,53 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
     return XCCL_OK;
 }
 
+// add polling mechanism for blocks in order to maintain const qp tx rx
+static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
+    xccl_mhba_debug("send blocks start");
+    task->state = XCCL_TASK_STATE_INPROGRESS;
+    xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
+    xccl_mhba_coll_req_t *request = self->req;
+    xccl_mhba_team_t *team = request->team;
+    xccl_status_t status;
+    int index = seq_index(request->seq_num);
+    int operation_size = team->node.sbgp->group_size*team->max_msg_size*team->size;
+    int column_size = request->args.buffer_info.len*request->block_size*team->node.sbgp->group_size;
+    int node_size = squared(team->node.sbgp->group_size)*request->args.buffer_info.len;
+    int block_size = squared(request->block_size)*request->args.buffer_info.len;
+    int i, j, k, dest_rank, rank;
+    uint64_t src_addr, remote_addr;
+    rank = team->net.rank_map[team->net.sbgp->group_rank];
+
+    for(i=0;i<team->net.sbgp->group_size;i++) {
+        dest_rank = team->net.rank_map[i];
+        //send all blocks from curr node to some ARR
+        for(j=0;j<round_up(team->node.sbgp->group_size,request->block_size);j++){
+            for(k=0;k<round_up(team->node.sbgp->group_size,request->block_size);k++){
+                src_addr = (uintptr_t)(operation_size*index + node_size*dest_rank + column_size*j + block_size*k);
+                remote_addr = (uintptr_t)(operation_size*index + node_size*rank +
+                                          block_size*j + column_size*k);
+
+                status = send_block_data(team->net.qps[i],src_addr,block_size,team->node.team_send_mkey->lkey,
+                                         remote_addr, team->net.rkeys[i],0);
+                if(status!=XCCL_OK){
+                    xccl_mhba_error("Failed sending block [%d,%d,%d]",i,j,k);
+                    return status;
+                }
+            }
+        }
+
+        status = send_atomic(team->net.qps[i],(uintptr_t)team->net.remote_ctrl[i].addr+(index*MHBA_CTRL_SIZE),
+                             team->net.remote_ctrl[i].rkey, team, request);
+        if(status!=XCCL_OK){
+            xccl_mhba_error("Failed sending atomic to node [%d]",i);
+            return status;
+        }
+    }
+
+    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+    return XCCL_OK;
+}
+
 xccl_status_t xccl_mhba_send_blocks_progress(xccl_coll_task_t *task) {
     xccl_mhba_task_t *self = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
@@ -351,7 +398,7 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
                         xccl_mhba_team_t *team)
 {
     request->started = 0;
-    if (coll_args->buffer_info.len > MAX_MSG_SIZE){
+    if (coll_args->buffer_info.len > team->max_msg_size){
         xccl_mhba_error("msg size too long");
         return XCCL_ERR_NO_RESOURCE;
     }
@@ -359,7 +406,11 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
     int n_tasks = (!is_asr) ? 2 : 4;
     int i;
     xccl_schedule_init(&request->schedule, team->super.ctx);
-    request->block_size = team->blocks_sizes[__ucs_ilog2_u32(coll_args->buffer_info.len-1)];
+    if (team->transpose_hw_limitations) {
+        request->block_size = team->blocks_sizes[__ucs_ilog2_u32(coll_args->buffer_info.len - 1)];
+    } else{
+        request->block_size = team->node.sbgp->group_size;
+    }
 
     //todo following section correct assuming homogenous PPN across all nodes
     if(team->node.sbgp->group_size % request->block_size != 0) {
@@ -407,8 +458,11 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
     } else {
         request->tasks[1].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_asr_barrier_start;
         request->tasks[1].super.progress = xccl_mhba_asr_barrier_progress;
-
-        request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_send_blocks_start;
+        if(team->transpose){
+            request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_send_blocks_start_with_transpose;
+        } else{
+            request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_send_blocks_start;
+        }
         request->tasks[2].super.progress = xccl_mhba_send_blocks_progress;
 
         request->tasks[3].super.handlers[XCCL_EVENT_COMPLETED] = xccl_mhba_fanout_start;

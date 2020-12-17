@@ -10,7 +10,7 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank, int si
     xccl_coll_req_h request;
     MPI_Request     mpi_req;
     int             status, status_global, completed;
-    int j,i = 0;
+    int j = 0;
     status = 0;
     xccl_coll_op_args_t coll = {
         .coll_type = XCCL_ALLTOALL,
@@ -63,7 +63,7 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank, int si
 
 int main (int argc, char **argv)
 {
-    const int iters = 5;
+    const int iters = 13;
     size_t msglen_min, msglen_max;
     int count_max, count_min, count,
         rank, size, i, status_global;

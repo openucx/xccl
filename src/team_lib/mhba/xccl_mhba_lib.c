@@ -44,6 +44,18 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
      UCS_CONFIG_TYPE_STRING_ARRAY
     },
 
+    {"TRANSPOSE", "1",
+            "Boolean - with transpose or not",
+            ucs_offsetof(xccl_tl_mhba_context_config_t, transpose),
+            UCS_CONFIG_TYPE_UINT
+    },
+
+    {"TRANSPOSE_HW_LIMITATIONS", "1",
+            "Boolean - with transpose hw limitations or not",
+            ucs_offsetof(xccl_tl_mhba_context_config_t, transpose_hw_limitations),
+            UCS_CONFIG_TYPE_UINT
+    },
+
     {"IB_GLOBAL", "0",
      "Use global ib routing",
      ucs_offsetof(xccl_tl_mhba_context_config_t, ib_global),
@@ -342,6 +354,8 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     struct ibv_port_attr port_attr;
     int i;
     mhba_team->node.asr_rank = 0;//todo check in future if always 0
+    mhba_team->transpose = ctx->cfg.transpose;
+    mhba_team->transpose_hw_limitations = ctx->cfg.transpose_hw_limitations;
     struct Bcast_data bcastData;
     size_t storage_size, local_data_size;
     uint32_t *local_data, *global_data;
@@ -368,6 +382,15 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     if (XCCL_MHBA_IS_ASR(mhba_team) && node->group_rank != 0) {
         xccl_mhba_error("ASR group rank isn't 0");
         goto fail;
+    }
+
+    if(mhba_team->transpose_hw_limitations){
+        mhba_team->max_msg_size = MAX_MSG_SIZE;
+    } else{
+        u_int64_t min = 0;
+        u_int64_t max = ~min;
+        //todo check calc
+        mhba_team->max_msg_size = (max/MAX_CONCURRENT_OUTSTANDING_ALL2ALL)/(mhba_team->node.sbgp->group_size*mhba_team->size);
     }
 
     storage_size = (MHBA_CTRL_SIZE+ (2*MHBA_DATA_SIZE)) * node->group_size * MAX_CONCURRENT_OUTSTANDING_ALL2ALL +
@@ -509,7 +532,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
             goto remote_ctrl_fail;
         }
 
-        status = xccl_mhba_init_mkeys(&mhba_team->node,mhba_team->size);
+        status = xccl_mhba_init_mkeys(mhba_team);
         if (status!=XCCL_OK){
             xccl_mhba_error("Failed to init mkeys");
             goto remote_ctrl_fail;

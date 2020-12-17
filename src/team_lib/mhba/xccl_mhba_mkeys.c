@@ -188,8 +188,9 @@ populate_mkey(xccl_mhba_node_t *node, int mem_access_flags, struct mlx5dv_mkey *
     return XCCL_OK;
 }
 
-static xccl_status_t create_and_populate_team_mkey(xccl_mhba_node_t *node, int team_size,int send){
+static xccl_status_t create_and_populate_team_mkey(xccl_mhba_team_t* team, int send){
     xccl_status_t status;
+    xccl_mhba_node_t *node = &team->node;
     struct mlx5dv_mkey** mkey = send ? &node->team_send_mkey : &node->team_recv_mkey;
     int i;
     status = create_master_key(node, mkey, MAX_CONCURRENT_OUTSTANDING_ALL2ALL);
@@ -199,7 +200,7 @@ static xccl_status_t create_and_populate_team_mkey(xccl_mhba_node_t *node, int t
     struct ibv_sge* team_mkey_klm_entries = (struct ibv_sge*)calloc(MAX_CONCURRENT_OUTSTANDING_ALL2ALL, sizeof(struct ibv_sge));
     for (i = 0; i < MAX_CONCURRENT_OUTSTANDING_ALL2ALL; i++) {
         team_mkey_klm_entries[i].addr = 0;
-        team_mkey_klm_entries[i].length = node->sbgp->group_size*MAX_MSG_SIZE*team_size;
+        team_mkey_klm_entries[i].length = node->sbgp->group_size*team->max_msg_size*team->size;
         //todo check lkey or rkey
         team_mkey_klm_entries[i].lkey = send ? node->operations[i].send_mkey->lkey : node->operations[i]
                 .recv_mkey->rkey;
@@ -222,8 +223,9 @@ static xccl_status_t create_and_populate_team_mkey(xccl_mhba_node_t *node, int t
  * @param node struct of the current process's node
  * @param team_size number of processes in team
  */
-xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_node_t *node,int team_size) {
+xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_team_t *team) {
     xccl_status_t status;
+    xccl_mhba_node_t *node = &team->node;
     int i;
     for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++) {
         status = create_master_key(node, &node->operations[i].send_mkey, node->sbgp->group_size + 1);
@@ -239,13 +241,13 @@ xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_node_t *node,int team_size) {
             return status;
         }
     }
-    status = create_and_populate_team_mkey(node,team_size,1);
+    status = create_and_populate_team_mkey(team, 1);
     if (status != XCCL_OK) {
         xccl_mhba_error("create send top masterkey failed");
         xccl_mhba_destroy_mkeys(node,1);
         return status;
     }
-    status = create_and_populate_team_mkey(node,team_size,0);
+    status = create_and_populate_team_mkey(team, 0);
     if (status != XCCL_OK) {
         xccl_mhba_error("create recv top masterkey failed");
         xccl_mhba_destroy_mkeys(node,1);
