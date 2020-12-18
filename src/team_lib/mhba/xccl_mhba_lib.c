@@ -140,62 +140,6 @@ xccl_mhba_context_destroy(xccl_tl_context_t *context)
     return XCCL_OK;
 }
 
-xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request)
-{
-    int i;
-    int *ctrl_v;
-    int index = SEQ_INDEX(request->seq_num);
-    if(team->op_busy[index] && !request->started){
-        return XCCL_INPROGRESS;
-    } //wait for slot to be open
-    team->op_busy[index] = 1;
-    request->started = 1;
-    xccl_mhba_update_mkeys_entries(&team->node, request); // no option for failure status
-
-    if (team->node.sbgp->group_rank != team->node.asr_rank) {
-        *team->node.ops[index].my_ctrl = request->seq_num;
-    } else {
-        for (i=0; i<team->node.sbgp->group_size; i++) {
-            if (i == team->node.sbgp->group_rank) {
-                continue;
-            }
-            ctrl_v = (int*)((ptrdiff_t)team->node.ops[index].ctrl + MHBA_CTRL_SIZE*i);
-            if (*ctrl_v != request->seq_num) {
-                return XCCL_INPROGRESS;
-            }
-        }
-    }
-    return XCCL_OK;
-}
-
-xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request)
-{
-    int i;
-    int *ctrl_v;
-    int index = SEQ_INDEX(request->seq_num);
-
-
-    /* First phase of fanout: asr signals it completed local ops
-       and other ranks wait for asr */
-    if (team->node.sbgp->group_rank == team->node.asr_rank) {
-        *team->node.ops[index].my_ctrl = request->seq_num;
-    } else {
-        ctrl_v = (int*)((ptrdiff_t)team->node.ops[index].ctrl + MHBA_CTRL_SIZE*team->node.asr_rank);
-        if (*ctrl_v != request->seq_num) {
-            return XCCL_INPROGRESS;
-        }
-    }
-
-    /*Second phase of fanout: wait for remote atomic counters -
-      ie wait for the remote data */
-    ctrl_v = (int*)((ptrdiff_t)team->node.storage + MHBA_CTRL_SIZE*index);
-    assert(*ctrl_v <= team->net.net_size);
-    if ( *ctrl_v != team->net.net_size) {
-        return XCCL_INPROGRESS;
-    }
-    return XCCL_OK;
-}
-
 static xccl_status_t
 xccl_mhba_collective_init(xccl_coll_op_args_t *coll_args,
                           xccl_tl_coll_req_t **request,
@@ -259,10 +203,28 @@ xccl_mhba_collective_test(xccl_tl_coll_req_t *request)
 static xccl_status_t
 xccl_mhba_collective_finalize(xccl_tl_coll_req_t *request)
 {
+    xccl_status_t status = XCCL_OK;
     xccl_mhba_coll_req_t *req = ucs_derived_of(request, xccl_mhba_coll_req_t);
+    xccl_mhba_team_t *team = req->team;
+    if(ibv_dereg_mr(req->send_bf_mr)){
+        xccl_mhba_error("Failed to dereg_mr send buffer (errno=%d)", errno);
+        status = XCCL_ERR_NO_MESSAGE;
+    }
+    if(ibv_dereg_mr(req->receive_bf_mr)){
+        xccl_mhba_error("Failed to dereg_mr send buffer (errno=%d)", errno);
+        status = XCCL_ERR_NO_MESSAGE;
+    }
+    if (team->transpose) {
+        if (req->tmp_transpose_buf) free(req->tmp_transpose_buf);
+        if (req->transpose_buf_mr != team->transpose_buf_mr) {
+            ibv_dereg_mr(req->transpose_buf_mr);
+            free(req->transpose_buf_mr->addr);
+        }
+    }
+
     free(req->tasks);
     free(req);
-    return XCCL_OK;
+    return status;
 }
 
 xccl_team_lib_mhba_t xccl_team_lib_mhba = {

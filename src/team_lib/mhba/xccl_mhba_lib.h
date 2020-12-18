@@ -131,10 +131,6 @@ typedef struct xccl_mhba_team {
     struct ibv_mr       *transpose_buf_mr;
 } xccl_mhba_team_t;
 
-xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request); //todo change name -
-// because of mkey update
-xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request);
-
 xccl_status_t
 xccl_mhba_team_create_post(xccl_tl_context_t *context,
                            xccl_team_params_t *params,

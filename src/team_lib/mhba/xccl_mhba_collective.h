@@ -7,7 +7,6 @@
 #define XCCL_MHBA_COLLECTIVE_H_
 
 #include <xccl_mhba_lib.h>
-#include <infiniband/verbs.h>
 #include <ucs/arch/bitops.h>
 
 #define squared(num) (num*num)
