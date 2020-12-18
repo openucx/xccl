@@ -30,6 +30,8 @@ typedef struct xccl_mhba_coll_req {
     xccl_tl_coll_req_t            *barrier_req;
     int                           block_size;
     int                           started;
+    struct ibv_mr                 *transpose_buf_mr;
+    void                          *tmp_transpose_buf;
 } xccl_mhba_coll_req_t;
 
 xccl_status_t

@@ -43,9 +43,9 @@ static xccl_status_t create_umr_qp(xccl_mhba_node_t *node) {
     umr_init_attr_ex.send_cq = node->umr_cq;
     umr_init_attr_ex.recv_cq = node->umr_cq;
     umr_init_attr_ex.cap.max_send_wr = 1;
-    umr_init_attr_ex.cap.max_recv_wr = 0;
+    umr_init_attr_ex.cap.max_recv_wr = 1;
     umr_init_attr_ex.cap.max_send_sge = 1;
-    umr_init_attr_ex.cap.max_recv_sge = 0;
+    umr_init_attr_ex.cap.max_recv_sge = 1;
     // `max_inline_data` determines the WQE size that the QP will support.
     // The 'max_inline_data' should be modified only when the number of
     // arrays to interleave is greater than 3.

@@ -61,6 +61,13 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
      ucs_offsetof(xccl_tl_mhba_context_config_t, ib_global),
      UCS_CONFIG_TYPE_UINT
     },
+
+    {"TRANPOSE_BUF_SIZE", "128k",
+     "Size of the pre-allocated transpose buffer",
+     ucs_offsetof(xccl_tl_mhba_context_config_t, transpose_buf_size),
+     UCS_CONFIG_TYPE_MEMUNITS
+    },
+
     {NULL}
 };
 
@@ -456,7 +463,19 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
     mhba_team->net.remote_ctrl = NULL;
     mhba_team->net.rank_map = NULL;
     calc_block_size(mhba_team);
+    mhba_team->transpose_buf_mr = NULL;
+    mhba_team->transpose_buf = NULL;
     if (mhba_team->node.asr_rank == node->group_rank) {
+        if (mhba_team->transpose) {
+            mhba_team->transpose_buf = malloc(ctx->cfg.transpose_buf_size);
+            if (!mhba_team->transpose_buf) {
+                goto fail_after_shmat;
+            }
+            mhba_team->transpose_buf_mr = ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->transpose_buf,
+                                            ctx->cfg.transpose_buf_size,
+                                            IBV_ACCESS_REMOTE_WRITE |
+                                            IBV_ACCESS_LOCAL_WRITE);
+        }
         build_rank_map(mhba_team);
         xccl_status_t status = xccl_mhba_init_umr(ctx, &mhba_team->node);
         if (status!=XCCL_OK){
@@ -678,6 +697,10 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         ibv_dereg_mr(mhba_team->dummy_bf_mr);
         free(mhba_team->work_completion);
         free(mhba_team->net.rank_map);
+        if (mhba_team->transpose_buf_mr) {
+            ibv_dereg_mr(mhba_team->transpose_buf_mr);
+            free(mhba_team->transpose_buf);
+        }
     }
     free(team);
     return status;
@@ -732,6 +755,7 @@ xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t
     /*Second phase of fanout: wait for remote atomic counters -
       ie wait for the remote data */
     ctrl_v = (int*)((ptrdiff_t)team->node.storage + MHBA_CTRL_SIZE*index);
+    assert(*ctrl_v <= team->net.net_size);
     if ( *ctrl_v != team->net.net_size) {
         return XCCL_INPROGRESS;
     }

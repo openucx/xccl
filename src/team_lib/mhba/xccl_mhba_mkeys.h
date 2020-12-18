@@ -16,7 +16,7 @@ typedef struct xccl_mhba_team     xccl_mhba_team_t;
 #include "api/xccl.h"
 
 
-#define UMR_CQ_SIZE 2 //todo check
+#define UMR_CQ_SIZE 8 //todo check
 
 xccl_status_t xccl_mhba_init_umr(xccl_mhba_context_t *ctx, xccl_mhba_node_t *node);
 

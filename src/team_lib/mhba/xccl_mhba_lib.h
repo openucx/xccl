@@ -26,6 +26,7 @@ typedef struct xccl_tl_mhba_context_config {
     int                      ib_global;
     int                      transpose;
     int                      transpose_hw_limitations;
+    size_t                   transpose_buf_size;
 } xccl_tl_mhba_context_config_t;
 
 //todo add block_size config
@@ -127,6 +128,8 @@ typedef struct xccl_mhba_team {
     uint64_t            dummy_atomic_buff;
     struct ibv_mr       *dummy_bf_mr;
     struct ibv_wc       *work_completion;
+    void                *transpose_buf;
+    struct ibv_mr       *transpose_buf_mr;
 } xccl_mhba_team_t;
 
 #define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
