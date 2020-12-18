@@ -12,7 +12,7 @@
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
 
-#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 4 //todo change - according to limitations (52 top)
+#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 1 //todo change - according to limitations (52 top)
 #define seq_index(seq_num) (seq_num % MAX_CONCURRENT_OUTSTANDING_ALL2ALL)
 #define round_up(divided,divisor) ((divided+(divisor-1))/divisor)
 
@@ -24,6 +24,9 @@ typedef struct xccl_tl_mhba_context_config {
     xccl_tl_context_config_t super;
     ucs_config_names_array_t devices;
     int                      ib_global;
+    int                      transpose;
+    int                      transpose_hw_limitations;
+    size_t                   transpose_buf_size;
 } xccl_tl_mhba_context_config_t;
 
 //todo add block_size config
@@ -111,6 +114,9 @@ typedef struct xccl_mhba_net {
 
 typedef struct xccl_mhba_team {
     xccl_tl_team_t      super;
+    int                 transpose;
+    int                 transpose_hw_limitations;
+    uint64_t            max_msg_size;
     xccl_mhba_node_t    node;
     xccl_mhba_net_t     net;
     int                 sequence_number;
@@ -122,6 +128,8 @@ typedef struct xccl_mhba_team {
     uint64_t            dummy_atomic_buff;
     struct ibv_mr       *dummy_bf_mr;
     struct ibv_wc       *work_completion;
+    void                *transpose_buf;
+    struct ibv_mr       *transpose_buf_mr;
 } xccl_mhba_team_t;
 
 #define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
