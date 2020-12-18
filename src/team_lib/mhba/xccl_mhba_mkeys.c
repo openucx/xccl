@@ -7,21 +7,6 @@
 #include "xccl_mhba_collective.h"
 #include "utils/utils.h"
 
-static xccl_status_t poll_cq(struct ibv_cq *cq, int expected_wc_num, struct ibv_wc *actual_wc) {
-    int total_received_completions = 0;
-    int new_received_completions = 0;
-    while (expected_wc_num > 0) {
-        new_received_completions = ibv_poll_cq(cq, expected_wc_num, actual_wc);
-        if (new_received_completions < 0) {
-            xccl_mhba_error("ibv_poll_cq() failed for UMR execution");
-            return XCCL_ERR_NO_MESSAGE;
-        }
-        total_received_completions += new_received_completions;
-        expected_wc_num -= new_received_completions;
-    }
-    return XCCL_OK;
-}
-
 static xccl_status_t create_umr_qp(xccl_mhba_node_t *node) {
     struct ibv_qp_init_attr_ex umr_init_attr_ex;
     struct mlx5dv_qp_init_attr umr_mlx5dv_qp_attr;
@@ -34,12 +19,12 @@ static xccl_status_t create_umr_qp(xccl_mhba_node_t *node) {
     }
 
     memset(&umr_mlx5dv_qp_attr, 0, sizeof(umr_mlx5dv_qp_attr));
+    memset(&umr_init_attr_ex, 0, sizeof(umr_init_attr_ex));
+
     umr_mlx5dv_qp_attr.comp_mask = MLX5DV_QP_INIT_ATTR_MASK_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
     umr_mlx5dv_qp_attr.create_flags = 0;
-    memset(&umr_mlx5dv_qp_attr.dc_init_attr,0,sizeof(umr_mlx5dv_qp_attr.dc_init_attr)); //todo check rc/dc
     umr_mlx5dv_qp_attr.send_ops_flags = MLX5DV_QP_EX_WITH_MR_LIST | MLX5DV_QP_EX_WITH_MR_INTERLEAVED;
 
-    memset(&umr_init_attr_ex, 0, sizeof(umr_init_attr_ex));
     umr_init_attr_ex.send_cq = node->umr_cq;
     umr_init_attr_ex.recv_cq = node->umr_cq;
     umr_init_attr_ex.cap.max_send_wr = 1;
@@ -49,9 +34,10 @@ static xccl_status_t create_umr_qp(xccl_mhba_node_t *node) {
     // `max_inline_data` determines the WQE size that the QP will support.
     // The 'max_inline_data' should be modified only when the number of
     // arrays to interleave is greater than 3.
+    //TODO query the devices what is max supported
     umr_init_attr_ex.cap.max_inline_data = 828; // the max number possible, Sergey Gorenko's email
     umr_init_attr_ex.qp_type = IBV_QPT_RC;
-    umr_init_attr_ex.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
+    umr_init_attr_ex.comp_mask = IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
     umr_init_attr_ex.pd = node->shared_pd;
     umr_init_attr_ex.send_ops_flags |= IBV_QP_EX_WITH_SEND;
     node->umr_qp = mlx5dv_create_qp(node->shared_ctx, &umr_init_attr_ex, &umr_mlx5dv_qp_attr);
@@ -70,7 +56,6 @@ static xccl_status_t create_umr_qp(xccl_mhba_node_t *node) {
     // Turning on the IBV_SEND_SIGNALED option, will cause the reported work comletion to be with MLX5DV_WC_UMR opcode.
     // The option IBV_SEND_INLINE is required by the current API.
     node->umr_qpx->wr_flags = IBV_SEND_INLINE | IBV_SEND_SIGNALED;
-
     node->umr_mlx5dv_qp_ex = mlx5dv_qp_ex_from_ibv_qp_ex(node->umr_qpx);
     if (node->umr_mlx5dv_qp_ex == NULL) {
         xccl_mhba_error("UMR qp_ex (mlx5dv_qp) creation failed");
@@ -137,23 +122,20 @@ create_master_key(xccl_mhba_node_t *node, struct mlx5dv_mkey **mkey_ptr,int num_
 }
 
 static xccl_status_t poll_umr_cq(xccl_mhba_node_t *node) {
-    const int expected_completions_num = 1;
-    struct ibv_wc work_completion[expected_completions_num];
-    memset(work_completion, 0, expected_completions_num * sizeof(struct ibv_wc));
-    int num_completions;
-    xccl_status_t status = poll_cq(node->umr_cq, expected_completions_num, work_completion);
-    if (status != XCCL_OK) {
-        xccl_mhba_error("UMR WQE on UMR QP failed");
-        return status;
-    }
-    if (work_completion[0].status != IBV_WC_SUCCESS) {
-        xccl_mhba_error("UMR CQ returned completion with status %s (%d)",
-                        ibv_wc_status_str(work_completion[0].status), work_completion[0].status);
-        return XCCL_ERR_NO_MESSAGE;
-    }
-    if (work_completion[0].opcode != MLX5DV_WC_UMR) {
-        xccl_mhba_error("Got unexpected completion opcode for the UMR QP: %d", work_completion[0].opcode);
-        return XCCL_ERR_NO_MESSAGE;
+    struct ibv_wc wc;
+    int ret = 0;
+    while (!ret) {
+        ret = ibv_poll_cq(node->umr_cq, 1, &wc);
+        if (ret < 0) {
+            xccl_mhba_error("ibv_poll_cq() failed for UMR execution");
+            return XCCL_ERR_NO_MESSAGE;
+        } else if (ret > 0) {
+            if (wc.status != IBV_WC_SUCCESS || wc.opcode != MLX5DV_WC_UMR) {
+                xccl_mhba_error("umr cq returned incorrect completion: status %s, opcode %d",
+                                ibv_wc_status_str(wc.status), wc.opcode);
+                return XCCL_ERR_NO_MESSAGE;
+            }
+        }
     }
     xccl_mhba_debug("Successfully executed the UMR WQE");
     return XCCL_OK;
