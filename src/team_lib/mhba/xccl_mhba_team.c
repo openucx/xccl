@@ -2,7 +2,6 @@
  * Copyright (C) Mellanox Technologies Ltd. 2020.  ALL RIGHTS RESERVED.
  * See file LICENSE for terms.
  */
-
 #include "xccl_mhba_lib.h"
 #include "core/xccl_team.h"
 #include "xccl_mhba_ib.h"
@@ -155,9 +154,7 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
 
     xccl_sbgp_oob_bcast(&bcast_data, sizeof(bcast_data_t), mhba_team->node.asr_rank, node, params->oob);
     net_size = bcast_data.net_size;
-    status = xccl_mhba_share_ctx_pd(mhba_team->node.asr_rank, &mhba_team->node,
-                                    mhba_team->context->ib_ctx->cmd_fd,
-                                    mhba_team->context->ib_pd->handle, ctx, params, bcast_data.sock_path);
+    status = xccl_mhba_share_ctx_pd(mhba_team, bcast_data.sock_path);
     if(status != XCCL_OK){
         xccl_mhba_error("Failed to create shared ctx & pd");
         goto fail;
@@ -232,8 +229,8 @@ xccl_mhba_team_create_post(xccl_tl_context_t *context,
         //todo change in case of non-homogenous ppn
         qp_init_attr.send_cq = mhba_team->net.cq;
         qp_init_attr.recv_cq = mhba_team->net.cq;
-        qp_init_attr.cap.max_send_wr = (squared(node_size/2)+1)*MAX_OUTSTANDING_OPS; // TODO switch back to 
-        qp_init_attr.cap.max_recv_wr = (squared(node_size/2)+1)*MAX_OUTSTANDING_OPS; // fixed tx/rx
+        qp_init_attr.cap.max_send_wr = (SQUARED(node_size/2)+1)*MAX_OUTSTANDING_OPS; // TODO switch back to
+        qp_init_attr.cap.max_recv_wr = (SQUARED(node_size/2)+1)*MAX_OUTSTANDING_OPS; // fixed tx/rx
         qp_init_attr.cap.max_send_sge = 1;
         qp_init_attr.cap.max_recv_sge = 1;
         qp_init_attr.cap.max_inline_data = 0;
@@ -378,7 +375,7 @@ fail_after_shmat:
                         mhba_team->node.storage, errno);
     }
 fail_after_share_pd:
-    status = xccl_mhba_remove_shared_ctx_pd(mhba_team->node.asr_rank, &mhba_team->node);
+    status = xccl_mhba_remove_shared_ctx_pd(mhba_team);
     if (status != XCCL_OK){
         xccl_mhba_error("failed removing shared ctx & pd");
     }
@@ -404,7 +401,7 @@ xccl_mhba_team_destroy(xccl_tl_team_t *team)
         xccl_mhba_error("failed to shmdt %p, errno %d",
                         mhba_team->node.storage, errno);
     }
-    status = xccl_mhba_remove_shared_ctx_pd(mhba_team->node.asr_rank, &mhba_team->node);
+    status = xccl_mhba_remove_shared_ctx_pd(mhba_team);
     if (status != XCCL_OK){
         xccl_mhba_error("failed removing shared ctx & pd");
     }

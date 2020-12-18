@@ -9,8 +9,6 @@
 #include <xccl_mhba_lib.h>
 #include <ucs/arch/bitops.h>
 
-#define squared(num) (num*num)
-
 typedef struct xccl_mhba_coll_req xccl_mhba_coll_req_t;
 typedef struct xccl_mhba_task {
     xccl_coll_task_t super;

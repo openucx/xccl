@@ -302,10 +302,10 @@ static xccl_status_t xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t
     int node_size = team->node.sbgp->group_size;
     int net_size = team->net.sbgp->group_size;
     int op_msgsize = node_size*team->max_msg_size*team->size;
-    int node_msgsize = squared(node_size)*len;
+    int node_msgsize = SQUARED(node_size)*len;
     int block_size = request->block_size;
     int col_msgsize = len*block_size*node_size;
-    int block_msgsize = squared(block_size)*len;
+    int block_msgsize = SQUARED(block_size)*len;
     int i, j, k, dest_rank, rank, n_compl, ret;
     uint64_t src_addr, remote_addr;
     struct ibv_wc transpose_completion[1];
@@ -383,10 +383,10 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task) {
     int node_size = team->node.sbgp->group_size;
     int net_size = team->net.sbgp->group_size;
     int op_msgsize = node_size*team->max_msg_size*team->size;
-    int node_msgsize = squared(node_size)*len;
+    int node_msgsize = SQUARED(node_size)*len;
     int block_size = request->block_size;
     int col_msgsize = len*block_size*node_size;
-    int block_msgsize = squared(block_size)*len;
+    int block_msgsize = SQUARED(block_size)*len;
     int i, j, k, dest_rank, rank;
     uint64_t src_addr, remote_addr;
     xccl_status_t status;
@@ -455,40 +455,42 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
     xccl_mhba_context_t *ctx = ucs_derived_of(team->super.ctx, xccl_mhba_context_t);
     int is_asr = (team->node.sbgp->group_rank == team->node.asr_rank);
     int n_tasks = (!is_asr) ? 2 : 4;
-    int i, block_msgsize;
+    size_t len = coll_args->buffer_info.len;
+    void *transpose_buf = NULL;
+    int i, block_msgsize, block_size;
+    xccl_status_t status;
     request->started = 0;
-    if (coll_args->buffer_info.len > team->max_msg_size){
+    if (len > team->max_msg_size){
         xccl_mhba_error("msg size too long");
         return XCCL_ERR_NO_RESOURCE;
     }
     xccl_schedule_init(&request->schedule, team->super.ctx);
     if (team->transpose_hw_limitations) {
-        request->block_size = team->blocks_sizes[__ucs_ilog2_u32(coll_args->buffer_info.len - 1)];
+        block_size = team->blocks_sizes[__ucs_ilog2_u32(len - 1)];
     } else{
-        request->block_size = team->node.sbgp->group_size;
+        block_size = team->node.sbgp->group_size;
     }
 
     //todo following section correct assuming homogenous PPN across all nodes
-    if(team->node.sbgp->group_size % request->block_size != 0) {
+    if(team->node.sbgp->group_size % block_size != 0) {
         if(team->node.sbgp->group_rank == team->node.asr_rank) {
             xccl_mhba_warn("Block size was decreased to fit node PPN");
         }
-        while (team->node.sbgp->group_size % request->block_size && request->block_size > 2) {
-            request->block_size -= 1;
+        while (team->node.sbgp->group_size % block_size && block_size > 2) {
+            block_size -= 1;
         }
     }
-    block_msgsize = squared(request->block_size)*request->args.buffer_info.len;
+    block_msgsize = SQUARED(block_size)*len;
     if(team->node.sbgp->group_rank == team->node.asr_rank) {
-        xccl_mhba_info("Block size is %d", request->block_size);
+        xccl_mhba_info("Block size is %d", block_size);
     }
-    if(team->node.sbgp->group_size % request->block_size){
+    if(team->node.sbgp->group_size % block_size){
         if(team->node.sbgp->group_rank == team->node.asr_rank) {
             xccl_mhba_error("node PPN can't be divided by any block size, or block size is 1 - NOT SUPPORTED");
         }
         return XCCL_ERR_NO_RESOURCE;
     }
-    int block_size = squared(request->block_size)*request->args.buffer_info.len;
-    
+    request->block_size = block_size;
     request->transpose_buf_mr = NULL;
     request->tmp_transpose_buf = NULL;
     request->tasks = (xccl_mhba_task_t*)malloc(sizeof(xccl_mhba_task_t)*n_tasks);
@@ -533,17 +535,40 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
             if (ctx->cfg.transpose_buf_size >= block_msgsize) {
                 request->transpose_buf_mr = team->transpose_buf_mr;
             } else {
-                void *tr_buf = malloc(block_msgsize);
+                transpose_buf = malloc(block_msgsize);
+                if (!transpose_buf) {
+                    xccl_mhba_error("failed to allocate transpose buffer of %d bytes",
+                                    block_msgsize);
+                    status = XCCL_ERR_NO_MEMORY;
+                    goto tr_buf_error;
+                }
                 request->transpose_buf_mr =
                     ibv_reg_mr(team->node.shared_pd,
-                               tr_buf, block_msgsize, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-                //TODO check failures malloc/regmr
+                               transpose_buf, block_msgsize, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+                if (!request->transpose_buf_mr) {
+                    xccl_mhba_error("failed to register transpose buffer, errno %d", errno);
+                    status = XCCL_ERR_NO_MESSAGE;
+                    goto tr_buf_reg;
+                }
             }
             request->tmp_transpose_buf = NULL;
-            if (request->args.buffer_info.len > TMP_TRANSPOSE_PREALLOC) {
-                request->tmp_transpose_buf = malloc(request->args.buffer_info.len);
+            if (len > TMP_TRANSPOSE_PREALLOC) {
+                request->tmp_transpose_buf = malloc(len);
+                if (!request->tmp_transpose_buf) {
+                    xccl_mhba_error("failed to allocate tmp transpose buffer of %d bytes",
+                                    len);
+                    status = XCCL_ERR_NO_MEMORY;
+                    goto tmp_buf_error;
+                }
             }
         }
     }
     return XCCL_OK;
+
+tmp_buf_error:
+    if (transpose_buf) ibv_dereg_mr(request->transpose_buf_mr);
+tr_buf_reg:
+    free(transpose_buf);
+tr_buf_error:
+    return status;
 }

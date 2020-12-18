@@ -14,6 +14,8 @@
 
 #define MAX_OUTSTANDING_OPS 1 //todo change - according to limitations (52 top)
 #define SEQ_INDEX(_seq_num) ((_seq_num) % MAX_OUTSTANDING_OPS)
+#define SQUARED(_num) ((_num)*(_num))
+
 
 typedef struct xccl_team_lib_mhba_config {
     xccl_team_lib_config_t super;
