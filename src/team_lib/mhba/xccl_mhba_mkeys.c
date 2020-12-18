@@ -173,7 +173,7 @@ populate_mkey(xccl_mhba_node_t *node, int mem_access_flags, struct mlx5dv_mkey *
                                  (struct mlx5dv_mr_interleaved *) mkey_entries);
         xccl_mhba_debug("Execute the UMR WQE for populating the send/recv MasterMKey lkey 0x%x",mkey->lkey);
     } else{
-        mlx5dv_wr_mr_list(node->umr_mlx5dv_qp_ex, mkey, mem_access_flags, MAX_CONCURRENT_OUTSTANDING_ALL2ALL, (struct
+        mlx5dv_wr_mr_list(node->umr_mlx5dv_qp_ex, mkey, mem_access_flags, MAX_OUTSTANDING_OPS, (struct
         ibv_sge*)mkey_entries);
         xccl_mhba_debug("Execute the UMR WQE for populating the team MasterMKeys lkey 0x%x",mkey->lkey);
     }
@@ -193,12 +193,12 @@ static xccl_status_t create_and_populate_team_mkey(xccl_mhba_team_t* team, int s
     xccl_mhba_node_t *node = &team->node;
     struct mlx5dv_mkey** mkey = send ? &node->team_send_mkey : &node->team_recv_mkey;
     int i;
-    status = create_master_key(node, mkey, MAX_CONCURRENT_OUTSTANDING_ALL2ALL);
+    status = create_master_key(node, mkey, MAX_OUTSTANDING_OPS);
     if (status != XCCL_OK) {
         return status;
     }
-    struct ibv_sge* team_mkey_klm_entries = (struct ibv_sge*)calloc(MAX_CONCURRENT_OUTSTANDING_ALL2ALL, sizeof(struct ibv_sge));
-    for (i = 0; i < MAX_CONCURRENT_OUTSTANDING_ALL2ALL; i++) {
+    struct ibv_sge* team_mkey_klm_entries = (struct ibv_sge*)calloc(MAX_OUTSTANDING_OPS, sizeof(struct ibv_sge));
+    for (i = 0; i < MAX_OUTSTANDING_OPS; i++) {
         team_mkey_klm_entries[i].addr = 0;
         team_mkey_klm_entries[i].length = node->sbgp->group_size*team->max_msg_size*team->size;
         //todo check lkey or rkey
@@ -227,7 +227,7 @@ xccl_status_t xccl_mhba_init_mkeys(xccl_mhba_team_t *team) {
     xccl_status_t status;
     xccl_mhba_node_t *node = &team->node;
     int i;
-    for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++) {
+    for(i=0;i<MAX_OUTSTANDING_OPS;i++) {
         status = create_master_key(node, &node->operations[i].send_mkey, node->sbgp->group_size + 1);
         if (status != XCCL_OK) {
             xccl_mhba_error("create send masterkey[%d] failed",i);
@@ -333,7 +333,7 @@ xccl_status_t xccl_mhba_destroy_umr(xccl_mhba_node_t *node) {
 xccl_status_t xccl_mhba_destroy_mkeys(xccl_mhba_node_t *node, int error_mode) {
     int i;
     xccl_status_t status = XCCL_OK;
-    for(i=0;i<MAX_CONCURRENT_OUTSTANDING_ALL2ALL;i++) {
+    for(i=0;i<MAX_OUTSTANDING_OPS;i++) {
         if (mlx5dv_destroy_mkey(node->operations[i].send_mkey)) {
             if(!error_mode) {
                 xccl_mhba_error("mkey destroy failed(errno=%d)", errno);

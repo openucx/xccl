@@ -12,8 +12,8 @@
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
 
-#define MAX_CONCURRENT_OUTSTANDING_ALL2ALL 1 //todo change - according to limitations (52 top)
-#define seq_index(seq_num) (seq_num % MAX_CONCURRENT_OUTSTANDING_ALL2ALL)
+#define MAX_OUTSTANDING_OPS 1 //todo change - according to limitations (52 top)
+#define seq_index(seq_num) (seq_num % MAX_OUTSTANDING_OPS)
 #define round_up(divided,divisor) ((divided+(divisor-1))/divisor)
 
 typedef struct xccl_team_lib_mhba_config {
@@ -79,7 +79,7 @@ typedef struct xccl_mhba_node {
     int                          asr_rank;
     xccl_sbgp_t                  *sbgp;
     void                         *storage;
-    xccl_mhba_operation_t        operations[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
+    xccl_mhba_operation_t        operations[MAX_OUTSTANDING_OPS];
     struct mlx5dv_mkey*          team_send_mkey;
     struct mlx5dv_mkey*          team_recv_mkey;
     struct ibv_context           *shared_ctx;
@@ -120,8 +120,8 @@ typedef struct xccl_mhba_team {
     xccl_mhba_node_t    node;
     xccl_mhba_net_t     net;
     int                 sequence_number;
-    int                 occupied_operations_slots[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
-    int                 cq_completions[MAX_CONCURRENT_OUTSTANDING_ALL2ALL];
+    int                 occupied_operations_slots[MAX_OUTSTANDING_OPS];
+    int                 cq_completions[MAX_OUTSTANDING_OPS];
     xccl_mhba_context_t *context;
     int                 blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
     int                 size;
