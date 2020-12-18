@@ -13,8 +13,7 @@
 #include <infiniband/mlx5dv.h>
 
 #define MAX_OUTSTANDING_OPS 1 //todo change - according to limitations (52 top)
-#define seq_index(seq_num) (seq_num % MAX_OUTSTANDING_OPS)
-#define round_up(divided,divisor) ((divided+(divisor-1))/divisor)
+#define SEQ_INDEX(_seq_num) ((_seq_num) % MAX_OUTSTANDING_OPS)
 
 typedef struct xccl_team_lib_mhba_config {
     xccl_team_lib_config_t super;
@@ -62,40 +61,40 @@ typedef struct xccl_mhba_context {
     int                                ib_port;
 } xccl_mhba_context_t;
 
-typedef struct xccl_mhba_operation{
-    void                         *ctrl;
-    int                          *my_ctrl;
-    void                         *send_umr_data;
-    void                         *my_send_umr_data;
-    void                         *recv_umr_data;
-    void                         *my_recv_umr_data;
-    struct mlx5dv_mkey*          send_mkey;
-    struct mlx5dv_mkey*          recv_mkey;
-} xccl_mhba_operation_t;
+typedef struct xccl_mhba_op {
+    void                 *ctrl;
+    int                  *my_ctrl;
+    void                 *send_umr_data;
+    void                 *my_send_umr_data;
+    void                 *recv_umr_data;
+    void                 *my_recv_umr_data;
+    struct mlx5dv_mkey   *send_mkey;
+    struct mlx5dv_mkey   *recv_mkey;
+} xccl_mhba_op_t;
 
 /* This structure holds resources and data related to the "in-node"
    part of the algorithm. */
 typedef struct xccl_mhba_node {
-    int                          asr_rank;
-    xccl_sbgp_t                  *sbgp;
-    void                         *storage;
-    xccl_mhba_operation_t        operations[MAX_OUTSTANDING_OPS];
-    struct mlx5dv_mkey*          team_send_mkey;
-    struct mlx5dv_mkey*          team_recv_mkey;
-    struct ibv_context           *shared_ctx;
-    struct ibv_pd                *shared_pd;
-    struct ibv_cq                *umr_cq;
-    struct ibv_qp                *umr_qp;
-    struct ibv_qp_ex             *umr_qpx;
-    struct mlx5dv_qp_ex          *umr_mlx5dv_qp_ex;
+    int                   asr_rank;
+    xccl_sbgp_t           *sbgp;
+    void                  *storage;
+    xccl_mhba_op_t        ops[MAX_OUTSTANDING_OPS];
+    struct mlx5dv_mkey    *team_send_mkey;
+    struct mlx5dv_mkey    *team_recv_mkey;
+    struct ibv_context    *shared_ctx;
+    struct ibv_pd         *shared_pd;
+    struct ibv_cq         *umr_cq;
+    struct ibv_qp         *umr_qp;
+    struct ibv_qp_ex      *umr_qpx;
+    struct mlx5dv_qp_ex   *umr_mlx5dv_qp_ex;
 } xccl_mhba_node_t;
+
 #define MHBA_CTRL_SIZE 128 //todo change according to arch
 #define MHBA_DATA_SIZE sizeof(struct mlx5dv_mr_interleaved)
 #define MHBA_NUM_OF_BLOCKS_SIZE_BINS 7
 #define MAX_TRANSPOSE_SIZE 8000 // HW transpose unit is limited to matrix size
 #define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
 #define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
-
 
 typedef struct xccl_mhba_net {
     xccl_sbgp_t    *sbgp;
@@ -105,7 +104,7 @@ typedef struct xccl_mhba_net {
     struct ibv_cq  *cq;
     struct ibv_mr  *ctrl_mr;
     struct {
-        void *addr;
+        void     *addr;
         uint32_t rkey;
     } *remote_ctrl;
     uint32_t       *rkeys;
@@ -120,7 +119,7 @@ typedef struct xccl_mhba_team {
     xccl_mhba_node_t    node;
     xccl_mhba_net_t     net;
     int                 sequence_number;
-    int                 occupied_operations_slots[MAX_OUTSTANDING_OPS];
+    int                 op_busy[MAX_OUTSTANDING_OPS];
     int                 cq_completions[MAX_OUTSTANDING_OPS];
     xccl_mhba_context_t *context;
     int                 blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
@@ -131,8 +130,6 @@ typedef struct xccl_mhba_team {
     void                *transpose_buf;
     struct ibv_mr       *transpose_buf_mr;
 } xccl_mhba_team_t;
-
-#define XCCL_MHBA_IS_ASR(_team) ((_team)->net.sbgp->status == XCCL_SBGP_ENABLED)
 
 xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request); //todo change name -
 // because of mkey update

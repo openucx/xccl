@@ -61,4 +61,8 @@ xccl_names_array_to_str(ucs_config_names_array_t *array) {
     return str;
 }
 
+static inline int xccl_round_up(int dividend, int divisor) {
+    return (dividend + divisor - 1) / divisor;
+}
+
 #endif
