@@ -107,7 +107,7 @@ xccl_status_t xccl_mhba_init_umr(xccl_mhba_context_t *ctx, xccl_mhba_node_t *nod
         xccl_mhba_error("Couldn't get port info (errno=%d)", errno);
         return XCCL_ERR_NO_MESSAGE;
     }
-    status = xccl_mhba_remote_qp_connect(node->umr_qp, node->umr_qp->qp_num, port_attr.lid, ctx->ib_port);
+    status = xccl_mhba_qp_connect(node->umr_qp, node->umr_qp->qp_num, port_attr.lid, ctx->ib_port);
     if (status != XCCL_OK) {
         return status;
     }

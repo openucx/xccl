@@ -13,6 +13,9 @@ sources =                   \
 	xccl_mhba_lib.h         \
 	xccl_mhba_mkeys.c       \
 	xccl_mhba_mkeys.h       \
+	xccl_mhba_ib.c          \
+	xccl_mhba_team.c        \
+	xccl_mhba_ib.h          \
 	xccl_mhba_socket_comm.c \
 	xccl_mhba_socket_comm.h
 

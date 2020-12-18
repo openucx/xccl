@@ -442,7 +442,7 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
     }
     int is_asr = (team->node.sbgp->group_rank == team->node.asr_rank);
     int n_tasks = (!is_asr) ? 2 : 4;
-    int i;
+    int i, block_size;
     xccl_schedule_init(&request->schedule, team->super.ctx);
     if (team->transpose_hw_limitations) {
         request->block_size = team->blocks_sizes[__ucs_ilog2_u32(coll_args->buffer_info.len - 1)];
@@ -459,7 +459,7 @@ xccl_mhba_alltoall_init(xccl_coll_op_args_t *coll_args,
             request->block_size -= 1;
         }
     }
-
+    block_size = squared(request->block_size)*request->args.buffer_info.len;
     if(team->node.sbgp->group_rank == team->node.asr_rank) {
         xccl_mhba_info("Block size is %d", request->block_size);
     }

@@ -134,6 +134,15 @@ typedef struct xccl_mhba_team {
 xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request); //todo change name -
 // because of mkey update
 xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request);
-xccl_status_t xccl_mhba_remote_qp_connect(struct ibv_qp *qp, uint32_t qp_num, uint16_t lid, int port);
+
+xccl_status_t
+xccl_mhba_team_create_post(xccl_tl_context_t *context,
+                           xccl_team_params_t *params,
+                           xccl_team_t *base_team,
+                           xccl_tl_team_t **team);
+xccl_status_t
+xccl_mhba_team_create_test(xccl_tl_team_t *team);
+xccl_status_t
+xccl_mhba_team_destroy(xccl_tl_team_t *team);
 
 #endif
