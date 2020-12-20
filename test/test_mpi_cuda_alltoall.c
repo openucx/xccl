@@ -9,15 +9,17 @@
 
 int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
              void *rbuf_mpi, int count, int comm_rank, int comm_size,
-             cudaStream_t *stream)
+             int use_stream_sync, cudaStream_t *stream)
 {
     xccl_coll_req_h request;
     MPI_Request     mpi_req;
     int             status, status_global, completed;
+    cudaError_t     st;
     int i = 0;
 
     status = 0;
     xccl_coll_op_args_t coll = {
+        .field_mask = 0,
         .coll_type = XCCL_ALLTOALL,
         .buffer_info = {
             .src_buffer = sbuf,
@@ -26,13 +28,27 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
         },
         .alg.set_by_user = 0,
         .tag  = 123, //todo
+        .stream = {
+            .mem_type = UCS_MEMORY_TYPE_CUDA,
+            .stream   = stream
+        }
     };
+    if (use_stream_sync) {
+        coll.field_mask |= XCCL_COLL_OP_ARGS_FIELD_STREAM;
+    }
 
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
     XCCL_CHECK(xccl_collective_post(request));
-    while (XCCL_OK != xccl_collective_test(request)) {
+    if (use_stream_sync) {
+        while (cudaErrorNotReady == cudaStreamQuery(*stream)) {
+            xccl_collective_test(request);
             xccl_context_progress(team_ctx);
         }
+    } else {
+        while (XCCL_OK != xccl_collective_test(request)) {
+            xccl_context_progress(team_ctx);
+        }
+    }
     XCCL_CHECK(xccl_collective_finalize(request));
 
     if (sbuf != rbuf) {
@@ -62,15 +78,19 @@ int main (int argc, char **argv)
 {
     const int iters = 5;
     size_t msglen_min, msglen_max;
-    int count_max, count_min, count,
-        rank, size, i, status_global;
+    int count_max, count_min, count, rank, size, i, status_global, use_stream_sync;
     int *sbuf_host, *sbuf_cuda, *rbuf_cuda, *rbuf_host, *rbuf_mpi;
-    char *local_rank;
+    char *env;
     cudaStream_t stream;
 
-    local_rank = getenv("OMPI_COMM_WORLD_LOCAL_RANK");
-    if (local_rank) {
-        cudaSetDevice(atoi(local_rank));
+    env = getenv("OMPI_COMM_WORLD_LOCAL_RANK");
+    if (env) {
+        cudaSetDevice(atoi(env));
+    }
+    use_stream_sync = 0;
+    env = getenv("XCCL_TEST_STREAM_SYNC");
+    if (env) {
+        use_stream_sync = atoi(env);
     }
     cudaStreamCreate(&stream);
 
@@ -102,13 +122,13 @@ int main (int argc, char **argv)
     cudaMemcpyAsync(rbuf_cuda, rbuf_host, count_max*size*sizeof(int),
                     cudaMemcpyHostToDevice, stream);
     cudaStreamSynchronize(stream);
-    
+
 /* regular alltoall */
     for (count = count_min; count <= count_max; count *= 2) {
         for (i=0; i<iters; i++) {
             cudaMemset(rbuf_cuda, 0, sizeof(count*size*sizeof(int)));
             status_global = run_test(sbuf_cuda, rbuf_cuda, rbuf_host, sbuf_host, rbuf_mpi,
-                                     count, rank, size, &stream);
+                                     count, rank, size, use_stream_sync, &stream);
             if (status_global) {
                 goto end;
             }

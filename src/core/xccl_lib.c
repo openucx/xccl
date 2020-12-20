@@ -7,7 +7,7 @@
 #include <xccl_team_lib.h>
 
 extern xccl_lib_t xccl_static_lib;
-
+extern ucs_list_link_t ucs_config_global_list;
 static ucs_config_field_t xccl_lib_config_table[] = {
 
    {NULL}

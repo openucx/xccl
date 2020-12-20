@@ -173,6 +173,40 @@ xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type)
     return XCCL_OK;
 }
 
+xccl_status_t xccl_mem_component_start_acitivity(xccl_stream_t *stream,
+                                                 xccl_mem_component_stream_request_t **req)
+{
+    int mt = stream->mem_type;
+    xccl_status_t st;
+
+    assert(mt != UCS_MEMORY_TYPE_HOST);
+    if (mem_components[mt] == NULL) {
+        xccl_error("mem component %s is not available", ucs_memory_type_names[mt]);
+    }
+    st = mem_components[mt]->start_stream_activity(stream, req);
+    if (st == XCCL_OK) {
+        (*req)->mem_type = mt;
+    }
+
+    return st;
+}
+
+xccl_status_t xccl_mem_component_finish_acitivity(xccl_mem_component_stream_request_t *req)
+{
+    int mt = req->mem_type;
+    xccl_status_t st;
+
+    assert(mt != UCS_MEMORY_TYPE_HOST);
+    if (mem_components[mt] == NULL) {
+        xccl_error("mem component %s is not available", ucs_memory_type_names[mt]);
+    }
+
+    st = mem_components[mt]->finish_stream_activity(req);
+
+    return st;
+}
+
+
 void xccl_mem_component_free_cache()
 {
     int mt;
@@ -183,6 +217,7 @@ void xccl_mem_component_free_cache()
                 (!mem_components[mt]->cache.used)) {
                 mem_components[mt]->mem_free(mem_components[mt]->cache.buf);
             }
+            mem_components[mt]->close();
         }
     }
 }
@@ -193,7 +228,6 @@ void xccl_mem_component_finalize()
 
     for(mt = UCS_MEMORY_TYPE_HOST + 1; mt < UCS_MEMORY_TYPE_LAST; mt++) {
         if (mem_components[mt] != NULL) {
-            mem_components[mt]->close();
             dlclose(mem_components[mt]->dlhandle);
         }
     }

@@ -25,10 +25,11 @@ LINK = $(LIBTOOL) --mode=link $(CC) -o $@
 .cu.lo:
 	$(top_srcdir)/cudalt.py $@ $(NVCC) -c  $< $(NVCCFLAGS) $(NV_ARCH_FLAGS)
 
-comp_noinst = libxccl_cuda_reduce.la
+comp_noinst = libxccl_cuda_kernels.la
 
-libxccl_cuda_reduce_la_SOURCES  = xccl_cuda_reduce.cu \
-                                  xccl_cuda_reduce_multi.cu
-libxccl_cuda_reduce_la_CPPFLAGS =
+libxccl_cuda_kernels_la_SOURCES  = xccl_cuda_reduce.cu \
+                                   xccl_cuda_reduce_multi.cu \
+                                   xccl_cuda_kernel.cu
+libxccl_cuda_kernels_la_CPPFLAGS =
 
 noinst_LTLIBRARIES = $(comp_noinst)

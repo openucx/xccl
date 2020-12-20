@@ -6,6 +6,7 @@ env:
   HPCX_PKG_NAME: hpcx-v2.5.0-gcc-MLNX_OFED_LINUX-4.7-1.0.0.1-ubuntu18.04-x86_64
   HPCX_PKG_LINK: http://www.mellanox.com/downloads/hpc/hpc-x/v2.5
   OPEN_UCX_LINK: https://github.com/openucx/ucx
+  OPEN_UCX_BRANCH: v1.10.x
 jobs:
   build:
 
@@ -17,7 +18,7 @@ jobs:
     - name: Unpack HPCX
       run: cd /tmp && tar xjf "${HPCX_PKG_NAME}.tbz"
     - name: Get UCX
-      run: git clone ${OPEN_UCX_LINK} /tmp/ucx
+      run: git clone ${OPEN_UCX_LINK} /tmp/ucx && cd /tmp/ucx && git checkout ${OPEN_UCX_BRANCH}
     - name: Build UCX
       run: cd /tmp/ucx && ./autogen.sh && ./contrib/configure-release-mt --without-java --disable-numa --prefix $PWD/install && make -j install
     - uses: actions/checkout@v1

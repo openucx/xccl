@@ -14,6 +14,7 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank, int si
 
     status = 0;
     xccl_coll_op_args_t coll = {
+        .field_mask = 0,
         .coll_type = XCCL_ALLTOALL,
         .buffer_info = {
             .src_buffer = sbuf,

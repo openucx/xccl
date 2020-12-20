@@ -45,6 +45,7 @@ int main (int argc, char **argv) {
         cudaStreamSynchronize(stream);
 
         xccl_coll_op_args_t coll = {
+            .field_mask = 0,
             .coll_type   = XCCL_REDUCE,
             .root        = r,
             .buffer_info = {

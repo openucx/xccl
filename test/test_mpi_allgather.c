@@ -43,6 +43,7 @@ int main (int argc, char **argv) {
                                                                 TEST_MEMCPY_H2D));
 
     xccl_coll_op_args_t coll = {
+        .field_mask = 0,
         .coll_type = XCCL_ALLGATHER,
         .buffer_info = {
             .src_buffer = sbuf,

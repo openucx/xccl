@@ -85,6 +85,9 @@ xccl_status_t xccl_ucx_alltoall_pairwise_progress(xccl_ucx_collreq_t *req)
     if (XCCL_INPROGRESS == xccl_ucx_testall(team, reqs, 2*total_reqs)) {
         return XCCL_OK;
     }
+    if (req->stream_req != NULL) {
+        xccl_mem_component_finish_acitivity(req->stream_req);
+    }
     free(reqs);
     req->complete = XCCL_OK;
     return XCCL_OK;
@@ -187,6 +190,9 @@ xccl_status_t xccl_ucx_alltoall_pairwise_barrier_progress(xccl_ucx_collreq_t *re
     }
     xccl_team_lib_ucx.super.collective_finalize(
         (xccl_tl_coll_req_t*)req->alltoall_pairwise.barrier_req);
+    if (req->stream_req != NULL) {
+        xccl_mem_component_finish_acitivity(req->stream_req);
+    }
     free(reqs);
     req->complete = XCCL_OK;
     return XCCL_OK;
@@ -256,5 +262,11 @@ xccl_status_t xccl_ucx_alltoall_pairwise_start(xccl_ucx_collreq_t *req)
 
     req->alltoall_pairwise.n_rreqs       = total_reqs;
     req->alltoall_pairwise.n_sreqs       = total_reqs;
+
+    if (req->args.field_mask & XCCL_COLL_OP_ARGS_FIELD_STREAM) {
+        assert(req->src_mem_type != UCS_MEMORY_TYPE_HOST);
+        xccl_mem_component_start_acitivity(&req->args.stream,
+                                           &req->stream_req);
+    }
     return req->progress(req);
 }

@@ -5,6 +5,7 @@
 #ifndef XCCL_TEAM_LIB_UCX_H_
 #define XCCL_TEAM_LIB_UCX_H_
 #include "xccl_team_lib.h"
+#include "utils/mem_component.h"
 #include <ucp/api/ucp.h>
 #include <ucs/memory/memory_type.h>
 
@@ -69,6 +70,7 @@ typedef struct xccl_ucx_collreq {
     xccl_tl_team_t      *team;
     xccl_status_t       complete;
     uint16_t            tag;
+    xccl_mem_component_stream_request_t *stream_req;
     xccl_status_t       (*start)(struct xccl_ucx_collreq* req);
     xccl_status_t       (*progress)(struct xccl_ucx_collreq* req);
     union {
