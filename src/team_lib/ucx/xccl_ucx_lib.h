@@ -5,6 +5,7 @@
 #ifndef XCCL_TEAM_LIB_UCX_H_
 #define XCCL_TEAM_LIB_UCX_H_
 #include "xccl_team_lib.h"
+#include "utils/mem_component.h"
 #include <ucp/api/ucp.h>
 #include <ucs/memory/memory_type.h>
 
@@ -62,15 +63,16 @@ typedef struct xccl_ucx_request_t {
 #define MAX_REQS 32
 
 typedef struct xccl_ucx_collreq {
-    xccl_tl_coll_req_t  super;
-    xccl_coll_op_args_t args;
-    ucs_memory_type_t   src_mem_type;
-    ucs_memory_type_t   dst_mem_type;
-    xccl_tl_team_t      *team;
-    xccl_status_t       complete;
-    uint16_t            tag;
-    xccl_status_t       (*start)(struct xccl_ucx_collreq* req);
-    xccl_status_t       (*progress)(struct xccl_ucx_collreq* req);
+    xccl_tl_coll_req_t                  super;
+    xccl_coll_op_args_t                 args;
+    ucs_memory_type_t                   src_mem_type;
+    ucs_memory_type_t                   dst_mem_type;
+    xccl_tl_team_t                      *team;
+    xccl_status_t                       complete;
+    uint16_t                            tag;
+    xccl_mem_component_stream_request_t *stream_req;
+    xccl_status_t                       (*start)(struct xccl_ucx_collreq* req);
+    xccl_status_t                       (*progress)(struct xccl_ucx_collreq* req);
     union {
         struct {
             xccl_ucx_request_t *reqs[MAX_REQS];

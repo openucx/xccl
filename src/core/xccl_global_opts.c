@@ -32,5 +32,6 @@ ucs_config_field_t xccl_lib_global_config_table[] = {
 
         NULL
 };
+extern ucs_list_link_t ucs_config_global_list;
 UCS_CONFIG_REGISTER_TABLE(xccl_lib_global_config_table, "XCCL global", NULL,
                           xccl_lib_global_config, &ucs_config_global_list)

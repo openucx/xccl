@@ -137,7 +137,7 @@ AC_CONFIG_FILES([
                  src/team_lib/multirail/Makefile
                  src/team_lib/nccl/Makefile
                  src/utils/cuda/Makefile
-                 src/utils/cuda/reduce/Makefile
+                 src/utils/cuda/kernels/Makefile
                  test/Makefile
                  ])
 AC_OUTPUT

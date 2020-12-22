@@ -154,6 +154,7 @@ xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
     req->tag          = ((xccl_ucx_team_t*)team)->seq_num++;
     req->src_mem_type = src_mem_type;
     req->dst_mem_type = dst_mem_type;
+    req->stream_req   = NULL;
 
     (*request)     = req;
     return XCCL_OK;
