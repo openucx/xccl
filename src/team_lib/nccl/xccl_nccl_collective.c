@@ -26,8 +26,8 @@ xccl_nccl_collective_init_base(xccl_coll_op_args_t *coll_args,
     if (!(coll_args->field_mask & XCCL_COLL_OP_ARGS_FIELD_STREAM)) {
     /* use internal stream if stream is not provided via coll_args */
         xccl_nccl_trace("using internal stream");
-        (*request)->args.stream.mem_type = UCS_MEMORY_TYPE_CUDA;
-        (*request)->args.stream.stream   = &nccl_team->stream;
+        (*request)->args.stream.type   = XCCL_STREAM_TYPE_CUDA;
+        (*request)->args.stream.stream = &nccl_team->stream;
     }
 
     (*request)->team      = nccl_team;

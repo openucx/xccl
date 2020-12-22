@@ -11,6 +11,16 @@ xccl_cuda_mem_component_t xccl_cuda_mem_component;
         }                                                           \
 } while(0)
 
+#define XCCL_CUDA_INIT_RESOUCES() do {               \
+    if (xccl_cuda_mem_component.stream == 0) {       \
+        xccl_status_t st_alloc_resc;                 \
+        st_alloc_resc = xccl_cuda_alloc_resources(); \
+        if (st_alloc_resc != XCCL_OK) {              \
+            return st_alloc_resc;                    \
+        }                                            \
+    }                                                \
+} while(0)                                           \
+
 static xccl_status_t xccl_cuda_open()
 {
     xccl_cuda_mem_component.stream = 0;
@@ -75,14 +85,7 @@ xccl_status_t xccl_cuda_reduce_impl(void *sbuf1, void *sbuf2, void *target,
 xccl_status_t xccl_cuda_reduce(void *sbuf1, void *sbuf2, void *target,
                                size_t count, xccl_dt_t dtype, xccl_op_t op)
 {
-    xccl_status_t st;
-
-    if (xccl_cuda_mem_component.stream == 0) {
-        st = xccl_cuda_alloc_resources();
-        if (st != XCCL_OK) {
-            return st;
-        }
-    }
+    XCCL_CUDA_INIT_RESOUCES();
     return xccl_cuda_reduce_impl(sbuf1, sbuf2, target, count, dtype, op,
                                  xccl_cuda_mem_component.stream);
 }
@@ -96,14 +99,7 @@ xccl_status_t xccl_cuda_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf,
                                      size_t count, size_t size, size_t stride,
                                      xccl_dt_t dtype, xccl_op_t op)
 {
-    xccl_status_t st;
-
-    if (xccl_cuda_mem_component.stream == 0) {
-        st = xccl_cuda_alloc_resources();
-        if (st != XCCL_OK) {
-            return st;
-        }
-    }
+    XCCL_CUDA_INIT_RESOUCES();
     return xccl_cuda_reduce_multi_impl(sbuf1, sbuf2, rbuf, count, size, stride,
                                        dtype, op,
                                        xccl_cuda_mem_component.stream);
@@ -120,13 +116,7 @@ xccl_cuda_start_acitivity(xccl_stream_t *stream,
     xccl_status_t st;
     cudaStream_t internal_stream, user_stream;
 
-    if (xccl_cuda_mem_component.stream == 0) {
-        st = xccl_cuda_alloc_resources();
-        if (st != XCCL_OK) {
-            return st;
-        }
-    }
-
+    XCCL_CUDA_INIT_RESOUCES();
     st = xccl_cuda_get_free_stream_request(&request);
     if (st != XCCL_OK) {
         return st;

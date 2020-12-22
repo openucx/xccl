@@ -29,8 +29,8 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
         .alg.set_by_user = 0,
         .tag  = 123, //todo
         .stream = {
-            .mem_type = UCS_MEMORY_TYPE_CUDA,
-            .stream   = stream
+            .type   = XCCL_STREAM_TYPE_CUDA,
+            .stream = stream
         }
     };
     if (use_stream_sync) {

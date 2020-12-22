@@ -264,7 +264,6 @@ xccl_status_t xccl_ucx_alltoall_pairwise_start(xccl_ucx_collreq_t *req)
     req->alltoall_pairwise.n_sreqs       = total_reqs;
 
     if (req->args.field_mask & XCCL_COLL_OP_ARGS_FIELD_STREAM) {
-        assert(req->src_mem_type != UCS_MEMORY_TYPE_HOST);
         xccl_mem_component_start_acitivity(&req->args.stream,
                                            &req->stream_req);
     }

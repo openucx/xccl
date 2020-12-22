@@ -173,10 +173,14 @@ xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type)
     return XCCL_OK;
 }
 
+static const ucs_memory_type_t stream_to_mem_type[] = {
+    [XCCL_STREAM_TYPE_CUDA] = UCS_MEMORY_TYPE_CUDA
+};
+
 xccl_status_t xccl_mem_component_start_acitivity(xccl_stream_t *stream,
                                                  xccl_mem_component_stream_request_t **req)
 {
-    int mt = stream->mem_type;
+    int mt = stream_to_mem_type[stream->type];
     xccl_status_t st;
 
     assert(mt != UCS_MEMORY_TYPE_HOST);

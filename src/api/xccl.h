@@ -436,9 +436,13 @@ typedef struct xccl_coll_algorithm {
     uint8_t id : 7;
 } xccl_coll_algorithm_t;
 
+typedef enum {
+    XCCL_STREAM_TYPE_CUDA
+} xccl_stream_type_t;
+
 typedef struct xccl_stream {
-    ucs_memory_type_t mem_type;
-    void              *stream;
+    xccl_stream_type_t type;
+    void               *stream;
 } xccl_stream_t;
 
 enum xccl_coll_op_args_field {
