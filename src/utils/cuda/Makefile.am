@@ -8,7 +8,7 @@
 #
 
 if HAVE_CUDA
-SUBDIRS = reduce
+SUBDIRS = kernels
 
 sources = \
 	cuda_mem_component.c \
@@ -20,6 +20,6 @@ component_install = xccl_cuda_mem_component.la
 xccl_cuda_mem_component_la_SOURCES =$(sources)
 xccl_cuda_mem_component_la_CPPFLAGS = $(AM_CPPFLAGS) $(CUDA_CPPFLAGS)
 xccl_cuda_mem_component_la_LDFLAGS = -module -avoid-version $(CUDA_LDFLAGS)
-xccl_cuda_mem_component_la_LIBADD = reduce/libxccl_cuda_reduce.la
+xccl_cuda_mem_component_la_LIBADD = kernels/libxccl_cuda_kernels.la
 pkglib_LTLIBRARIES = $(component_install)
 endif

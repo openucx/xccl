@@ -4,7 +4,7 @@
 * See file LICENSE for terms.
 */
 #ifndef XCCL_UTILS_H_
-#define XCCL_UTILS_H
+#define XCCL_UTILS_H_
 #include "api/xccl.h"
 #include "reduce.h"
 #include <stdlib.h>

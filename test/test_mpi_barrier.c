@@ -13,6 +13,7 @@ static inline void
 do_barrier(xccl_team_h team) {
     xccl_coll_req_h request;
     xccl_coll_op_args_t coll = {
+        .field_mask = 0,
         .coll_type = XCCL_BARRIER,
         .alg.set_by_user = 0,
         .tag  = 123, //todo

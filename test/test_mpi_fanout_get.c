@@ -47,6 +47,7 @@ int main (int argc, char **argv) {
 
             size_t half = count*sizeof(int)/2;
             xccl_coll_op_args_t coll = {
+                .field_mask = 0,
                 .coll_type = XCCL_FANOUT_GET,
                 .root = r,
                 .get_info = {

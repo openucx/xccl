@@ -273,13 +273,15 @@ static xccl_status_t
 xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
+    cudaStream_t  *stream;
     xccl_status_t st;
 
     st = req->coll_start(request);
     if (st != XCCL_OK) {
         return st;
     }
-    CUDACHECK(cudaEventRecord(req->completed, req->team->stream));
+    stream = (cudaStream_t*)req->args.stream.stream;
+    CUDACHECK(cudaEventRecord(req->completed, *stream));
 
     return XCCL_OK;
 }

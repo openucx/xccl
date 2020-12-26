@@ -11,6 +11,7 @@
 #include <api/xccl_tls.h>
 #include <api/xccl_status.h>
 #include <ucs/config/types.h>
+#include <ucs/memory/memory_type.h>
 #include <stdio.h>
 
 BEGIN_C_DECLS
@@ -435,17 +436,31 @@ typedef struct xccl_coll_algorithm {
     uint8_t id : 7;
 } xccl_coll_algorithm_t;
 
+typedef enum {
+    XCCL_STREAM_TYPE_CUDA
+} xccl_stream_type_t;
+
+typedef struct xccl_stream {
+    xccl_stream_type_t type;
+    void               *stream;
+} xccl_stream_t;
+
+enum xccl_coll_op_args_field {
+    XCCL_COLL_OP_ARGS_FIELD_STREAM = UCS_BIT(0)
+};
 
 typedef struct xccl_coll_op_args {
-    xccl_collective_type_t  coll_type;
+    uint64_t               field_mask;
+    xccl_collective_type_t coll_type;
     union {
         xccl_coll_buffer_info_t buffer_info;
         xccl_coll_get_info_t    get_info;
     };
-    xccl_reduce_info_t      reduce_info;
-    int                     root;
-    xccl_coll_algorithm_t   alg;
-    uint16_t                tag;
+    xccl_reduce_info_t     reduce_info;
+    int                    root;
+    xccl_coll_algorithm_t  alg;
+    uint16_t               tag;
+    xccl_stream_t          stream;
 } xccl_coll_op_args_t;
 
 xccl_status_t xccl_collective_init(xccl_coll_op_args_t *coll_args,

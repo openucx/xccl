@@ -20,6 +20,7 @@ int run_test(void *sbuf, void *rbuf, void *sbuf_mpi, void *rbuf_mpi,
 
     status = 0;
     xccl_coll_op_args_t coll = {
+        .field_mask = 0,
         .coll_type = XCCL_ALLTOALLV,
         .buffer_info = {
             .src_buffer        = sbuf,
