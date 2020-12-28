@@ -11,6 +11,7 @@
 #include "topo/xccl_topo.h"
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
+#include <ucs/memory/rcache.h>
 
 #define MAX_OUTSTANDING_OPS 1 //todo change - according to limitations (52 top)
 #define SEQ_INDEX(_seq_num) ((_seq_num) % MAX_OUTSTANDING_OPS)
@@ -111,6 +112,15 @@ typedef struct xccl_mhba_node {
 #define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
 #define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
 
+typedef struct xccl_mhba_reg {
+    struct ibv_mr       *mr;
+    ucs_rcache_region_t *region;
+} xccl_mhba_reg_t;
+
+static inline xccl_mhba_reg_t* xccl_rcache_ucs_get_reg_data(ucs_rcache_region_t *region) {
+    return (xccl_mhba_reg_t *)((ptrdiff_t)region + sizeof(ucs_rcache_region_t));
+}
+
 typedef struct xccl_mhba_net {
     xccl_sbgp_t    *sbgp;
     int             net_size;
@@ -140,11 +150,12 @@ typedef struct xccl_mhba_team {
     int                  blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
     int                  size;
     uint64_t             dummy_atomic_buff;
+    ucs_rcache_t        *rcache;
+    int                  requested_block_size;
     struct ibv_mr       *dummy_bf_mr;
     struct ibv_wc       *work_completion;
     void                *transpose_buf;
     struct ibv_mr       *transpose_buf_mr;
-    int                 requested_block_size;
 } xccl_mhba_team_t;
 
 xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
