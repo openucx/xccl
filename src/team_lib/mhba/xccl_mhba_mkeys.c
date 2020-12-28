@@ -308,7 +308,7 @@ static void update_mkey_entry(xccl_mhba_node_t *node, xccl_mhba_coll_req_t *req,
         (struct mlx5dv_mr_interleaved *)(direction_send ?
                                          node->ops[index].my_send_umr_data
                                          : node->ops[index].my_recv_umr_data);
-    struct ibv_mr *buff = direction_send ? req->send_bf_mr : req->receive_bf_mr;
+    struct ibv_mr *buff = direction_send ? req->send_rcache_region_p->mr : req->recv_rcache_region_p->mr;
     mkey_entry->addr    = (uintptr_t)buff->addr;
     mkey_entry->bytes_count = req->block_size * req->args.buffer_info.len;
     mkey_entry->bytes_skip  = 0;

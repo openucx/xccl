@@ -68,22 +68,24 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task)
 
     xccl_mhba_debug("register memory buffers");
 
-    request->send_bf_mr = ibv_reg_mr(
-        team->node.shared_pd, (void *)request->args.buffer_info.src_buffer,
-        request->args.buffer_info.len * team->size, sr_mem_access_flags);
-    if (!request->send_bf_mr) {
+    ucs_rcache_region_t* send_ptr;
+    ucs_rcache_region_t* recv_ptr;
+    if(UCS_OK != ucs_rcache_get(team->rcache,(void *)request->args.buffer_info.src_buffer,
+                                request->args.buffer_info.len * team->size,
+                                PROT_READ,&sr_mem_access_flags, &send_ptr)){
         xccl_mhba_error("Failed to register send_bf memory (errno=%d)", errno);
         return XCCL_ERR_NO_RESOURCE;
     }
-    request->receive_bf_mr = ibv_reg_mr(
-        team->node.shared_pd, (void *)request->args.buffer_info.dst_buffer,
-        request->args.buffer_info.len * team->size, dr_mem_access_flags);
-    if (!request->receive_bf_mr) {
-        xccl_mhba_error("Failed to register receive_bf memory (errno=%d)",
-                        errno);
-        ibv_dereg_mr(request->send_bf_mr);
+    request->send_rcache_region_p = xccl_rcache_ucs_get_reg_data(send_ptr);
+
+    if(UCS_OK != ucs_rcache_get(team->rcache,(void *)request->args.buffer_info.dst_buffer,
+                                request->args.buffer_info.len * team->size,
+                                PROT_WRITE,&dr_mem_access_flags,&recv_ptr)){
+        xccl_mhba_error("Failed to register receive_bf memory");
+        ucs_rcache_region_put(team->rcache,request->send_rcache_region_p->region);
         return XCCL_ERR_NO_RESOURCE;
     }
+    request->recv_rcache_region_p = xccl_rcache_ucs_get_reg_data(recv_ptr);
 
     xccl_mhba_debug("fanin start");
     /* start task if completion event received */
