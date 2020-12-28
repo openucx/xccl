@@ -42,8 +42,8 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
      UCS_CONFIG_TYPE_MEMUNITS},
 
     {"BLOCK_SIZE", "0", "Size of the blocks that are sent using blocked AlltoAll Algorithm",
-            ucs_offsetof(xccl_tl_mhba_context_config_t, block_size),
-            UCS_CONFIG_TYPE_UINT},
+    ucs_offsetof(xccl_tl_mhba_context_config_t, block_size),
+    UCS_CONFIG_TYPE_UINT},
 
     {NULL}
 };
