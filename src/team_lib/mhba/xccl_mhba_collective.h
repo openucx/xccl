@@ -21,7 +21,7 @@ typedef struct xccl_mhba_coll_req {
     xccl_mhba_task_t   *tasks;
     xccl_coll_op_args_t args;
     xccl_mhba_team_t   *team;
-    int                 seq_num;
+    uint64_t             seq_num;
     xccl_tl_coll_req_t *barrier_req;
     int                 block_size;
     int                 started;

@@ -31,8 +31,6 @@ typedef struct xccl_tl_mhba_context_config {
     int                      block_size;
 } xccl_tl_mhba_context_config_t;
 
-//todo add block_size config
-
 typedef struct xccl_team_lib_mhba {
     xccl_team_lib_t             super;
     xccl_team_lib_mhba_config_t config;
@@ -105,7 +103,7 @@ typedef struct xccl_mhba_node {
     struct mlx5dv_qp_ex *umr_mlx5dv_qp_ex;
 } xccl_mhba_node_t;
 
-#define MHBA_CTRL_SIZE 128 //todo change according to arch
+#define MHBA_CTRL_SIZE 128 //todo change to UCS_ARCH_CACHE_LINE_SIZE
 #define MHBA_DATA_SIZE sizeof(struct mlx5dv_mr_interleaved)
 #define MHBA_NUM_OF_BLOCKS_SIZE_BINS 8
 #define MAX_TRANSPOSE_SIZE 8000 // HW transpose unit is limited to matrix size
@@ -126,7 +124,7 @@ typedef struct xccl_mhba_net {
     int             net_size;
     int            *rank_map;
     struct ibv_qp **qps;
-    struct ibv_cq  *cq;
+    struct ibv_cq **cqs;
     struct ibv_mr  *ctrl_mr;
     struct {
         void    *addr;
@@ -143,7 +141,7 @@ typedef struct xccl_mhba_team {
     uint64_t             max_msg_size;
     xccl_mhba_node_t     node;
     xccl_mhba_net_t      net;
-    int                  sequence_number;
+    uint64_t             sequence_number;
     int                  op_busy[MAX_OUTSTANDING_OPS];
     int                  cq_completions[MAX_OUTSTANDING_OPS];
     xccl_mhba_context_t *context;
