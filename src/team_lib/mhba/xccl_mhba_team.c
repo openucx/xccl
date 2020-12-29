@@ -90,28 +90,28 @@ static void build_rank_map(xccl_mhba_team_t *mhba_team)
 
 static ucs_status_t rcache_reg_mr(void *context, ucs_rcache_t *rcache,void *arg, ucs_rcache_region_t *rregion,
                                   uint16_t flags){
-    xccl_mhba_team_t *team = (xccl_mhba_team_t*)context;
-    void *addr = (void*)rregion->super.start;
-    size_t length = (size_t)(rregion->super.end - rregion->super.start);
+    xccl_mhba_team_t *team    = (xccl_mhba_team_t*)context;
+    void *addr                = (void*)rregion->super.start;
+    size_t length             = (size_t)(rregion->super.end - rregion->super.start);
     xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
     mhba_reg->region = rregion;
     int* mem_flags = (int*) arg;
     mhba_reg->mr = ibv_reg_mr(team->node.shared_pd, addr, length, *mem_flags);
-    if (!mhba_reg->mr){
+    if (!mhba_reg->mr) {
         xccl_mhba_error("Failed to register memory");
         return UCS_ERR_NO_MESSAGE;
     }
     return UCS_OK;
 }
 
-static void rcache_dereg_mr(void *context, ucs_rcache_t *rcache, ucs_rcache_region_t *rregion){
+static void rcache_dereg_mr(void *context, ucs_rcache_t *rcache, ucs_rcache_region_t *rregion) {
     xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
     assert(mhba_reg->region == rregion);
     ibv_dereg_mr(mhba_reg->mr);
     mhba_reg->mr = NULL;
 }
 
-static xccl_status_t create_rcache(xccl_mhba_team_t* mhba_team){
+static xccl_status_t create_rcache(xccl_mhba_team_t* mhba_team) {
     static ucs_rcache_ops_t rcache_ucs_ops = {
             .mem_reg     = rcache_reg_mr,
             .mem_dereg   = rcache_dereg_mr,
