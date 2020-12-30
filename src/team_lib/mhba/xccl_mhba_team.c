@@ -6,6 +6,7 @@
 #include "core/xccl_team.h"
 #include "xccl_mhba_ib.h"
 #include <sys/shm.h>
+#include <ucm/api/ucm.h>
 
 typedef struct bcast_data {
     int  shmid;
@@ -87,6 +88,56 @@ static void build_rank_map(xccl_mhba_team_t *mhba_team)
     free(data);
 }
 
+static ucs_status_t rcache_reg_mr(void *context, ucs_rcache_t *rcache,void *arg, ucs_rcache_region_t *rregion,
+                                  uint16_t flags){
+    xccl_mhba_team_t *team    = (xccl_mhba_team_t*)context;
+    void *addr                = (void*)rregion->super.start;
+    size_t length             = (size_t)(rregion->super.end - rregion->super.start);
+    xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
+    mhba_reg->region = rregion;
+    int* mem_flags = (int*) arg;
+    mhba_reg->mr = ibv_reg_mr(team->node.shared_pd, addr, length, *mem_flags);
+    if (!mhba_reg->mr) {
+        xccl_mhba_error("Failed to register memory");
+        return UCS_ERR_NO_MESSAGE;
+    }
+    return UCS_OK;
+}
+
+static void rcache_dereg_mr(void *context, ucs_rcache_t *rcache, ucs_rcache_region_t *rregion) {
+    xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
+    assert(mhba_reg->region == rregion);
+    ibv_dereg_mr(mhba_reg->mr);
+    mhba_reg->mr = NULL;
+}
+
+static xccl_status_t create_rcache(xccl_mhba_team_t* mhba_team) {
+    static ucs_rcache_ops_t rcache_ucs_ops = {
+            .mem_reg     = rcache_reg_mr,
+            .mem_dereg   = rcache_dereg_mr,
+            .dump_region = NULL
+    };
+
+    ucs_rcache_params_t rcache_params;
+    rcache_params.region_struct_size = sizeof(ucs_rcache_region_t)+sizeof(xccl_mhba_reg_t);
+    rcache_params.alignment          = UCS_PGT_ADDR_ALIGN;
+    rcache_params.max_alignment      = ucs_get_page_size();
+    rcache_params.ucm_events         = UCM_EVENT_VM_UNMAPPED |
+                                       UCM_EVENT_MEM_TYPE_FREE;
+    rcache_params.ucm_event_priority = 1000;
+    rcache_params.context            = (void*)mhba_team;
+    rcache_params.ops                = &rcache_ucs_ops;
+
+    ucs_status_t status = ucs_rcache_create(&rcache_params, "reg cache",
+                                            ucs_stats_get_root(), &mhba_team->rcache);
+
+    if (status != UCS_OK) {
+        xccl_mhba_error("Failed to create reg cache");
+        return XCCL_ERR_NO_MESSAGE;
+    }
+    return XCCL_OK;
+}
+
 xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                                          xccl_team_params_t *params,
                                          xccl_team_t        *base_team,
@@ -117,6 +168,10 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
 
     memset(mhba_team->op_busy, 0, MAX_OUTSTANDING_OPS * sizeof(int));
+
+    if(XCCL_OK != create_rcache(mhba_team)){
+        goto fail;
+    }
 
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     if (node->group_size > MAX_STRIDED_ENTRIES) {
@@ -420,6 +475,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
     xccl_mhba_team_t *mhba_team = ucs_derived_of(team, xccl_mhba_team_t);
     int               i;
     xccl_mhba_debug("destroying team %p", team);
+    ucs_rcache_destroy(mhba_team->rcache);
     if (-1 == shmdt(mhba_team->node.storage)) {
         xccl_mhba_error("failed to shmdt %p, errno %d", mhba_team->node.storage,
                         errno);
