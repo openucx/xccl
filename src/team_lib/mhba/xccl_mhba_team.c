@@ -46,13 +46,13 @@ static void calc_block_size(xccl_mhba_team_t *team)
 {
     int i;
     int block_size = team->node.sbgp->group_size;
-    int msg_len    = MAX_MSG_SIZE;
-    for (i = MHBA_NUM_OF_BLOCKS_SIZE_BINS - 1; i >= 0; i--) {
+    int msg_len    = 1;
+    for (i = 0; i < MHBA_NUM_OF_BLOCKS_SIZE_BINS; i++) {
         while ((block_size * block_size) * msg_len > MAX_TRANSPOSE_SIZE) {
             block_size -= 1;
         }
         team->blocks_sizes[i] = block_size;
-        msg_len >> 1;
+        msg_len << 1;
     }
 }
 
@@ -206,6 +206,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
     xccl_sbgp_oob_barrier(node, params->oob);
     calc_block_size(mhba_team);
+    mhba_team->requested_block_size = ctx->cfg.block_size;
     if (mhba_team->node.asr_rank == node->group_rank) {
         if (mhba_team->transpose) {
             mhba_team->transpose_buf = malloc(ctx->cfg.transpose_buf_size);
@@ -221,14 +222,14 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         status = xccl_mhba_init_umr(ctx, &mhba_team->node);
         if (status != XCCL_OK) {
             xccl_mhba_error("Failed to init UMR");
-            goto fail_after_shmat;
+            goto fail_after_transpose_reg;
         }
         asr_cq_size       = net_size * MAX_OUTSTANDING_OPS;
         mhba_team->net.cq = ibv_create_cq(mhba_team->node.shared_ctx,
                                           asr_cq_size, NULL, NULL, 0);
         if (!mhba_team->net.cq) {
             xccl_mhba_error("failed to allocate ASR CQ");
-            goto fail_after_shmat;
+            goto fail_after_transpose_reg;
         }
 
         memset(&qp_init_attr, 0, sizeof(qp_init_attr));
@@ -390,6 +391,9 @@ fail_after_cq:
     if (ibv_destroy_cq(mhba_team->net.cq)) {
         xccl_mhba_error("net cq destroy failed (errno=%d)", errno);
     }
+fail_after_transpose_reg:
+    ibv_dereg_mr(mhba_team->transpose_buf_mr);
+    free(mhba_team->transpose_buf);
 fail_after_shmat:
     if (-1 == shmdt(mhba_team->node.storage)) {
         xccl_mhba_error("failed to shmdt %p, errno %d", mhba_team->node.storage,
@@ -449,7 +453,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
         ibv_dereg_mr(mhba_team->dummy_bf_mr);
         free(mhba_team->work_completion);
         free(mhba_team->net.rank_map);
-        if (mhba_team->transpose_buf_mr) {
+        if (mhba_team->transpose) {
             ibv_dereg_mr(mhba_team->transpose_buf_mr);
             free(mhba_team->transpose_buf);
         }

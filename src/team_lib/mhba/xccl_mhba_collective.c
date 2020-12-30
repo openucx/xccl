@@ -506,10 +506,12 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     }
     xccl_schedule_init(&request->schedule, team->super.ctx);
     if (team->transpose_hw_limitations) {
-        block_size = team->blocks_sizes[__ucs_ilog2_u32(len - 1)];
+        block_size = (len == 1) ? team->blocks_sizes[__ucs_ilog2_u32(len - 1)+1] : team->blocks_sizes[0];
     } else {
         block_size = team->node.sbgp->group_size;
     }
+
+    block_size = team->requested_block_size ? team->requested_block_size : block_size;
 
     //todo following section correct assuming homogenous PPN across all nodes
     if (team->node.sbgp->group_size % block_size != 0) {
@@ -536,6 +538,10 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->tmp_transpose_buf = NULL;
     request->tasks =
         (xccl_mhba_task_t *)malloc(sizeof(xccl_mhba_task_t) * n_tasks);
+    if (!request->tasks){
+        xccl_mhba_error("malloc tasks failed");
+        return XCCL_ERR_NO_MEMORY;
+    }
     request->seq_num = team->sequence_number;
     xccl_mhba_debug("Seq num is %d", request->seq_num);
     team->sequence_number++;
