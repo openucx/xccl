@@ -28,10 +28,10 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
      ucs_offsetof(xccl_tl_mhba_context_config_t, transpose),
      UCS_CONFIG_TYPE_UINT},
 
-    {"TRANSPOSE_HW_LIMITATIONS", "1",
+    {"TRANSPOSE_HW_LIMITATIONS", "0",
      "Boolean - with transpose hw limitations or not",
      ucs_offsetof(xccl_tl_mhba_context_config_t, transpose_hw_limitations),
-     UCS_CONFIG_TYPE_UINT},
+     UCS_CONFIG_TYPE_UINT}, //todo change to 1 in production
 
     {"IB_GLOBAL", "0", "Use global ib routing",
      ucs_offsetof(xccl_tl_mhba_context_config_t, ib_global),
@@ -40,6 +40,10 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
     {"TRANPOSE_BUF_SIZE", "128k", "Size of the pre-allocated transpose buffer",
      ucs_offsetof(xccl_tl_mhba_context_config_t, transpose_buf_size),
      UCS_CONFIG_TYPE_MEMUNITS},
+
+    {"BLOCK_SIZE", "0", "Size of the blocks that are sent using blocked AlltoAll Algorithm",
+    ucs_offsetof(xccl_tl_mhba_context_config_t, block_size),
+    UCS_CONFIG_TYPE_UINT},
 
     {NULL}
 };
@@ -187,17 +191,10 @@ static xccl_status_t xccl_mhba_collective_finalize(xccl_tl_coll_req_t *request)
     xccl_status_t         status = XCCL_OK;
     xccl_mhba_coll_req_t *req  = ucs_derived_of(request, xccl_mhba_coll_req_t);
     xccl_mhba_team_t     * team = req->team;
-    if (ibv_dereg_mr(req->send_bf_mr)) {
-        xccl_mhba_error("Failed to dereg_mr send buffer (errno=%d)", errno);
-        status = XCCL_ERR_NO_MESSAGE;
-    }
-    if (ibv_dereg_mr(req->receive_bf_mr)) {
-        xccl_mhba_error("Failed to dereg_mr send buffer (errno=%d)", errno);
-        status = XCCL_ERR_NO_MESSAGE;
-    }
+    ucs_rcache_region_put(team->context->rcache,req->send_rcache_region_p->region);
+    ucs_rcache_region_put(team->context->rcache,req->recv_rcache_region_p->region);
     if (team->transpose) {
-        if (req->tmp_transpose_buf)
-            free(req->tmp_transpose_buf);
+        free(req->tmp_transpose_buf);
         if (req->transpose_buf_mr != team->transpose_buf_mr) {
             ibv_dereg_mr(req->transpose_buf_mr);
             free(req->transpose_buf_mr->addr);

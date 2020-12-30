@@ -11,6 +11,7 @@
 #include "topo/xccl_topo.h"
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
+#include <ucs/memory/rcache.h>
 
 #define MAX_OUTSTANDING_OPS 1 //todo change - according to limitations (52 top)
 #define SEQ_INDEX(_seq_num) ((_seq_num) % MAX_OUTSTANDING_OPS)
@@ -27,9 +28,8 @@ typedef struct xccl_tl_mhba_context_config {
     int                      transpose;
     int                      transpose_hw_limitations;
     size_t                   transpose_buf_size;
+    int                      block_size;
 } xccl_tl_mhba_context_config_t;
-
-//todo add block_size config
 
 typedef struct xccl_team_lib_mhba {
     xccl_team_lib_t             super;
@@ -73,6 +73,7 @@ typedef struct xccl_mhba_context {
     struct ibv_context                *ib_ctx;
     struct ibv_pd                     *ib_pd;
     int                                ib_port;
+    ucs_rcache_t                      *rcache;
 } xccl_mhba_context_t;
 
 typedef struct xccl_mhba_op {
@@ -103,19 +104,28 @@ typedef struct xccl_mhba_node {
     struct mlx5dv_qp_ex *umr_mlx5dv_qp_ex;
 } xccl_mhba_node_t;
 
-#define MHBA_CTRL_SIZE 128 //todo change according to arch
+#define MHBA_CTRL_SIZE 128 //todo change to UCS_ARCH_CACHE_LINE_SIZE
 #define MHBA_DATA_SIZE sizeof(struct mlx5dv_mr_interleaved)
-#define MHBA_NUM_OF_BLOCKS_SIZE_BINS 7
+#define MHBA_NUM_OF_BLOCKS_SIZE_BINS 8
 #define MAX_TRANSPOSE_SIZE 8000 // HW transpose unit is limited to matrix size
 #define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
 #define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
+
+typedef struct xccl_mhba_reg {
+    struct ibv_mr       *mr;
+    ucs_rcache_region_t *region;
+} xccl_mhba_reg_t;
+
+static inline xccl_mhba_reg_t* xccl_rcache_ucs_get_reg_data(ucs_rcache_region_t *region) {
+    return (xccl_mhba_reg_t *)((ptrdiff_t)region + sizeof(ucs_rcache_region_t));
+}
 
 typedef struct xccl_mhba_net {
     xccl_sbgp_t    *sbgp;
     int             net_size;
     int            *rank_map;
     struct ibv_qp **qps;
-    struct ibv_cq  *cq;
+    struct ibv_cq **cqs;
     struct ibv_mr  *ctrl_mr;
     struct {
         void    *addr;
@@ -132,13 +142,14 @@ typedef struct xccl_mhba_team {
     uint64_t             max_msg_size;
     xccl_mhba_node_t     node;
     xccl_mhba_net_t      net;
-    int                  sequence_number;
+    uint64_t             sequence_number;
     int                  op_busy[MAX_OUTSTANDING_OPS];
     int                  cq_completions[MAX_OUTSTANDING_OPS];
     xccl_mhba_context_t *context;
     int                  blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
     int                  size;
     uint64_t             dummy_atomic_buff;
+    int                  requested_block_size;
     struct ibv_mr       *dummy_bf_mr;
     struct ibv_wc       *work_completion;
     void                *transpose_buf;

@@ -21,12 +21,12 @@ typedef struct xccl_mhba_coll_req {
     xccl_mhba_task_t   *tasks;
     xccl_coll_op_args_t args;
     xccl_mhba_team_t   *team;
-    int                 seq_num;
-    struct ibv_mr      *send_bf_mr;
-    struct ibv_mr      *receive_bf_mr;
+    uint64_t             seq_num;
     xccl_tl_coll_req_t *barrier_req;
     int                 block_size;
     int                 started;
+    xccl_mhba_reg_t    *send_rcache_region_p;
+    xccl_mhba_reg_t    *recv_rcache_region_p;
     struct ibv_mr      *transpose_buf_mr;
     void               *tmp_transpose_buf;
 } xccl_mhba_coll_req_t;

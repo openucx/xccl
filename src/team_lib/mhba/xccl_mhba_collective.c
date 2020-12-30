@@ -6,7 +6,7 @@
 #include <xccl_mhba_collective.h>
 #include "utils/utils.h"
 
-#define TMP_TRANSPOSE_PREALLOC 256
+#define TMP_TRANSPOSE_PREALLOC 256 //todo check size
 
 xccl_status_t xccl_mhba_collective_init_base(xccl_coll_op_args_t   *coll_args,
                                              xccl_mhba_coll_req_t **request,
@@ -68,22 +68,24 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task)
 
     xccl_mhba_debug("register memory buffers");
 
-    request->send_bf_mr = ibv_reg_mr(
-        team->node.shared_pd, (void *)request->args.buffer_info.src_buffer,
-        request->args.buffer_info.len * team->size, sr_mem_access_flags);
-    if (!request->send_bf_mr) {
+    ucs_rcache_region_t* send_ptr;
+    ucs_rcache_region_t* recv_ptr;
+    if(UCS_OK != ucs_rcache_get(team->context->rcache, (void *)request->args.buffer_info.src_buffer,
+                                request->args.buffer_info.len * team->size,
+                                PROT_READ,&sr_mem_access_flags, &send_ptr)) {
         xccl_mhba_error("Failed to register send_bf memory (errno=%d)", errno);
         return XCCL_ERR_NO_RESOURCE;
     }
-    request->receive_bf_mr = ibv_reg_mr(
-        team->node.shared_pd, (void *)request->args.buffer_info.dst_buffer,
-        request->args.buffer_info.len * team->size, dr_mem_access_flags);
-    if (!request->receive_bf_mr) {
-        xccl_mhba_error("Failed to register receive_bf memory (errno=%d)",
-                        errno);
-        ibv_dereg_mr(request->send_bf_mr);
+    request->send_rcache_region_p = xccl_rcache_ucs_get_reg_data(send_ptr);
+
+    if(UCS_OK != ucs_rcache_get(team->context->rcache, (void *)request->args.buffer_info.dst_buffer,
+                                request->args.buffer_info.len * team->size,
+                                PROT_WRITE,&dr_mem_access_flags,&recv_ptr)) {
+        xccl_mhba_error("Failed to register receive_bf memory");
+        ucs_rcache_region_put(team->context->rcache,request->send_rcache_region_p->region);
         return XCCL_ERR_NO_RESOURCE;
     }
+    request->recv_rcache_region_p = xccl_rcache_ucs_get_reg_data(recv_ptr);
 
     xccl_mhba_debug("fanin start");
     /* start task if completion event received */
@@ -247,7 +249,7 @@ static inline xccl_status_t send_block_data(struct ibv_qp *qp,
 
 static inline xccl_status_t send_atomic(struct ibv_qp *qp, uint64_t remote_addr,
                                         uint32_t rkey, xccl_mhba_team_t *team,
-                                        xccl_mhba_coll_req_t *request)
+                                        xccl_mhba_coll_req_t *request, int flags)
 {
     struct ibv_send_wr *bad_wr;
     struct ibv_sge      list = {
@@ -261,7 +263,7 @@ static inline xccl_status_t send_atomic(struct ibv_qp *qp, uint64_t remote_addr,
         .sg_list               = &list,
         .num_sge               = 1,
         .opcode                = IBV_WR_ATOMIC_FETCH_AND_ADD,
-        .send_flags            = IBV_SEND_SIGNALED,
+        .send_flags            = flags,
         .wr.atomic.remote_addr = remote_addr,
         .wr.atomic.rkey        = rkey,
         .wr.atomic.compare_add = 1ULL,
@@ -311,10 +313,11 @@ static inline xccl_status_t prepost_dummy_recv(struct ibv_qp *qp, int num)
     return XCCL_OK;
 }
 
+//todo check cq's in case of parallel operations
 // add polling mechanism for blocks in order to maintain const qp tx rx
 static xccl_status_t
 xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
-{
+{ //todo make non-blocking
     xccl_mhba_task_t     *self      = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request   = self->req;
     xccl_mhba_team_t     *team      = request->team;
@@ -384,16 +387,13 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                     xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
                     return status;
                 }
-                while (!ibv_poll_cq(team->net.cq, 1, transpose_completion)) {}
+                while (!ibv_poll_cq(team->net.cqs[i], 1, transpose_completion)) {}
             }
         }
-    }
-
-    for (i = 0; i < net_size; i++) {
         status = send_atomic(team->net.qps[i],
                              (uintptr_t)team->net.remote_ctrl[i].addr +
-                                 (index * MHBA_CTRL_SIZE),
-                             team->net.remote_ctrl[i].rkey, team, request);
+                             (index * MHBA_CTRL_SIZE),
+                             team->net.remote_ctrl[i].rkey, team, request,0);
         if (status != XCCL_OK) {
             xccl_mhba_error("Failed sending atomic to node [%d]", i);
             return status;
@@ -448,7 +448,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
         status = send_atomic(team->net.qps[i],
                              (uintptr_t)team->net.remote_ctrl[i].addr +
                              (index * MHBA_CTRL_SIZE),
-                             team->net.remote_ctrl[i].rkey, team, request);
+                             team->net.remote_ctrl[i].rkey, team, request,IBV_SEND_SIGNALED);
         if (status != XCCL_OK) {
             xccl_mhba_error("Failed sending atomic to node [%d]", i);
             return status;
@@ -458,13 +458,18 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
     return XCCL_OK;
 }
 
+xccl_status_t xccl_mhba_send_blocks_progress_transpose(xccl_coll_task_t *task){
+    task->state = XCCL_TASK_STATE_COMPLETED;
+    return XCCL_OK;
+}
+
 xccl_status_t xccl_mhba_send_blocks_progress(xccl_coll_task_t *task)
 {
     xccl_mhba_task_t     *self    = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
     xccl_mhba_team_t     *team    = request->team;
     int                   i, completions_num;
-    completions_num = ibv_poll_cq(team->net.cq, team->net.sbgp->group_size,
+    completions_num = ibv_poll_cq(team->net.cqs[0], team->net.sbgp->group_size,
                                   team->work_completion);
     if (completions_num < 0) {
         xccl_mhba_error("ibv_poll_cq() failed for RDMA_ATOMIC execution");
@@ -506,10 +511,12 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     }
     xccl_schedule_init(&request->schedule, team->super.ctx);
     if (team->transpose_hw_limitations) {
-        block_size = team->blocks_sizes[__ucs_ilog2_u32(len - 1)];
+        block_size = (len == 1) ? team->blocks_sizes[__ucs_ilog2_u32(len - 1)+1] : team->blocks_sizes[0];
     } else {
         block_size = team->node.sbgp->group_size;
     }
+
+    block_size = team->requested_block_size ? team->requested_block_size : block_size;
 
     //todo following section correct assuming homogenous PPN across all nodes
     if (team->node.sbgp->group_size % block_size != 0) {
@@ -536,6 +543,10 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->tmp_transpose_buf = NULL;
     request->tasks =
         (xccl_mhba_task_t *)malloc(sizeof(xccl_mhba_task_t) * n_tasks);
+    if (!request->tasks){
+        xccl_mhba_error("malloc tasks failed");
+        return XCCL_ERR_NO_MEMORY;
+    }
     request->seq_num = team->sequence_number;
     xccl_mhba_debug("Seq num is %d", request->seq_num);
     team->sequence_number++;
@@ -571,11 +582,12 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
         if (team->transpose) {
             request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
                 xccl_mhba_send_blocks_start_with_transpose;
+            request->tasks[2].super.progress = xccl_mhba_send_blocks_progress_transpose;
         } else {
             request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
                 xccl_mhba_send_blocks_start;
+            request->tasks[2].super.progress = xccl_mhba_send_blocks_progress;
         }
-        request->tasks[2].super.progress = xccl_mhba_send_blocks_progress;
 
         request->tasks[3].super.handlers[XCCL_EVENT_COMPLETED] =
             xccl_mhba_fanout_start;
