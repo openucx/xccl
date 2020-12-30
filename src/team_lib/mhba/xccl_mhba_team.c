@@ -162,8 +162,6 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     mhba_team->net.ctrl_mr              = NULL;
     mhba_team->net.remote_ctrl          = NULL;
     mhba_team->net.rank_map             = NULL;
-    mhba_team->transpose_buf_mr         = NULL;
-    mhba_team->transpose_buf            = NULL;
 
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
 
@@ -264,14 +262,22 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     mhba_team->requested_block_size = ctx->cfg.block_size;
     if (mhba_team->node.asr_rank == node->group_rank) {
         if (mhba_team->transpose) {
-            mhba_team->transpose_buf = malloc(ctx->cfg.transpose_buf_size); //todo malloc per operation for parallel
-            if (!mhba_team->transpose_buf) {
-                goto fail_after_shmat;
+            int k;
+            for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+                mhba_team->transpose_buf[k] = malloc(ctx->cfg.transpose_buf_size); //todo malloc per operation for parallel
+                if (!mhba_team->transpose_buf[k]) {
+                    xccl_mhba_error("Failed to allocate transpose buff %d",k);
+                    goto fail_after_shmat;
+                }
+                mhba_team->transpose_buf_mr[k] =
+                        ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->transpose_buf[k],
+                                   ctx->cfg.transpose_buf_size,
+                                   IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE);
+                if(!mhba_team->transpose_buf_mr[k]){
+                    xccl_mhba_error("Failed to register transpose buff %d",k);
+                    goto fail_after_shmat;
+                }
             }
-            mhba_team->transpose_buf_mr =
-                ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->transpose_buf,
-                           ctx->cfg.transpose_buf_size,
-                           IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE);
         }
         build_rank_map(mhba_team);
         status = xccl_mhba_init_umr(ctx, &mhba_team->node);
@@ -460,6 +466,10 @@ fail_after_qp_alloc:
 fail_after_transpose_reg:
     ibv_dereg_mr(mhba_team->transpose_buf_mr);
     free(mhba_team->transpose_buf);
+fail_transpose_buff_mr_malloc:
+    free(mhba_team->transpose_buf_mr);
+fail_transpose_buff_malloc:
+    free(mhba_team->transpose_buf);
 fail_after_shmat:
     if (-1 == shmdt(mhba_team->node.storage)) {
         xccl_mhba_error("failed to shmdt %p, errno %d", mhba_team->node.storage,
@@ -524,8 +534,10 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
         free(mhba_team->work_completion);
         free(mhba_team->net.rank_map);
         if (mhba_team->transpose) {
-            ibv_dereg_mr(mhba_team->transpose_buf_mr);
-            free(mhba_team->transpose_buf);
+            for(i=0;i<NUM_OF_TRANSPOSE_BUFF;i++) {
+                ibv_dereg_mr(mhba_team->transpose_buf_mr[i]);
+                free(mhba_team->transpose_buf[i]);
+            }
         }
     }
     free(team);

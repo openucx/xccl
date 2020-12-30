@@ -27,7 +27,8 @@ typedef struct xccl_mhba_coll_req {
     int                 started;
     xccl_mhba_reg_t    *send_rcache_region_p;
     xccl_mhba_reg_t    *recv_rcache_region_p;
-    struct ibv_mr      *transpose_buf_mr;
+    struct ibv_mr      *transpose_buf_mr[NUM_OF_TRANSPOSE_BUFF];
+    int                 transpose_buf_cqs[NUM_OF_TRANSPOSE_BUFF];
     void               *tmp_transpose_buf;
 } xccl_mhba_coll_req_t;
 

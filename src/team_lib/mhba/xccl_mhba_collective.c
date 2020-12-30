@@ -325,12 +325,13 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     int                   index     = SEQ_INDEX(request->seq_num);
     int                   node_size = team->node.sbgp->group_size;
     int                   net_size  = team->net.sbgp->group_size;
+    struct ibv_mr*        curr_transpose_buff_mr;
     int           op_msgsize    = node_size * team->max_msg_size * team->size;
     int           node_msgsize  = SQUARED(node_size) * len;
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
     int           block_msgsize = SQUARED(block_size) * len;
-    int           i, j, k, dest_rank, rank, n_compl, ret;
+    int           i, j, k, dest_rank, rank, n_compl, ret, search_buff;
     uint64_t      src_addr, remote_addr;
     struct ibv_wc transpose_completion[1];
     xccl_status_t status;
@@ -349,12 +350,31 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                 remote_addr = (uintptr_t)(op_msgsize * index + node_msgsize * rank +
                                           block_msgsize * j + col_msgsize * k);
                 prepost_dummy_recv(team->node.umr_qp, 1);
+                search_buff = 1;
+                while(search_buff){
+                    for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+                        if(request->transpose_buf_cqs[k] == -1){
+                            curr_transpose_buff_mr = request->transpose_buf_mr[k];
+                            request->transpose_buf_cqs[k] = i;
+                            search_buff = 0;
+                            break;
+                        }
+                        else {
+                            if(ibv_poll_cq(team->net.cqs[request->transpose_buf_cqs[k]], 1, transpose_completion)){
+                                curr_transpose_buff_mr = request->transpose_buf_mr[k];
+                                request->transpose_buf_cqs[k] = i;
+                                search_buff = 0;
+                                break;
+                            }
+                        }
+                    }
+                }
                 // SW Transpose
                 status = send_block_data(
                     team->node.umr_qp, src_addr, block_msgsize,
                     team->node.team_send_mkey->lkey,
-                    (uintptr_t)request->transpose_buf_mr->addr,
-                    request->transpose_buf_mr->rkey, IBV_SEND_SIGNALED, 1);
+                    (uintptr_t)curr_transpose_buff_mr->addr,
+                    curr_transpose_buff_mr->rkey, IBV_SEND_SIGNALED, 1);
                 if (status != XCCL_OK) {
                     xccl_mhba_error(
                         "Failed sending block to transpose buffer[%d,%d,%d]", i, j, k);
@@ -375,19 +395,19 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                         n_compl++;
                     }
                 }
-                transpose_square_mat(request->transpose_buf_mr->addr,
+                transpose_square_mat(curr_transpose_buff_mr->addr,
                                      block_size, request->args.buffer_info.len,
                                      request->tmp_transpose_buf);
                 status = send_block_data(
                     team->net.qps[i],
-                    (uintptr_t)request->transpose_buf_mr->addr, block_msgsize,
-                    request->transpose_buf_mr->lkey, remote_addr,
+                    (uintptr_t)curr_transpose_buff_mr->addr, block_msgsize,
+                    curr_transpose_buff_mr->lkey, remote_addr,
                     team->net.rkeys[i], IBV_SEND_SIGNALED, 0);
                 if (status != XCCL_OK) {
                     xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
                     return status;
                 }
-                while (!ibv_poll_cq(team->net.cqs[i], 1, transpose_completion)) {}
+//                while (!ibv_poll_cq(team->net.cqs[i], 1, transpose_completion)) {}
             }
         }
         status = send_atomic(team->net.qps[i],
@@ -397,6 +417,11 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
         if (status != XCCL_OK) {
             xccl_mhba_error("Failed sending atomic to node [%d]", i);
             return status;
+        }
+    }
+    for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+        if(request->transpose_buf_cqs[k] != -1){
+            while(!ibv_poll_cq(team->net.cqs[request->transpose_buf_cqs[k]], 1, transpose_completion)){}
         }
     }
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
@@ -501,8 +526,11 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     int           is_asr = (team->node.sbgp->group_rank == team->node.asr_rank);
     int           n_tasks       = (!is_asr) ? 2 : 4;
     size_t        len           = coll_args->buffer_info.len;
-    void *        transpose_buf = NULL;
-    int           i, block_msgsize, block_size;
+    void *        transpose_buf[NUM_OF_TRANSPOSE_BUFF];
+    int           i, block_msgsize, block_size, k;
+    for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+        transpose_buf[k] = NULL;
+    }
     xccl_status_t status;
     request->started = 0;
     if (len > team->max_msg_size) {
@@ -539,7 +567,9 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
         return XCCL_ERR_NO_RESOURCE;
     }
     request->block_size        = block_size;
-    request->transpose_buf_mr  = NULL;
+    for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+        request->transpose_buf_mr[k] = NULL;
+    }
     request->tmp_transpose_buf = NULL;
     request->tasks =
         (xccl_mhba_task_t *)malloc(sizeof(xccl_mhba_task_t) * n_tasks);
@@ -594,25 +624,32 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
         request->tasks[3].super.progress = xccl_mhba_fanout_progress;
 
         if (team->transpose) {
+            for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+                request->transpose_buf_cqs[k] = -1;
+            }
             if (ctx->cfg.transpose_buf_size >= block_msgsize) {
-                request->transpose_buf_mr = team->transpose_buf_mr;
+                for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+                    request->transpose_buf_mr[k] = team->transpose_buf_mr[k];
+                }
             }
             else {
-                transpose_buf = malloc(block_msgsize);
-                if (!transpose_buf) {
-                    xccl_mhba_error("failed to allocate transpose buffer of %d bytes",
-                                    block_msgsize);
-                    status = XCCL_ERR_NO_MEMORY;
-                    goto tr_buf_error;
-                }
-                request->transpose_buf_mr = ibv_reg_mr(
-                    team->node.shared_pd, transpose_buf, block_msgsize,
-                    IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-                if (!request->transpose_buf_mr) {
-                    xccl_mhba_error(
-                        "failed to register transpose buffer, errno %d", errno);
-                    status = XCCL_ERR_NO_MESSAGE;
-                    goto tr_buf_reg;
+                for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+                    transpose_buf[k] = malloc(block_msgsize);
+                    if (!transpose_buf[k]) {
+                        xccl_mhba_error("failed to allocate transpose buffer of %d bytes",
+                                        block_msgsize);
+                        status = XCCL_ERR_NO_MEMORY;
+                        goto tr_buf_error;
+                    }
+                    request->transpose_buf_mr[k] = ibv_reg_mr(
+                            team->node.shared_pd, transpose_buf[k], block_msgsize,
+                            IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+                    if (!request->transpose_buf_mr[k]) {
+                        xccl_mhba_error(
+                                "failed to register transpose buffer, errno %d", errno);
+                        status = XCCL_ERR_NO_MESSAGE;
+                        goto tr_buf_reg;
+                    }
                 }
             }
             request->tmp_transpose_buf = NULL;

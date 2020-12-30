@@ -110,6 +110,7 @@ typedef struct xccl_mhba_node {
 #define MAX_TRANSPOSE_SIZE 8000 // HW transpose unit is limited to matrix size
 #define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
 #define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
+#define NUM_OF_TRANSPOSE_BUFF 3
 
 typedef struct xccl_mhba_reg {
     struct ibv_mr       *mr;
@@ -152,8 +153,8 @@ typedef struct xccl_mhba_team {
     int                  requested_block_size;
     struct ibv_mr       *dummy_bf_mr;
     struct ibv_wc       *work_completion;
-    void                *transpose_buf;
-    struct ibv_mr       *transpose_buf_mr;
+    void                *transpose_buf[NUM_OF_TRANSPOSE_BUFF];
+    struct ibv_mr       *transpose_buf_mr[NUM_OF_TRANSPOSE_BUFF];
 } xccl_mhba_team_t;
 
 xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,

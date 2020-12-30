@@ -195,9 +195,12 @@ static xccl_status_t xccl_mhba_collective_finalize(xccl_tl_coll_req_t *request)
     ucs_rcache_region_put(team->context->rcache,req->recv_rcache_region_p->region);
     if (team->transpose) {
         free(req->tmp_transpose_buf);
-        if (req->transpose_buf_mr != team->transpose_buf_mr) {
-            ibv_dereg_mr(req->transpose_buf_mr);
-            free(req->transpose_buf_mr->addr);
+        if (req->transpose_buf_mr[0] != team->transpose_buf_mr[0]) {
+            int k;
+            for(k=0;k<NUM_OF_TRANSPOSE_BUFF;k++) {
+                ibv_dereg_mr(req->transpose_buf_mr[k]);
+                free(req->transpose_buf_mr[k]->addr);
+            }
         }
     }
     free(req->tasks);
