@@ -125,11 +125,11 @@ static xccl_status_t create_rcache(xccl_mhba_team_t* mhba_team) {
     rcache_params.ucm_events         = UCM_EVENT_VM_UNMAPPED |
                                        UCM_EVENT_MEM_TYPE_FREE;
     rcache_params.ucm_event_priority = 1000;
-    rcache_params.context            = (void*)mhba_team;
+    rcache_params.context            = (void*)mhba_team; //todo maybe change, needed for shared_pd
     rcache_params.ops                = &rcache_ucs_ops;
 
     ucs_status_t status = ucs_rcache_create(&rcache_params, "reg cache",
-                                            ucs_stats_get_root(), &mhba_team->rcache);
+                                            ucs_stats_get_root(), &mhba_team->context->rcache);
 
     if (status != UCS_OK) {
         xccl_mhba_error("Failed to create reg cache");
@@ -475,7 +475,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
     xccl_mhba_team_t *mhba_team = ucs_derived_of(team, xccl_mhba_team_t);
     int               i;
     xccl_mhba_debug("destroying team %p", team);
-    ucs_rcache_destroy(mhba_team->rcache);
+    ucs_rcache_destroy(mhba_team->context->rcache);
     if (-1 == shmdt(mhba_team->node.storage)) {
         xccl_mhba_error("failed to shmdt %p, errno %d", mhba_team->node.storage,
                         errno);
