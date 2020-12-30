@@ -70,7 +70,7 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task)
 
     ucs_rcache_region_t* send_ptr;
     ucs_rcache_region_t* recv_ptr;
-    if(UCS_OK != ucs_rcache_get(team->rcache, (void *)request->args.buffer_info.src_buffer,
+    if(UCS_OK != ucs_rcache_get(team->context->rcache, (void *)request->args.buffer_info.src_buffer,
                                 request->args.buffer_info.len * team->size,
                                 PROT_READ,&sr_mem_access_flags, &send_ptr)) {
         xccl_mhba_error("Failed to register send_bf memory (errno=%d)", errno);
@@ -78,11 +78,11 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task)
     }
     request->send_rcache_region_p = xccl_rcache_ucs_get_reg_data(send_ptr);
 
-    if(UCS_OK != ucs_rcache_get(team->rcache, (void *)request->args.buffer_info.dst_buffer,
+    if(UCS_OK != ucs_rcache_get(team->context->rcache, (void *)request->args.buffer_info.dst_buffer,
                                 request->args.buffer_info.len * team->size,
                                 PROT_WRITE,&dr_mem_access_flags,&recv_ptr)) {
         xccl_mhba_error("Failed to register receive_bf memory");
-        ucs_rcache_region_put(team->rcache,request->send_rcache_region_p->region);
+        ucs_rcache_region_put(team->context->rcache,request->send_rcache_region_p->region);
         return XCCL_ERR_NO_RESOURCE;
     }
     request->recv_rcache_region_p = xccl_rcache_ucs_get_reg_data(recv_ptr);
