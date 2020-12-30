@@ -75,6 +75,7 @@ typedef struct xccl_mhba_context {
     struct ibv_context                *ib_ctx;
     struct ibv_pd                     *ib_pd;
     int                                ib_port;
+    ucs_rcache_t                      *rcache;
 } xccl_mhba_context_t;
 
 typedef struct xccl_mhba_op {
@@ -150,7 +151,6 @@ typedef struct xccl_mhba_team {
     int                  blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
     int                  size;
     uint64_t             dummy_atomic_buff;
-    ucs_rcache_t        *rcache;
     int                  requested_block_size;
     struct ibv_mr       *dummy_bf_mr;
     struct ibv_wc       *work_completion;
