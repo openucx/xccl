@@ -27,29 +27,35 @@ xccl_status_t xccl_mhba_collective_init_base(xccl_coll_op_args_t   *coll_args,
 static xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t     *team,
                                           xccl_mhba_coll_req_t *request)
 {
-    int  i;
-    int *ctrl_v;
-    int  index = SEQ_INDEX(request->seq_num);
+    int               index = SEQ_INDEX(request->seq_num);
+    int               i;
+    xccl_mhba_ctrl_t *ctrl_v;
+
     if (team->op_busy[index] && !request->started) {
         return XCCL_INPROGRESS;
     } //wait for slot to be open
     team->op_busy[index] = 1;
     request->started     = 1;
-    xccl_mhba_update_mkeys_entries(&team->node,
-                                   request); // no option for failure status
 
     if (team->node.sbgp->group_rank != team->node.asr_rank) {
-        *team->node.ops[index].my_ctrl = request->seq_num;
+        xccl_mhba_get_my_ctrl(team, index)->seq_num = request->seq_num;
     } else {
         for (i = 0; i < team->node.sbgp->group_size; i++) {
             if (i == team->node.sbgp->group_rank) {
                 continue;
             }
-            ctrl_v = (int *)((ptrdiff_t)team->node.ops[index].ctrl +
-                             MHBA_CTRL_SIZE * i);
-            if (*ctrl_v != request->seq_num) {
+            ctrl_v = xccl_mhba_get_ctrl(team, index, i);
+            if (ctrl_v->seq_num != request->seq_num) {
                 return XCCL_INPROGRESS;
             }
+        }
+        for (i = 0; i < team->node.sbgp->group_size; i++) {
+            if (i == team->node.sbgp->group_rank) {
+                continue;
+            }
+            ctrl_v = xccl_mhba_get_ctrl(team, index, i);
+            xccl_mhba_get_my_ctrl(team, index)->mkey_cache_flag |=
+                ctrl_v->mkey_cache_flag;
         }
     }
     return XCCL_OK;
@@ -60,37 +66,54 @@ static xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t     *team,
    ASR the registration data is ready using SHM Fanin */
 static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task)
 {
-    xccl_mhba_task_t     *self    = ucs_derived_of(task, xccl_mhba_task_t);
-    xccl_mhba_coll_req_t *request = self->req;
-    xccl_mhba_team_t     *team    = request->team;
-    int                   sr_mem_access_flags = 0;
-    int dr_mem_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
-
+    xccl_mhba_task_t     *self            = ucs_derived_of(task, xccl_mhba_task_t);
+    xccl_mhba_coll_req_t *request         = self->req;
+    xccl_mhba_team_t     *team            = request->team;
+    int                   index           = SEQ_INDEX(request->seq_num);
+    int                   reg_change_flag = 0;
+    ucs_rcache_region_t*  send_ptr;
+    ucs_rcache_region_t*  recv_ptr;
     xccl_mhba_debug("register memory buffers");
 
-    ucs_rcache_region_t* send_ptr;
-    ucs_rcache_region_t* recv_ptr;
     if(UCS_OK != ucs_rcache_get(team->rcache, (void *)request->args.buffer_info.src_buffer,
                                 request->args.buffer_info.len * team->size,
-                                PROT_READ,&sr_mem_access_flags, &send_ptr)) {
+                                PROT_READ, &reg_change_flag, &send_ptr)) {
         xccl_mhba_error("Failed to register send_bf memory (errno=%d)", errno);
         return XCCL_ERR_NO_RESOURCE;
     }
     request->send_rcache_region_p = xccl_rcache_ucs_get_reg_data(send_ptr);
 
+    /* NOTE: we does not support alternating block_size for the same msg size - TODO
+       Will need to add the possibility of block_size change into consideration
+       when initializing the mkey_cache_flag */
+
+    xccl_mhba_get_my_ctrl(team, index)->mkey_cache_flag =
+        (request->args.buffer_info.len == team->previous_msg_size[index]) ? 0 :
+        (XCCL_MHBA_NEED_RECV_MKEY_UPDATE | XCCL_MHBA_NEED_RECV_MKEY_UPDATE);
+
+    if (reg_change_flag || (request->send_rcache_region_p->mr->addr !=
+                            team->previous_send_address[index])) {
+        xccl_mhba_get_my_ctrl(team, index)->mkey_cache_flag |= XCCL_MHBA_NEED_SEND_MKEY_UPDATE;
+    }
+    reg_change_flag = 0;
     if(UCS_OK != ucs_rcache_get(team->rcache, (void *)request->args.buffer_info.dst_buffer,
                                 request->args.buffer_info.len * team->size,
-                                PROT_WRITE,&dr_mem_access_flags,&recv_ptr)) {
+                                PROT_WRITE, &reg_change_flag, &recv_ptr)) {
         xccl_mhba_error("Failed to register receive_bf memory");
         ucs_rcache_region_put(team->rcache,request->send_rcache_region_p->region);
         return XCCL_ERR_NO_RESOURCE;
     }
     request->recv_rcache_region_p = xccl_rcache_ucs_get_reg_data(recv_ptr);
+    if (reg_change_flag || (request->recv_rcache_region_p->mr->addr !=
+                            team->previous_recv_address[index])) {
+        xccl_mhba_get_my_ctrl(team, index)->mkey_cache_flag |= XCCL_MHBA_NEED_RECV_MKEY_UPDATE;
+    }
 
     xccl_mhba_debug("fanin start");
     /* start task if completion event received */
     task->state = XCCL_TASK_STATE_INPROGRESS;
     /* Start fanin */
+    xccl_mhba_update_mkeys_entries(&team->node, request); // no option for failure status
     if (XCCL_OK == xccl_mhba_node_fanin(team, request)) {
         xccl_mhba_debug("fanin complete");
         task->state = XCCL_TASK_STATE_COMPLETED;
@@ -117,25 +140,25 @@ xccl_status_t xccl_mhba_reg_fanin_progress(xccl_coll_task_t *task)
 static xccl_status_t xccl_mhba_node_fanout(xccl_mhba_team_t     *team,
                                            xccl_mhba_coll_req_t *request)
 {
-    int *ctrl_v;
+    xccl_mhba_ctrl_t *ctrl_v;
+    int              *atomic_counter;
     int  index = SEQ_INDEX(request->seq_num);
 
     /* First phase of fanout: asr signals it completed local ops
        and other ranks wait for asr */
     if (team->node.sbgp->group_rank == team->node.asr_rank) {
-        *team->node.ops[index].my_ctrl = request->seq_num;
+        xccl_mhba_get_my_ctrl(team, index)->seq_num = request->seq_num;
     } else {
-        ctrl_v = (int *)((ptrdiff_t)team->node.ops[index].ctrl +
-                         MHBA_CTRL_SIZE * team->node.asr_rank);
-        if (*ctrl_v != request->seq_num) {
+        ctrl_v = xccl_mhba_get_ctrl(team, index, team->node.asr_rank);
+        if (ctrl_v->seq_num != request->seq_num) {
             return XCCL_INPROGRESS;
         }
     }
     /*Second phase of fanout: wait for remote atomic counters -
       ie wait for the remote data */
-    ctrl_v = (int *)((ptrdiff_t)team->node.storage + MHBA_CTRL_SIZE * index);
-    assert(*ctrl_v <= team->net.net_size);
-    if (*ctrl_v != team->net.net_size) {
+    atomic_counter = (int *)((ptrdiff_t)team->node.storage + MHBA_CTRL_SIZE * index);
+    assert(*atomic_counter <= team->net.net_size);
+    if (*atomic_counter != team->net.net_size) {
         return XCCL_INPROGRESS;
     }
     return XCCL_OK;
@@ -183,7 +206,8 @@ static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task)
     xccl_mhba_team_t     *team    = request->team;
     xccl_mhba_debug("asr barrier start");
 
-    // despite while statement, non blocking because have independent cq, will be finished in a finite time
+    // despite while statement in poll_umr_cq, non blocking because have independent cq,
+    // will be finished in a finite time
     xccl_mhba_populate_send_recv_mkeys(team, request);
 
     //Reset atomic notification counter to 0
@@ -547,7 +571,6 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->seq_num = team->sequence_number;
     xccl_mhba_debug("Seq num is %d", request->seq_num);
     team->sequence_number++;
-
     for (i = 0; i < n_tasks; i++) {
         request->tasks[i].req = request;
         xccl_coll_task_init(&request->tasks[i].super);
