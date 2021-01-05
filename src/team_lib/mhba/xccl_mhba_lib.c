@@ -24,11 +24,11 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
      ucs_offsetof(xccl_tl_mhba_context_config_t, devices),
      UCS_CONFIG_TYPE_STRING_ARRAY},
 
-    {"TRANSPOSE", "1", "Boolean - with transpose or not",
+    {"TRANSPOSE", "0", "Boolean - with transpose or not",
      ucs_offsetof(xccl_tl_mhba_context_config_t, transpose),
      UCS_CONFIG_TYPE_UINT},
 
-    {"TRANSPOSE_HW_LIMITATIONS", "0",
+    {"TRANSPOSE_HW_LIMITATIONS", "1",
      "Boolean - with transpose hw limitations or not",
      ucs_offsetof(xccl_tl_mhba_context_config_t, transpose_hw_limitations),
      UCS_CONFIG_TYPE_UINT}, //todo change to 1 in production

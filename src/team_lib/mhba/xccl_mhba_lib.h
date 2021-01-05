@@ -129,8 +129,10 @@ typedef struct xccl_mhba_net {
     struct ibv_cq  *cq;
     struct ibv_mr  *ctrl_mr;
     struct {
-        void    *addr;
-        uint32_t rkey;
+        void    *ctrl_addr;
+        uint32_t ctrl_rkey;
+        void    *barrier_addr;
+        uint32_t barrier_rkey;
     } * remote_ctrl;
     uint32_t       *rkeys;
     xccl_tl_team_t *ucx_team;
@@ -143,6 +145,10 @@ typedef struct xccl_mhba_team {
     uint64_t             max_msg_size;
     xccl_mhba_node_t     node;
     xccl_mhba_net_t      net;
+    int                 *inter_node_barrier;
+    int                 *inter_node_barrier_flag;
+    struct ibv_mr       *inter_node_barrier_mr;
+    struct ibv_mr      **net_barrier_mr;
     int                  sequence_number;
     int                  op_busy[MAX_OUTSTANDING_OPS];
     int                  cq_completions[MAX_OUTSTANDING_OPS];
