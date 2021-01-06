@@ -145,7 +145,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     ctx->local_proc.pid       = xccl_local_process_info()->pid;
     memset(ctx->tls, 0, sizeof(ctx->tls));
     *context = NULL;
-    
+
     ucs_for_each_bit(tl, XCCL_TL_ALL) {
         ctx->tls[tl].enabled = 1;
     }
@@ -154,6 +154,7 @@ xccl_status_t xccl_hier_create_context(xccl_team_lib_t *lib,
     /* Disable recursion */
     ctx->tls[ucs_ilog2(XCCL_TL_HIER)].enabled    = 0;
     ctx->tls[ucs_ilog2(XCCL_TL_MRAIL)].enabled   = 0;
+    ctx->tls[ucs_ilog2(XCCL_TL_DPU)].enabled     = 0;
     ctx->tls[ucs_ilog2(XCCL_TL_SHARP)].enabled   = hier_cfg->enable_sharp;
     ctx->tls[ucs_ilog2(XCCL_TL_SHMSEG)].enabled  = hier_cfg->enable_shmseg;
     ctx->tls[ucs_ilog2(XCCL_TL_HMC)].enabled     = hier_cfg->enable_hmc;

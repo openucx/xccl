@@ -18,6 +18,7 @@ typedef enum xccl_tl_id {
     XCCL_TL_SHMSEG = UCS_BIT(4),
     XCCL_TL_MRAIL  = UCS_BIT(5),
     XCCL_TL_NCCL   = UCS_BIT(6),
+    XCCL_TL_DPU    = UCS_BIT(7),
     XCCL_TL_LAST,
     XCCL_TL_ALL    = (XCCL_TL_LAST << 1) - 3
 } xccl_tl_id_t;
@@ -40,6 +41,8 @@ const char* xccl_tl_str(xccl_tl_id_t tl_id)
         return "shmseg";
     case XCCL_TL_NCCL:
         return "nccl";
+    case XCCL_TL_DPU:
+        return "dpu";
     default:
         break;
     }
@@ -59,7 +62,7 @@ xccl_tl_id_t xccl_tls_str_to_bitmap(const char *tls_str)
     for (i = 1; i < XCCL_TL_LAST; i = i << 1) {
         if (strstr(tls_str, xccl_tl_str((xccl_tl_id_t)i))) {
             tls = (xccl_tl_id_t)(tls | i);
-        } 
+        }
     }
 
     return tls;

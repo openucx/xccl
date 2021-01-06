@@ -19,6 +19,9 @@ endif
 if HAVE_NCCL
 SUBDIRS += team_lib/nccl
 endif
+if HAVE_DPU
+SUBDIRS += team_lib/dpu
+endif
 if HAVE_CUDA
 SUBDIRS += utils/cuda
 endif
