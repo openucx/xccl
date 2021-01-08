@@ -163,6 +163,7 @@ xccl_status_t xccl_ucx_scatter_reduce_knomial_progress(xccl_ucx_collreq_t *req)
     void *dst_buffer, *src_buffer;
     ucs_memory_type_t mtype;
     ptrdiff_t offset;
+    int ret;
 
     KN_RECURSIVE_SETUP(radix, myrank, group_size, pow_k_sup, full_tree_size,
                        n_full_subtrees, full_size, node_type);
@@ -173,8 +174,13 @@ xccl_status_t xccl_ucx_scatter_reduce_knomial_progress(xccl_ucx_collreq_t *req)
 
     if ((req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) ||
         (KN_PROXY == node_type)) {
-        xccl_mem_component_alloc(&req->allreduce_sra.scratch,
-                                 data_size, req->src_mem_type);
+        ret = xccl_mem_component_alloc(&req->allreduce_sra.scratch,
+                                       data_size, req->src_mem_type);
+        if (ret != XCCL_OK) {
+            xccl_ucx_error("Failed to to allocate %s memory. size:%ld",
+                            ucs_memory_type_names[req->src_mem_type], data_size);
+            return ret;
+        }
     }
 
     if (KN_EXTRA == node_type) {

@@ -5,10 +5,37 @@
 */
 
 #include "config.h"
+#include <ucm/api/ucm.h>
 #include "xccl_ucx_context.h"
 #include "xccl_ucx_tag.h"
 #include "xccl_ucx_ep.h"
 #include <stdlib.h>
+
+void xccl_ucx_mem_map(void *addr, size_t length, ucs_memory_type_t mem_type,
+                      xccl_team_lib_ucx_context_t *ctx)
+{
+    ucp_mem_map_params_t mmap_params;
+    ucp_mem_h mh;
+    ucs_status_t ret;
+
+    mmap_params.field_mask  = UCP_MEM_MAP_PARAM_FIELD_ADDRESS |
+                              UCP_MEM_MAP_PARAM_FIELD_LENGTH  |
+                              UCP_MEM_MAP_PARAM_FIELD_MEMORY_TYPE;
+    mmap_params.address     = addr;
+    mmap_params.length     = length;
+    mmap_params.memory_type = mem_type;
+
+    /* do map and umap to populate the cache */
+    ret = ucp_mem_map(ctx->ucp_context, &mmap_params, &mh);
+    if (ret != UCS_OK) {
+        xccl_ucx_error("ucp_mem_map failed ");
+    }
+
+    ret = ucp_mem_unmap(ctx->ucp_context, mh);
+    if (ret != UCS_OK) {
+        xccl_ucx_error("ucp_mem_unmap failed ");
+    }
+}
 
 static void xccl_ucx_req_init(void* request)
 {
@@ -18,11 +45,28 @@ static void xccl_ucx_req_init(void* request)
 
 static void xccl_ucx_req_cleanup(void* request){ }
 
+static void xccl_ucx_memtype_event_cb(ucm_event_type_t event_type, ucm_event_t *event, void *arg)
+{
+    xccl_team_lib_ucx_context_t *ctx = arg;
+
+    if (event_type == UCM_EVENT_MEM_TYPE_ALLOC) {
+        xccl_ucx_mem_map(event->mem_type.address, event->mem_type.size,
+                         event->mem_type.mem_type, ctx);
+    }
+
+    xccl_ucx_debug("ctx:%p %s address %p size %zu\n", ctx,
+           ucs_memory_type_names[event->mem_type.mem_type],
+           event->mem_type.address, event->mem_type.size);
+}
+
+
 xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
                                       xccl_context_params_t *params,
                                       xccl_tl_context_config_t *config,
                                       xccl_tl_context_t **context)
 {
+    static const ucm_event_type_t memtype_events = UCM_EVENT_MEM_TYPE_ALLOC |
+                                                   UCM_EVENT_MEM_TYPE_FREE;
     xccl_team_lib_ucx_context_t *ctx  =
         (xccl_team_lib_ucx_context_t *)malloc(sizeof(*ctx));
     xccl_tl_ucx_context_config_t *cfg =
@@ -103,9 +147,17 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
     ctx->alltoall_pairwise_chunk   = cfg->alltoall_pairwise_chunk;
     ctx->alltoall_pairwise_reverse = cfg->alltoall_pairwise_reverse;
     ctx->alltoall_pairwise_barrier = cfg->alltoall_pairwise_barrier;
+    ctx->pre_mem_map               = cfg->pre_mem_map;
 
     ctx->next_cid           = 0;
     *context = &ctx->super;
+
+    /* install memtype event handler */
+    if (ctx->pre_mem_map == XCCL_TEAM_UCX_ALLOC_PRE_MAP ||
+        ctx->pre_mem_map == XCCL_TEAM_UCX_COLL_INIT_AND_ALLOC_PRE_MAP) {
+        ucm_set_event_handler(memtype_events, 1000, xccl_ucx_memtype_event_cb, ctx);
+    }
+
     return XCCL_OK;
 }
 
