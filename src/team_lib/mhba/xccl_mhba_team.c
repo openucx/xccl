@@ -308,7 +308,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         }
         // for each ASR - qp num, in addition to port lid, ctrl segment rkey and address, recieve mkey rkey
         local_data_size = (net_size * sizeof(uint32_t)) + sizeof(uint32_t) +
-                          3 * sizeof(uint32_t) + 2*sizeof(void *); //todo make concurrent
+                          3 * sizeof(uint32_t) + 2*sizeof(void *);
         local_data = malloc(local_data_size);
         if (!local_data) {
             xccl_mhba_error("failed to allocate local data");
@@ -361,17 +361,17 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
         local_data[net_size + 4] = mhba_team->node.team_recv_mkey->rkey;
 
-        mhba_team->inter_node_barrier      = (int*) malloc(sizeof(int)*net_size);
-        mhba_team->inter_node_barrier_flag = (int*) malloc(sizeof(int)*net_size);
+        mhba_team->inter_node_barrier      = (int*) malloc(sizeof(int)*net_size*MAX_OUTSTANDING_OPS);
+        mhba_team->inter_node_barrier_flag = (int*) malloc(sizeof(int)*net_size*MAX_OUTSTANDING_OPS);
         if(!mhba_team->inter_node_barrier || !mhba_team->inter_node_barrier_flag){
             xccl_mhba_error("Failed to malloc");
             goto barrier_alloc_failure;
         }
-        for(i=0;i<net_size;i++){
+        for(i=0;i<net_size*MAX_OUTSTANDING_OPS;i++){
             mhba_team->inter_node_barrier[i] = -1;
         }
         mhba_team->inter_node_barrier_mr = ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->inter_node_barrier,
-                                          sizeof(uint32_t)*net_size, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+                                          sizeof(int)*net_size*MAX_OUTSTANDING_OPS, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
         if (!mhba_team->inter_node_barrier_mr) {
             xccl_mhba_error("Failed to register memory");
             goto barrier_alloc_failure;

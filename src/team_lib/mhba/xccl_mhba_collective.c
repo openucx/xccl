@@ -179,7 +179,7 @@ static xccl_status_t xccl_mhba_fanout_progress(xccl_coll_task_t *task)
     return XCCL_OK;
 }
 
-static inline xccl_status_t send_block_data(struct ibv_qp *qp,
+static inline xccl_status_t rdma_send_data(struct ibv_qp *qp,
                                             uint64_t       src_addr,
                                             uint32_t msg_size, uint32_t lkey,
                                             uint64_t remote_addr, uint32_t rkey,
@@ -209,7 +209,7 @@ static inline xccl_status_t send_block_data(struct ibv_qp *qp,
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task)
+static xccl_status_t xccl_mhba_populate_umr(xccl_coll_task_t *task)
 {
     xccl_mhba_task_t     *self    = ucs_derived_of(task, xccl_mhba_task_t);
     xccl_mhba_coll_req_t *request = self->req;
@@ -227,27 +227,21 @@ static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task)
 
     task->state = XCCL_TASK_STATE_COMPLETED;
 
-    team->inter_node_barrier[team->net.sbgp->group_rank] = request->seq_num;
+    //Notify all ranks for UMR execution
+    int index = team->net.sbgp->group_rank+ team->net.sbgp->group_size*SEQ_INDEX(request->seq_num);
+    team->inter_node_barrier[index] = request->seq_num;
     for(i=0; i<team->net.net_size;i++){
-        xccl_status_t status = send_block_data(team->net.qps[i], (uintptr_t)team->inter_node_barrier_mr->addr+team->net.sbgp->group_rank*sizeof(int) , sizeof(int),
+        xccl_status_t status = rdma_send_data(team->net.qps[i], (uintptr_t)team->inter_node_barrier_mr->addr+index*sizeof(int), sizeof(int),
                                  team->inter_node_barrier_mr->lkey,
-                                 team->net.remote_ctrl[i].barrier_addr+sizeof(int)*team->net.sbgp->group_rank, team->net.remote_ctrl[i].barrier_rkey, 0, 0);
+                                 (uintptr_t)team->net.remote_ctrl[i].barrier_addr+sizeof(int)*index, team->net.remote_ctrl[i].barrier_rkey, 0, 0);
         if (status != XCCL_OK) {
             xccl_mhba_error("Failed sending barrier notice");
             return status;
         }
     }
-    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+    xccl_event_manager_notify(&task->em, XCCL_EVENT_COMPLETED);
     return XCCL_OK;
 }
-
-xccl_status_t xccl_mhba_asr_barrier_progress(xccl_coll_task_t *task) //todo not needed
-{
-    task->state = XCCL_TASK_STATE_COMPLETED;
-    return XCCL_OK;
-}
-
-
 
 static inline xccl_status_t send_atomic(struct ibv_qp *qp, uint64_t remote_addr,
                                         uint32_t rkey, xccl_mhba_team_t *team,
@@ -331,6 +325,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
     int           block_msgsize = SQUARED(block_size) * len;
+    int           barr_index    = index*MAX_OUTSTANDING_OPS;
     int           i, j, k, dest_rank, rank, n_compl, ret;
     uint64_t      src_addr, remote_addr;
     struct ibv_wc transpose_completion[1];
@@ -343,8 +338,9 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
 
     while(counter < net_size) {
         for (i = 0; i < net_size; i++) {
-            if (team->inter_node_barrier[i] == request->seq_num && !team->inter_node_barrier_flag[i]) {
-                team->inter_node_barrier_flag[i] = 1;
+            if (team->inter_node_barrier[i+barr_index] == request->seq_num &&
+                                                !team->inter_node_barrier_flag[i+barr_index]) {
+                team->inter_node_barrier_flag[i+barr_index] = 1;
                 dest_rank = team->net.rank_map[i];
                 //send all blocks from curr node to some ARR
                 for (j = 0; j < xccl_round_up(node_size, block_size); j++) {
@@ -355,7 +351,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                                                   block_msgsize * j + col_msgsize * k);
                         prepost_dummy_recv(team->node.umr_qp, 1);
                         // SW Transpose
-                        status = send_block_data(
+                        status = rdma_send_data(
                                 team->node.umr_qp, src_addr, block_msgsize,
                                 team->node.team_send_mkey->lkey,
                                 (uintptr_t) request->transpose_buf_mr->addr,
@@ -383,7 +379,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                         transpose_square_mat(request->transpose_buf_mr->addr,
                                              block_size, request->args.buffer_info.len,
                                              request->tmp_transpose_buf);
-                        status = send_block_data(
+                        status = rdma_send_data(
                                 team->net.qps[i],
                                 (uintptr_t) request->transpose_buf_mr->addr, block_msgsize,
                                 request->transpose_buf_mr->lkey, remote_addr,
@@ -428,6 +424,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
     int           block_msgsize = SQUARED(block_size) * len;
+    int           barr_index    = index*MAX_OUTSTANDING_OPS;
     int           i, j, k, dest_rank, rank;
     int           counter = 0;
     uint64_t      src_addr, remote_addr;
@@ -439,8 +436,8 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
 
     while(counter < net_size) {
         for (i = 0; i < net_size; i++) {
-            if (team->inter_node_barrier[i] == request->seq_num && !team->inter_node_barrier_flag[i]) {
-                team->inter_node_barrier_flag[i] = 1;
+            if (team->inter_node_barrier[i +barr_index] == request->seq_num && !team->inter_node_barrier_flag[i +barr_index]) {
+                team->inter_node_barrier_flag[i+barr_index] = 1;
                 dest_rank = team->net.rank_map[i];
                 //send all blocks from curr node to some ARR
                 for (j = 0; j < xccl_round_up(node_size, block_size); j++) {
@@ -450,7 +447,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
                         remote_addr = (uintptr_t)(op_msgsize * index + node_msgsize * rank +
                                                   block_msgsize * j + col_msgsize * k);
 
-                        status = send_block_data(team->net.qps[i], src_addr, block_msgsize,
+                        status = rdma_send_data(team->net.qps[i], src_addr, block_msgsize,
                                                  team->node.team_send_mkey->lkey,
                                                  remote_addr, team->net.rkeys[i], 0, 0);
                         if (status != XCCL_OK) {
@@ -590,10 +587,9 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
             xccl_mhba_fanout_start;
         request->tasks[1].super.progress = xccl_mhba_fanout_progress;
     } else {
-        memset(team->inter_node_barrier_flag,0,sizeof(int)*team->net.net_size);
+        memset(&team->inter_node_barrier_flag[MAX_OUTSTANDING_OPS*SEQ_INDEX(request->seq_num)],0,sizeof(int)*team->net.net_size);
         request->tasks[1].super.handlers[XCCL_EVENT_COMPLETED] =
-            xccl_mhba_asr_barrier_start;
-        request->tasks[1].super.progress = xccl_mhba_asr_barrier_progress;
+                xccl_mhba_populate_umr;
         if (team->transpose) {
             request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
                 xccl_mhba_send_blocks_start_with_transpose;
