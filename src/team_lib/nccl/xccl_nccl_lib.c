@@ -155,6 +155,7 @@ xccl_nccl_team_create_post(xccl_tl_context_t *context,
     xccl_nccl_team_t *nccl_team = malloc(sizeof(*nccl_team));
     ncclUniqueId unique_id, *gathered_ids;
     ncclResult_t nccl_st;
+    int leastPriority=-1, greatestPriority=-1;
 
     XCCL_TEAM_SUPER_INIT(nccl_team->super, context, params);
     gathered_ids = (ncclUniqueId*)malloc(params->oob.size*sizeof(ncclUniqueId));
@@ -179,7 +180,8 @@ xccl_nccl_team_create_post(xccl_tl_context_t *context,
         return XCCL_ERR_NO_MESSAGE;
     }
 
-    CUDACHECK(cudaStreamCreateWithFlags(&nccl_team->stream, cudaStreamNonBlocking));
+    CUDACHECK(cudaDeviceGetStreamPriorityRange(&leastPriority, &greatestPriority));
+    CUDACHECK(cudaStreamCreateWithPriority(&nccl_team->stream, cudaStreamNonBlocking, greatestPriority));
     nccl_team->team_size = params->oob.size;
     *team = &nccl_team->super;
     return XCCL_OK;
