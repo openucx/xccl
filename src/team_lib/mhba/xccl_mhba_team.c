@@ -259,7 +259,6 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                                         node->group_rank * MHBA_DATA_SIZE);
     }
 
-    xccl_sbgp_oob_barrier(node, params->oob);
     calc_block_size(mhba_team);
     mhba_team->requested_block_size = ctx->cfg.block_size;
     if (mhba_team->node.asr_rank == node->group_rank) {
@@ -374,7 +373,6 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                 (void *)(uintptr_t)(*((uint64_t *)&remote_data[net_size + 2]));
             mhba_team->net.rkeys[i] = remote_data[net_size + 4];
         }
-        xccl_sbgp_oob_barrier(net, params->oob);
 
         xccl_tl_context_t *ucx_ctx = xccl_get_tl_context(context->ctx, XCCL_TL_UCX);
         if (!ucx_ctx) {
