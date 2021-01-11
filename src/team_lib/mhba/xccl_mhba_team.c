@@ -95,8 +95,9 @@ static ucs_status_t rcache_reg_mr(void *context, ucs_rcache_t *rcache,void *arg,
     size_t length             = (size_t)(rregion->super.end - rregion->super.start);
     xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
     mhba_reg->region = rregion;
-    int* mem_flags = (int*) arg;
-    mhba_reg->mr = ibv_reg_mr(team->node.shared_pd, addr, length, *mem_flags);
+    int* change_flag = (int*) arg;
+    *change_flag = 1;
+    mhba_reg->mr = ibv_reg_mr(team->node.shared_pd, addr, length, (rregion->prot == PROT_WRITE) ? IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE : 0);
     if (!mhba_reg->mr) {
         xccl_mhba_error("Failed to register memory");
         return UCS_ERR_NO_MESSAGE;
@@ -306,7 +307,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         }
         // for each ASR - qp num, in addition to port lid, ctrl segment rkey and address, recieve mkey rkey
         local_data_size = (net_size * sizeof(uint32_t)) + sizeof(uint32_t) +
-                          2 * sizeof(uint32_t) + sizeof(void *);
+                          3 * sizeof(uint32_t) + 2*sizeof(void *);
         local_data = malloc(local_data_size);
         if (!local_data) {
             xccl_mhba_error("failed to allocate local data");
@@ -359,6 +360,25 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
         local_data[net_size + 4] = mhba_team->node.team_recv_mkey->rkey;
 
+        mhba_team->inter_node_barrier      = (int*) malloc(sizeof(int)*net_size*MAX_OUTSTANDING_OPS);
+        mhba_team->inter_node_barrier_flag = (int*) malloc(sizeof(int)*net_size*MAX_OUTSTANDING_OPS);
+        if(!mhba_team->inter_node_barrier || !mhba_team->inter_node_barrier_flag){
+            xccl_mhba_error("Failed to malloc");
+            goto barrier_alloc_failure;
+        }
+        for(i=0;i<net_size*MAX_OUTSTANDING_OPS;i++){
+            mhba_team->inter_node_barrier[i] = -1;
+        }
+        mhba_team->inter_node_barrier_mr = ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->inter_node_barrier,
+                                          sizeof(int)*net_size*MAX_OUTSTANDING_OPS, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+        if (!mhba_team->inter_node_barrier_mr) {
+            xccl_mhba_error("Failed to register memory");
+            goto barrier_alloc_failure;
+        }
+        local_data[net_size + 5] = mhba_team->inter_node_barrier_mr->rkey;
+        *((uint64_t *)&local_data[net_size + 6]) =
+                (uint64_t)(uintptr_t)mhba_team->inter_node_barrier_mr->addr;
+
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net,
                                 params->oob);
         mhba_team->net.rkeys = (uint32_t *)malloc(sizeof(uint32_t) * net_size);
@@ -368,16 +388,19 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             xccl_mhba_qp_connect(mhba_team->net.qps[i],
                                  remote_data[net->group_rank],
                                  remote_data[net_size], ctx->ib_port);
-            mhba_team->net.remote_ctrl[i].rkey = remote_data[net_size + 1];
-            mhba_team->net.remote_ctrl[i].addr =
+            mhba_team->net.remote_ctrl[i].ctrl_rkey = remote_data[net_size + 1];
+            mhba_team->net.remote_ctrl[i].ctrl_addr =
                 (void *)(uintptr_t)(*((uint64_t *)&remote_data[net_size + 2]));
+            mhba_team->net.remote_ctrl[i].barrier_rkey = remote_data[net_size + 5];
+            mhba_team->net.remote_ctrl[i].barrier_addr =
+                    (void *)(uintptr_t)(*((uint64_t *)&remote_data[net_size + 6]));
             mhba_team->net.rkeys[i] = remote_data[net_size + 4];
         }
 
         xccl_tl_context_t *ucx_ctx = xccl_get_tl_context(context->ctx, XCCL_TL_UCX);
         if (!ucx_ctx) {
             xccl_mhba_error("failed to find available ucx tl context");
-            goto remote_ctrl_fail;
+            goto barrier_reg_failure;
         }
 
         xccl_oob_collectives_t oob = {
@@ -400,7 +423,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             ucx_ctx->lib->team_create_post(ucx_ctx, &team_params, base_team,
                                            &mhba_team->net.ucx_team)) {
             xccl_mhba_error("failed to start ucx team creation");
-            goto remote_ctrl_fail;
+            goto barrier_reg_failure;
         }
         while (XCCL_OK !=
                ucx_ctx->lib->team_create_test(mhba_team->net.ucx_team)) {
@@ -416,7 +439,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
         if (!mhba_team->dummy_bf_mr) {
             xccl_mhba_error("Failed to register dummy buff (errno=%d)", errno);
-            goto remote_ctrl_fail;
+            goto barrier_reg_failure;
         }
 
         mhba_team->work_completion =
@@ -432,6 +455,11 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
 wc_alloc_fail:
     ibv_dereg_mr(mhba_team->dummy_bf_mr);
+barrier_reg_failure:
+    ibv_dereg_mr(mhba_team->inter_node_barrier_mr);
+barrier_alloc_failure:
+    free(mhba_team->inter_node_barrier_flag);
+    free(mhba_team->inter_node_barrier);
 remote_ctrl_fail:
     ibv_dereg_mr(mhba_team->net.ctrl_mr);
 ctrl_fail:
@@ -511,6 +539,9 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
             ibv_dereg_mr(mhba_team->transpose_buf_mr);
             free(mhba_team->transpose_buf);
         }
+        ibv_dereg_mr(mhba_team->inter_node_barrier_mr);
+        free(mhba_team->inter_node_barrier);
+        free(mhba_team->inter_node_barrier_flag);
     }
     free(team);
     return status;
