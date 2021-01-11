@@ -126,6 +126,7 @@ typedef struct xccl_ucx_collreq {
             int                max_dist;
             void               *scratch;
             void               *data_buf;
+            ucs_memory_type_t  data_buf_mtype;
         } reduce_kn;
         struct {
             xccl_ucx_request_t *reqs[MAX_REQS];

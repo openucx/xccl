@@ -46,16 +46,17 @@ xccl_status_t xccl_ucx_bcast_knomial_progress(xccl_ucx_collreq_t *req)
                 vpeer = vrank + i*dist;
                 if (vpeer < group_size) {
                     peer = (vpeer + root) % group_size;
-                    xccl_ucx_send_nb(data_buffer, data_size, peer,
-                                    (xccl_ucx_team_t*)team, req->tag,
+                    xccl_ucx_send_nb(data_buffer, data_size, req->dst_mem_type,
+                                    peer, (xccl_ucx_team_t*)team, req->tag,
                                     &reqs[req->bcast_kn.active_reqs++]);
                 }
             }
         } else if (pos > 0) {
             vroot_at_level = vrank - pos*dist;
             root_at_level  = (vroot_at_level + root) % group_size;
-            xccl_ucx_recv_nb(data_buffer, data_size, root_at_level,
-                            (xccl_ucx_team_t*)team, req->tag, &reqs[req->bcast_kn.active_reqs++]);
+            xccl_ucx_recv_nb(data_buffer, data_size, req->dst_mem_type,
+                             root_at_level, (xccl_ucx_team_t*)team, req->tag,
+                             &reqs[req->bcast_kn.active_reqs++]);
             assert(req->bcast_kn.active_reqs == 1);
         }
         dist /= radix;
@@ -79,7 +80,8 @@ xccl_status_t xccl_ucx_bcast_knomial_start(xccl_ucx_collreq_t *req)
     size_t data_size = req->args.buffer_info.len;
     int group_rank   = req->team->params.oob.rank;
     int group_size   = req->team->params.oob.size;
-    xccl_ucx_debug("knomial bcast start: group_size %d, group_rank %d, data_size %zd",
+    xccl_ucx_debug("knomial bcast start: group_size %d, group_rank %d,"
+                   "data_size %zd",
                    group_size, group_rank, data_size);
     memset(req->bcast_kn.reqs, 0, sizeof(req->bcast_kn.reqs));
     req->bcast_kn.radix   = TEAM_UCX_CTX_REQ(req)->bcast_kn_radix;
@@ -93,8 +95,9 @@ xccl_status_t xccl_ucx_bcast_knomial_start(xccl_ucx_collreq_t *req)
         if (req->args.buffer_info.src_buffer !=
             req->args.buffer_info.dst_buffer) {
             xccl_ucx_send_recv(req->args.buffer_info.src_buffer, data_size,
-                               group_rank, req->tag, req->args.buffer_info.dst_buffer,
-                               data_size, group_rank, req->tag,
+                               req->src_mem_type, group_rank, req->tag,
+                               req->args.buffer_info.dst_buffer, data_size,
+                               req->dst_mem_type, group_rank, req->tag,
                                (xccl_ucx_team_t *)req->team);
         }
     }

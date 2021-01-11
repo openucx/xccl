@@ -1,8 +1,9 @@
 /**
-* Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
+* Copyright (C) Mellanox Technologies Ltd. 2001-2021.  ALL RIGHTS RESERVED.
 *
 * See file LICENSE for terms.
 */
+
 #include "config.h"
 #include "xccl_ucx_lib.h"
 #include "xccl_ucx_team.h"
@@ -550,15 +551,17 @@ xccl_team_lib_ucx_t xccl_team_lib_ucx = {
     .super.global_mem_unmap      = NULL,
 };
 
-void xccl_ucx_send_completion_cb(void* request, ucs_status_t status)
+void xccl_ucx_send_completion_cb(void *request, ucs_status_t status,
+                                 void *user_data)
 {
-    xccl_ucx_request_t *req = request;
+    xccl_ucx_request_t *req = (xccl_ucx_request_t*)request;
     req->status = XCCL_UCX_REQUEST_DONE;
 }
 
 void xccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
-                                     ucp_tag_recv_info_t *info)
+                                 const ucp_tag_recv_info_t *info,
+                                 void *user_data)
 {
-    xccl_ucx_request_t *req = request;
+    xccl_ucx_request_t *req = (xccl_ucx_request_t*)request;
     req->status = XCCL_UCX_REQUEST_DONE;
 }

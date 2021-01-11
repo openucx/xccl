@@ -29,11 +29,13 @@ xccl_status_t xccl_ucx_allgather_ring_progress(xccl_ucx_collreq_t *req)
             (req->allgather_ring.reqs[1] == NULL)) {
             sbuf = (ptrdiff_t)req->args.buffer_info.dst_buffer +
                    ((group_rank-step+group_size)%group_size)*data_size;
-            xccl_ucx_send_nb((void*)sbuf, data_size, sendto, team, req->tag,
+            xccl_ucx_send_nb((void*)sbuf, data_size, req->dst_mem_type,
+                             sendto, team, req->tag,
                              &req->allgather_ring.reqs[0]);
             rbuf = (ptrdiff_t)req->args.buffer_info.dst_buffer +
                    ((group_rank-step-1+group_size)%group_size)*data_size;
-            xccl_ucx_recv_nb((void*)rbuf, data_size, recvfrom, team, req->tag,
+            xccl_ucx_recv_nb((void*)rbuf, data_size, req->dst_mem_type,
+                             recvfrom, team, req->tag,
                              &req->allgather_ring.reqs[1]);
         }
         status = xccl_ucx_req_test(team, req->allgather_ring.reqs, 2, &cidx, 1, 2);
@@ -64,14 +66,17 @@ xccl_status_t xccl_ucx_allgather_ring_start(xccl_ucx_collreq_t *req)
 
     if (sbuf != rbuf) {
         xccl_ucx_send_recv((void*)(sbuf), data_size,
-                            group_rank, req->tag,
-                            (void*)(rbuf + data_size*group_rank), data_size,
-                            group_rank, req->tag,
-                            (xccl_ucx_team_t *)req->team);
+                           req->src_mem_type,
+                           group_rank, req->tag,
+                           (void*)(rbuf + data_size*group_rank), data_size,
+                           req->dst_mem_type,
+                           group_rank, req->tag,
+                           (xccl_ucx_team_t*)req->team);
     }
-    req->allgather_ring.step     = 0;
+    req->allgather_ring.step    = 0;
     req->allgather_ring.reqs[0] = NULL;
     req->allgather_ring.reqs[1] = NULL;
     req->progress               = xccl_ucx_allgather_ring_progress;
+
     return xccl_ucx_allgather_ring_progress(req);
 }

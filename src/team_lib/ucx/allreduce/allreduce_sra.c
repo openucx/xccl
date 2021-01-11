@@ -161,6 +161,7 @@ xccl_status_t xccl_ucx_scatter_reduce_knomial_progress(xccl_ucx_collreq_t *req)
     int peer_seg_index, peer_seg_count, peer_seg_offset;
     int local_seg_index, local_seg_count, local_seg_offset;
     void *dst_buffer, *src_buffer;
+    ucs_memory_type_t mtype;
     ptrdiff_t offset;
 
     KN_RECURSIVE_SETUP(radix, myrank, group_size, pow_k_sup, full_tree_size,
@@ -178,15 +179,16 @@ xccl_status_t xccl_ucx_scatter_reduce_knomial_progress(xccl_ucx_collreq_t *req)
 
     if (KN_EXTRA == node_type) {
         peer = KN_RECURSIVE_GET_PROXY(myrank, full_size);
-        xccl_ucx_send_nb(req->args.buffer_info.src_buffer, data_size, peer,
-                        (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
+        xccl_ucx_send_nb(req->args.buffer_info.src_buffer, data_size,
+                         req->src_mem_type, peer, (xccl_ucx_team_t*)team,
+                         req->tag, &reqs[0]);
         active_reqs = 1;
     }
 
     if (KN_PROXY == node_type) {
         peer = KN_RECURSIVE_GET_EXTRA(myrank, full_size);
-        xccl_ucx_recv_nb(req->allreduce_sra.scratch, data_size, peer,
-                        (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
+        xccl_ucx_recv_nb(req->allreduce_sra.scratch, data_size, req->src_mem_type,
+                         peer, (xccl_ucx_team_t*)team, req->tag, &reqs[0]);
         active_reqs = 1;
     }
 
@@ -227,23 +229,26 @@ PHASE_EXTRA:
             peer_seg_index  = compute_seg_index(peer, radix_pow, radix);
             peer_seg_count  = compute_seg_size(block_count, step_radix, peer_seg_index);
             peer_seg_offset = compute_seg_offset(block_count, step_radix, peer_seg_index);
-            xccl_ucx_send_nb((void*)((ptrdiff_t)src_buffer + (size_t)peer_seg_offset*dt_size), peer_seg_count*dt_size, peer,
-                            (xccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
+            xccl_ucx_send_nb((void*)((ptrdiff_t)src_buffer + (size_t)peer_seg_offset*dt_size),
+                             peer_seg_count*dt_size, req->src_mem_type, peer,
+                             (xccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
             active_reqs++;
         }
 
         local_seg_index  = compute_seg_index(myrank, radix_pow, radix);
         local_seg_count  = compute_seg_size(block_count, step_radix, local_seg_index);
 
-        dst_buffer     = req->allreduce_sra.scratch;
+        dst_buffer = req->allreduce_sra.scratch;
+        mtype = req->src_mem_type;
         if (iteration != 0) {
             dst_buffer = (void*)((ptrdiff_t)dst_buffer + (size_t)block_count*dt_size);
+            mtype = req->dst_mem_type;
         }
         for (k = 1; k < radix; k++) {
             peer = get_peer(myrank, k, radix_pow, step_size);
             if (peer >= full_size) continue;
 
-            xccl_ucx_recv_nb(dst_buffer, local_seg_count*dt_size,
+            xccl_ucx_recv_nb(dst_buffer, local_seg_count*dt_size, mtype,
                              peer, (xccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
             active_reqs++;
             dst_buffer = (void*)((ptrdiff_t)dst_buffer + (size_t)(local_seg_count*dt_size));
@@ -278,8 +283,9 @@ PHASE_1:
     offset = get_sra_knomial_offset(req->args.reduce_info.count, dt_size, myrank,
                                     radix, group_size);
     xccl_ucx_send_recv(req->allreduce_sra.scratch, local_seg_count*dt_size,
-                       myrank, req->tag, (void*)((ptrdiff_t)req->args.buffer_info.dst_buffer + offset),
-                       data_size, myrank, req->tag,
+                       req->src_mem_type, myrank, req->tag,
+                       (void*)((ptrdiff_t)req->args.buffer_info.dst_buffer + offset),
+                       data_size, req->dst_mem_type, myrank, req->tag,
                        (xccl_ucx_team_t *)req->team);
 //prepare for allgather
     if ((req->args.buffer_info.src_buffer == req->args.buffer_info.dst_buffer) ||
@@ -316,12 +322,13 @@ xccl_status_t xccl_ucx_allgather_knomial_progress(xccl_ucx_collreq_t *req)
     ptrdiff_t recv_offset;
     void *dst_buffer;
     void *src_buffer;
-    xccl_tl_team_t *team = req->team;
-    size_t data_size     = req->args.buffer_info.len;
-    int myrank           = team->params.oob.rank;
-    int group_size       = team->params.oob.size;
-    int radix            = req->allreduce_sra.radix;
-    void *scratch        = req->allreduce_sra.scratch;
+    ucs_memory_type_t mtype = req->dst_mem_type;
+    xccl_tl_team_t *team    = req->team;
+    size_t data_size        = req->args.buffer_info.len;
+    int myrank              = team->params.oob.rank;
+    int group_size          = team->params.oob.size;
+    int radix               = req->allreduce_sra.radix;
+    void *scratch           = req->allreduce_sra.scratch;
     xccl_ucx_request_t **reqs = req->allreduce_sra.reqs;
     int dt_size = xccl_dt_size(req->args.reduce_info.dt);
     int block_count;
@@ -336,8 +343,9 @@ xccl_status_t xccl_ucx_allgather_knomial_progress(xccl_ucx_collreq_t *req)
 
     if (KN_EXTRA == node_type) {
         peer = KN_RECURSIVE_GET_PROXY(myrank, full_size);
-        xccl_ucx_recv_nb(req->args.buffer_info.dst_buffer, data_size, peer,
-                        (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
+        xccl_ucx_recv_nb(req->args.buffer_info.dst_buffer, data_size,
+                         mtype, peer, (xccl_ucx_team_t *)team,
+                         req->tag, &reqs[0]);
         active_reqs = 1;
     }
 PHASE_EXTRA:
@@ -370,7 +378,7 @@ PHASE_EXTRA:
 
             peer_seg_index  = compute_seg_index(myrank, radix_pow, radix);
             peer_seg_count  = compute_seg_size(block_count, step_radix, peer_seg_index);
-            xccl_ucx_send_nb(src_buffer, peer_seg_count*dt_size, peer,
+            xccl_ucx_send_nb(src_buffer, peer_seg_count*dt_size, mtype, peer,
                              (xccl_ucx_team_t*)team, req->tag, &reqs[active_reqs]);
             active_reqs++;
         }
@@ -383,8 +391,9 @@ PHASE_EXTRA:
             peer_seg_index  = compute_seg_index(peer, radix_pow, radix);
             peer_seg_count  = compute_seg_size(block_count, step_radix, peer_seg_index);
             peer_seg_offset = compute_seg_offset(block_count, step_radix, peer_seg_index);
-            xccl_ucx_recv_nb((void*)((ptrdiff_t)dst_buffer + (size_t)peer_seg_offset*dt_size), peer_seg_count * dt_size,
-                             peer, (xccl_ucx_team_t*)team, req->tag, &reqs[active_reqs]);
+            xccl_ucx_recv_nb((void*)((ptrdiff_t)dst_buffer + (size_t)peer_seg_offset*dt_size),
+                             peer_seg_count * dt_size, mtype, peer,
+                             (xccl_ucx_team_t*)team, req->tag, &reqs[active_reqs]);
             active_reqs++;
         }
         if (active_reqs) {
@@ -399,7 +408,7 @@ PHASE_1:
     }
     if (KN_PROXY == node_type) {
         peer = KN_RECURSIVE_GET_EXTRA(myrank, full_size);
-        xccl_ucx_send_nb(req->args.buffer_info.dst_buffer, data_size, peer,
+        xccl_ucx_send_nb(req->args.buffer_info.dst_buffer, data_size, mtype, peer,
                          (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
         active_reqs = 1;
         goto PHASE_PROXY;

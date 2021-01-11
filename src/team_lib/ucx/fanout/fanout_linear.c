@@ -14,14 +14,16 @@ xccl_status_t xccl_ucx_fanout_linear_progress(xccl_ucx_collreq_t *req)
 
     if (req->args.root == group_rank) {
         if (req->fanout_linear.step == ((group_rank + 1) % group_size)) {
-            xccl_ucx_send_nb(NULL, 0, req->fanout_linear.step,
-                            (xccl_ucx_team_t*)team, req->tag, &reqs[0]);
+            xccl_ucx_send_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN,
+                             req->fanout_linear.step,
+                             (xccl_ucx_team_t*)team, req->tag, &reqs[0]);
             req->fanout_linear.step = ((req->fanout_linear.step + 1) % group_size);
         }
         if (XCCL_OK == xccl_ucx_testall((xccl_ucx_team_t *)team, reqs, 1)) {
             if (req->fanout_linear.step != group_rank) {
-                xccl_ucx_send_nb(NULL, 0, req->fanout_linear.step,
-                                (xccl_ucx_team_t*)team, req->tag, &reqs[0]);
+                xccl_ucx_send_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN,
+                                 req->fanout_linear.step,
+                                 (xccl_ucx_team_t*)team, req->tag, &reqs[0]);
                 req->fanout_linear.step =
                     ((req->fanout_linear.step + 1) % group_size);
             } else {
@@ -31,8 +33,8 @@ xccl_status_t xccl_ucx_fanout_linear_progress(xccl_ucx_collreq_t *req)
 
     } else {
         if (req->fanout_linear.step == 0) {
-            xccl_ucx_recv_nb(NULL, 0, req->args.root,
-                            (xccl_ucx_team_t*)team, req->tag, &reqs[0]);
+            xccl_ucx_recv_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN, req->args.root,
+                             (xccl_ucx_team_t*)team, req->tag, &reqs[0]);
             req->fanout_linear.step = 1;
         }
         if (UCS_OK == xccl_ucx_testall((xccl_ucx_team_t *)team, reqs, 1)) {

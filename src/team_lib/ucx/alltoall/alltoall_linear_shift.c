@@ -34,19 +34,22 @@ xccl_status_t xccl_ucx_alltoall_linear_shift_progress(xccl_ucx_collreq_t *req)
             peer = get_peer(group_rank, group_size, req->alltoall_linear_shift.step);
             if (peer != group_rank) {
                 xccl_ucx_send_recv((void*)(sbuf + peer*data_size), data_size,
-                                   group_rank, req->tag,
+                                   req->src_mem_type, group_rank, req->tag,
                                    req->alltoall_linear_shift.scratch, data_size,
-                                   group_rank, req->tag, team);
-                xccl_ucx_send_nb(req->alltoall_linear_shift.scratch, data_size, peer,
-                                team, req->tag, &req->alltoall_linear_shift.reqs[0]);
-                xccl_ucx_recv_nb((void*)(rbuf + peer*data_size), data_size, peer,
-                                team, req->tag, &req->alltoall_linear_shift.reqs[1]);
+                                   req->src_mem_type, group_rank, req->tag, team);
+                xccl_ucx_send_nb(req->alltoall_linear_shift.scratch, data_size,
+                                 req->src_mem_type, peer, team, req->tag,
+                                 &req->alltoall_linear_shift.reqs[0]);
+                xccl_ucx_recv_nb((void*)(rbuf + peer*data_size), data_size,
+                                 req->dst_mem_type, peer, team, req->tag,
+                                 &req->alltoall_linear_shift.reqs[1]);
             } else {
                 if (sbuf != rbuf) {
                     xccl_ucx_send_recv((void*)(sbuf + peer*data_size), data_size,
-                                       group_rank, req->tag,
+                                       req->src_mem_type, group_rank, req->tag,
                                        (void*)(rbuf + peer*data_size), data_size,
-                                       group_rank, req->tag, team);
+                                       req->dst_mem_type, group_rank, req->tag,
+                                       team);
                 }
             }
             n_polls = 0;
