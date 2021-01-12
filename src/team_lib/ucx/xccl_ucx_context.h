@@ -24,6 +24,7 @@ typedef struct xccl_team_lib_ucx_context {
     unsigned          alltoall_pairwise_chunk;
     int               alltoall_pairwise_reverse;
     unsigned          alltoall_pairwise_barrier;
+    int               block_stream;
 } xccl_team_lib_ucx_context_t;
 
 xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,

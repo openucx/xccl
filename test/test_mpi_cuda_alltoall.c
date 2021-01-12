@@ -117,16 +117,16 @@ int main (int argc, char **argv)
         sbuf_host[i] = rank+1;
     }
 
-    cudaMemcpyAsync(sbuf_cuda, sbuf_host, count_max*size*sizeof(int),
-                    cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(rbuf_cuda, rbuf_host, count_max*size*sizeof(int),
-                    cudaMemcpyHostToDevice, stream);
-    cudaStreamSynchronize(stream);
-
 /* regular alltoall */
     for (count = count_min; count <= count_max; count *= 2) {
         for (i=0; i<iters; i++) {
-            cudaMemset(rbuf_cuda, 0, sizeof(count*size*sizeof(int)));
+            cudaMemcpyAsync(sbuf_cuda, sbuf_host, count_max*size*sizeof(int),
+                            cudaMemcpyHostToDevice, stream);
+            cudaMemsetAsync(rbuf_cuda, 0, sizeof(count*size*sizeof(int)), stream);
+            if (!use_stream_sync) {
+                /* xccl will wait for memcpy and memset if stream sync is used*/
+                cudaStreamSynchronize(stream);
+            }
             status_global = run_test(sbuf_cuda, rbuf_cuda, rbuf_host, sbuf_host, rbuf_mpi,
                                      count, rank, size, use_stream_sync, &stream);
             if (status_global) {

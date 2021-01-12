@@ -93,6 +93,7 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
     } else {
         ctx->ucp_eps = NULL;
     }
+    ctx->block_stream              = cfg->block_stream;
     ctx->num_to_probe              = cfg->num_to_probe;
     ctx->barrier_kn_radix          = cfg->barrier_kn_radix;
     ctx->bcast_kn_radix            = cfg->bcast_kn_radix;

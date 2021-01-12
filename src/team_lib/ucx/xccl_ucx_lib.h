@@ -31,6 +31,7 @@ typedef struct xccl_tl_ucx_context_config {
     int                      alltoall_pairwise_reverse;
     unsigned                 alltoall_pairwise_barrier;
     int                      ppn;
+    int                      block_stream;
 } xccl_tl_ucx_context_config_t;
 
 extern xccl_team_lib_ucx_t xccl_team_lib_ucx;
@@ -71,6 +72,7 @@ typedef struct xccl_ucx_collreq {
     xccl_status_t                       complete;
     uint16_t                            tag;
     xccl_mem_component_stream_request_t *stream_req;
+    xccl_mc_event_t                     *ready_to_start;
     xccl_status_t                       (*start)(struct xccl_ucx_collreq* req);
     xccl_status_t                       (*progress)(struct xccl_ucx_collreq* req);
     union {

@@ -20,6 +20,11 @@ typedef struct xccl_mem_component_stream_request {
     ucs_memory_type_t mem_type;
 } xccl_mem_component_stream_request_t;
 
+/* mc stands for mem component */
+typedef struct xccl_mc_event {
+    ucs_memory_type_t mem_type;
+} xccl_mc_event_t;
+
 typedef struct xccl_mem_component {
     xccl_status_t (*open)();
     xccl_status_t (*mem_alloc)(void **ptr, size_t len);
@@ -30,6 +35,10 @@ typedef struct xccl_mem_component {
     xccl_status_t (*reduce_multi)(void *sbuf1, void *sbuf2, void *rbuf,
                                   size_t count, size_t size, size_t stride,
                                   xccl_dt_t dtype, xccl_op_t op);
+    xccl_status_t (*event_record)(xccl_stream_t *stream,
+                                  xccl_mc_event_t **event);
+    xccl_status_t (*event_query)(xccl_mc_event_t *event);
+    xccl_status_t (*event_free)(xccl_mc_event_t *event);
     xccl_status_t (*start_stream_activity)(xccl_stream_t *stream,
                                            xccl_mem_component_stream_request_t **req);
     xccl_status_t (*finish_stream_activity)(xccl_mem_component_stream_request_t *req);
@@ -69,6 +78,13 @@ xccl_status_t
 xccl_mem_component_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf, size_t count,
                                 size_t size, size_t stride, xccl_dt_t dtype,
                                 xccl_op_t op, ucs_memory_type_t mem_type);
+
+xccl_status_t xccl_mc_event_record(xccl_stream_t *stream,
+                                   xccl_mc_event_t **event);
+
+xccl_status_t xccl_mc_event_query(xccl_mc_event_t *event);
+
+xccl_status_t xccl_mc_event_free(xccl_mc_event_t *event);
 
 void xccl_mem_component_free_cache();
 

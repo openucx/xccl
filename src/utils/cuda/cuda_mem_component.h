@@ -12,16 +12,23 @@
 
 typedef struct xccl_cuda_mem_component_stream_request {
     xccl_mem_component_stream_request_t super;
-    int         is_free;
-    int         stop_request;
-    void        *dev_stop_request;
-    cudaEvent_t event;
+    int                                 is_free;
+    int                                 stop_request;
+    void                                *dev_stop_request;
+    cudaEvent_t                         event;
 } xccl_cuda_mem_component_stream_request_t;
+
+typedef struct xccl_cuda_mc_event {
+    xccl_mc_event_t super;
+    int             is_free;
+    cudaEvent_t     cuda_event;
+} xccl_cuda_mc_event_t;
 
 typedef struct xccl_cuda_mem_component {
     xccl_mem_component_t                     super;
     cudaStream_t                             stream;
     xccl_cuda_mem_component_stream_request_t *stream_requests;
+    xccl_cuda_mc_event_t                     *events;
 } xccl_cuda_mem_component_t;
 
 #endif

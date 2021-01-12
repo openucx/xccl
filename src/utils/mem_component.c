@@ -210,6 +210,33 @@ xccl_status_t xccl_mem_component_finish_acitivity(xccl_mem_component_stream_requ
     return st;
 }
 
+xccl_status_t xccl_mc_event_record(xccl_stream_t *stream,
+                                   xccl_mc_event_t **event)
+{
+    int mt = stream_to_mem_type[stream->type];
+    xccl_status_t st;
+
+    if (mem_components[mt] == NULL) {
+        xccl_error("mem component %s is not available", ucs_memory_type_names[mt]);
+    }
+
+    st = mem_components[mt]->event_record(stream, event);
+    if (st == XCCL_OK) {
+        (*event)->mem_type = mt;
+    }
+
+    return st;
+}
+
+xccl_status_t xccl_mc_event_query(xccl_mc_event_t *event)
+{
+    return mem_components[event->mem_type]->event_query(event);
+}
+
+xccl_status_t xccl_mc_event_free(xccl_mc_event_t *event)
+{
+    return mem_components[event->mem_type]->event_free(event);
+}
 
 void xccl_mem_component_free_cache()
 {
