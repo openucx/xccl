@@ -107,6 +107,16 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
      UCS_CONFIG_TYPE_UINT
     },
 
+    {"PRE_MEM_MAP", "0",
+     "register communication buffer with UCX to populate registration cache."
+     " 0 - No pre-registtation."
+     " 1 - Registration during collective Init "
+     " 2 - Registration during the cudaMalloc "
+     " 3 - Registration during both collective Init and cudaMalloc ",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, pre_mem_map),
+     UCS_CONFIG_TYPE_UINT
+    },
+
     {"PPN", "32",
      "Estimated number of processes per node",
      ucs_offsetof(xccl_tl_ucx_context_config_t, ppn),
@@ -116,12 +126,48 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
     {NULL}
 };
 
+static size_t xccl_ucx_get_buffer_len(xccl_coll_op_args_t *coll_args,
+                                      int team_size, int is_src)
+{
+    size_t length = 0;
+    int i;
+    uint32_t *counts;
+    int dt_len;
+
+    if (is_src) {
+        counts = coll_args->buffer_info.src_counts;
+        dt_len = xccl_dt_size(coll_args->buffer_info.src_datatype);
+    } else {
+        counts = coll_args->buffer_info.dst_counts;
+        dt_len = xccl_dt_size(coll_args->buffer_info.dst_datatype);
+    }
+
+    switch(coll_args->coll_type) {
+        case XCCL_ALLTOALLV:
+            for (i = 0; i < team_size; i++) {
+                length += counts[i];
+            }
+            length *=  dt_len;
+            break;
+        case XCCL_ALLTOALL:
+            length = coll_args->buffer_info.len * team_size;
+            break;
+        defaut:
+            xccl_ucx_error("not implemented");
+    }
+
+    return length;
+}
+
 static inline xccl_status_t
 xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
                         xccl_ucx_collreq_t **request)
 {
+    xccl_team_lib_ucx_context_t *ctx = ucs_derived_of(team->ctx, xccl_team_lib_ucx_context_t);
     xccl_status_t     status;
     ucs_memory_type_t src_mem_type, dst_mem_type;
+    size_t            length;
+
     /* TODO: where to handle MPI_INPLACE? */
     if ((ptrdiff_t)coll_args->buffer_info.src_buffer == 0x1) {
         coll_args->buffer_info.src_buffer = coll_args->buffer_info.dst_buffer;
@@ -163,6 +209,19 @@ xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
     req->src_mem_type = src_mem_type;
     req->dst_mem_type = dst_mem_type;
     req->stream_req   = NULL;
+
+    // for testing
+    if (ctx->pre_mem_map == XCCL_TEAM_UCX_COLL_INIT_PRE_MAP ||
+        ctx->pre_mem_map == XCCL_TEAM_UCX_COLL_INIT_AND_ALLOC_PRE_MAP) {
+        if (coll_args->coll_type == XCCL_ALLTOALLV || coll_args->coll_type == XCCL_ALLTOALL) {
+            length = xccl_ucx_get_buffer_len(coll_args, team->params.oob.size, 1);
+            xccl_ucx_mem_map(coll_args->buffer_info.src_buffer, length, src_mem_type, ctx);
+            if (coll_args->buffer_info.src_buffer != coll_args->buffer_info.dst_buffer) {
+                length = xccl_ucx_get_buffer_len(coll_args, team->params.oob.size, 0);
+                xccl_ucx_mem_map(coll_args->buffer_info.dst_buffer, length, dst_mem_type, ctx);
+            }
+        }
+    }
 
     (*request)     = req;
     return XCCL_OK;

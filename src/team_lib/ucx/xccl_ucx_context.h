@@ -25,6 +25,7 @@ typedef struct xccl_team_lib_ucx_context {
     int               alltoall_pairwise_reverse;
     unsigned          alltoall_pairwise_barrier;
     int               block_stream;
+    unsigned          pre_mem_map;
 } xccl_team_lib_ucx_context_t;
 
 xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
@@ -33,7 +34,16 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
                                       xccl_tl_context_t **context);
 xccl_status_t xccl_ucx_destroy_context(xccl_tl_context_t *context);
 
+void xccl_ucx_mem_map(void *addr, size_t length, ucs_memory_type_t mem_type,
+                      xccl_team_lib_ucx_context_t *ctx);
 #define TEAM_UCX_CTX(_team) (ucs_derived_of((_team)->super.ctx, xccl_team_lib_ucx_context_t))
 #define TEAM_UCX_CTX_REQ(_req) (ucs_derived_of((_req)->team->ctx, xccl_team_lib_ucx_context_t))
 #define TEAM_UCX_WORKER(_team) TEAM_UCX_CTX(_team)->ucp_worker
+
+enum {
+    XCCL_TEAM_UCX_NO_PRE_MAP                    = 0,
+    XCCL_TEAM_UCX_COLL_INIT_PRE_MAP             = 1,
+    XCCL_TEAM_UCX_ALLOC_PRE_MAP                 = 2,
+    XCCL_TEAM_UCX_COLL_INIT_AND_ALLOC_PRE_MAP   = 3,
+};
 #endif

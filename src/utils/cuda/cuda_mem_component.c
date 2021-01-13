@@ -9,6 +9,8 @@ xccl_cuda_mem_component_t xccl_cuda_mem_component;
 #define CUDACHECK(cmd) do {                                         \
         cudaError_t e = cmd;                                        \
         if( e != cudaSuccess && e != cudaErrorCudartUnloading ) {   \
+            xccl_ucx_error("cuda cmd:%s failed wtih ret:%d(%s)", e, \
+                            cudaGetErrorString(e));                 \
             return XCCL_ERR_NO_MESSAGE;                             \
         }                                                           \
 } while(0)
