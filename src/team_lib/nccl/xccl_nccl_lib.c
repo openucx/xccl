@@ -17,8 +17,10 @@ static void map_xccl_to_nccl_dtype()
     for (dt = 0; dt < XCCL_DT_LAST_PREDEFINED; dt++) {
         xccl_to_nccl_dtype[dt] = ncclDataTypeUnsupported;
     }
+    xccl_to_nccl_dtype[XCCL_DT_INT8]    = ncclInt8;
     xccl_to_nccl_dtype[XCCL_DT_INT32]   = ncclInt32;
     xccl_to_nccl_dtype[XCCL_DT_INT64]   = ncclInt64;
+    xccl_to_nccl_dtype[XCCL_DT_UINT8]   = ncclUint8;
     xccl_to_nccl_dtype[XCCL_DT_UINT32]  = ncclUint32;
     xccl_to_nccl_dtype[XCCL_DT_UINT64]  = ncclUint64;
     xccl_to_nccl_dtype[XCCL_DT_FLOAT16] = ncclFloat16;
