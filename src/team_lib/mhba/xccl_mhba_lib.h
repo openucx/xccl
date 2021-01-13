@@ -149,6 +149,9 @@ typedef struct xccl_mhba_team {
     xccl_mhba_context_t *context;
     int                  blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
     int                  size;
+    int                  previous_msg_size[MAX_OUTSTANDING_OPS];
+    void*                previous_send_address[MAX_OUTSTANDING_OPS];
+    void*                previous_recv_address[MAX_OUTSTANDING_OPS];
     uint64_t             dummy_atomic_buff;
     ucs_rcache_t        *rcache;
     int                  requested_block_size;

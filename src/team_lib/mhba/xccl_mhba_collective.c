@@ -24,7 +24,8 @@ xccl_status_t xccl_mhba_collective_init_base(xccl_coll_op_args_t   *coll_args,
     return XCCL_OK;
 }
 
-static xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request)
+static xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t     *team,
+                                          xccl_mhba_coll_req_t *request)
 {
     int  i;
     int *ctrl_v;
@@ -38,7 +39,8 @@ static xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll
                                    request); // no option for failure status
 
     if (team->node.sbgp->group_rank != team->node.asr_rank) {
-        *team->node.ops[index].my_ctrl = request->self_change_flag ? -request->seq_num : request->seq_num;
+
+        *team->node.ops[index].my_ctrl = request->buffer_reg_change_flag ? -request->seq_num : request->seq_num;
     } else {
         for (i = 0; i < team->node.sbgp->group_size; i++) {
             if (i == team->node.sbgp->group_rank) {
@@ -46,17 +48,16 @@ static xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t *team, xccl_mhba_coll
             }
             ctrl_v = (int *)((ptrdiff_t)team->node.ops[index].ctrl +
                              MHBA_CTRL_SIZE * i);
-            if (*ctrl_v != request->seq_num) {
-                if (*ctrl_v == -request->seq_num){
-                    request->buff_change_flag = 1;
-                }
-                else {
-                    return XCCL_INPROGRESS;
-                }
+            if (*ctrl_v == -request->seq_num) {
+                request->need_update_mkey = 1;
+            } else if (*ctrl_v != request->seq_num) {
+                return XCCL_INPROGRESS;
             }
         }
+        request->need_update_mkey = request->buffer_reg_change_flag ? 1 : request->need_update_mkey;
+        request->need_update_mkey = (request->args.buffer_info.len != team->previous_msg_size[index]) ? 1
+                : request->need_update_mkey;
     }
-    request->buff_change_flag = request->self_change_flag ? 1 : request->buff_change_flag;
     return XCCL_OK;
 }
 
@@ -75,7 +76,7 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task)
     ucs_rcache_region_t* recv_ptr;
     if(UCS_OK != ucs_rcache_get(team->rcache, (void *)request->args.buffer_info.src_buffer,
                                 request->args.buffer_info.len * team->size,
-                                PROT_READ,&request->self_change_flag, &send_ptr)) {
+                                PROT_READ, NULL, &send_ptr)) {
         xccl_mhba_error("Failed to register send_bf memory (errno=%d)", errno);
         return XCCL_ERR_NO_RESOURCE;
     }
@@ -83,12 +84,15 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task)
 
     if(UCS_OK != ucs_rcache_get(team->rcache, (void *)request->args.buffer_info.dst_buffer,
                                 request->args.buffer_info.len * team->size,
-                                PROT_WRITE,&request->self_change_flag,&recv_ptr)) {
+                                PROT_WRITE, NULL,&recv_ptr)) {
         xccl_mhba_error("Failed to register receive_bf memory");
         ucs_rcache_region_put(team->rcache,request->send_rcache_region_p->region);
         return XCCL_ERR_NO_RESOURCE;
     }
     request->recv_rcache_region_p = xccl_rcache_ucs_get_reg_data(recv_ptr);
+
+    request->buffer_reg_change_flag = (request->send_rcache_region_p->mr->addr != team->previous_send_address[SEQ_INDEX(request->seq_num)])||
+                      (request->recv_rcache_region_p->mr->addr != team->previous_recv_address[SEQ_INDEX(request->seq_num)]);
 
     xccl_mhba_debug("fanin start");
     /* start task if completion event received */
@@ -186,8 +190,9 @@ static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task)
     xccl_mhba_team_t     *team    = request->team;
     xccl_mhba_debug("asr barrier start");
 
-    if(request->buff_change_flag) {
-        // despite while statement, non blocking because have independent cq, will be finished in a finite time
+    if(request->need_update_mkey) {
+        // despite while statement in poll_umr_cq, non blocking because have independent cq,
+        // will be finished in a finite time
         xccl_mhba_populate_send_recv_mkeys(team, request);
     }
 
@@ -506,8 +511,7 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     void *        transpose_buf = NULL;
     int           i, block_msgsize, block_size;
     xccl_status_t status;
-    request->buff_change_flag = 0;
-    request->self_change_flag = 0;
+    request->need_update_mkey = 0;
     request->started = 0;
     if (len > team->max_msg_size) {
         xccl_mhba_error("msg size too long");

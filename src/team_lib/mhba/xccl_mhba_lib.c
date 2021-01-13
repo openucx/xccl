@@ -191,6 +191,9 @@ static xccl_status_t xccl_mhba_collective_finalize(xccl_tl_coll_req_t *request)
     xccl_status_t         status = XCCL_OK;
     xccl_mhba_coll_req_t *req  = ucs_derived_of(request, xccl_mhba_coll_req_t);
     xccl_mhba_team_t     * team = req->team;
+    team->previous_msg_size[SEQ_INDEX(req->seq_num)] = req->args.buffer_info.len;
+    team->previous_send_address[SEQ_INDEX(req->seq_num)] = req->send_rcache_region_p->mr->addr;
+    team->previous_recv_address[SEQ_INDEX(req->seq_num)] = req->recv_rcache_region_p->mr->addr;
     ucs_rcache_region_put(team->rcache,req->send_rcache_region_p->region);
     ucs_rcache_region_put(team->rcache,req->recv_rcache_region_p->region);
     if (team->transpose) {

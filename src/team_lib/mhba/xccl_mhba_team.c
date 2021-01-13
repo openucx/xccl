@@ -95,8 +95,6 @@ static ucs_status_t rcache_reg_mr(void *context, ucs_rcache_t *rcache,void *arg,
     size_t length             = (size_t)(rregion->super.end - rregion->super.start);
     xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
     mhba_reg->region = rregion;
-    int* change_flag = (int*) arg;
-    *change_flag = 1;
     mhba_reg->mr = ibv_reg_mr(team->node.shared_pd, addr, length, (rregion->prot == PROT_WRITE) ? IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE : 0);
     if (!mhba_reg->mr) {
         xccl_mhba_error("Failed to register memory");
@@ -264,6 +262,9 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     calc_block_size(mhba_team);
     mhba_team->requested_block_size = ctx->cfg.block_size;
     if (mhba_team->node.asr_rank == node->group_rank) {
+        for(i=0;i<MAX_OUTSTANDING_OPS;i++) {
+            mhba_team->previous_msg_size[i] = 0;
+        }
         if (mhba_team->transpose) {
             mhba_team->transpose_buf = malloc(ctx->cfg.transpose_buf_size);
             if (!mhba_team->transpose_buf) {

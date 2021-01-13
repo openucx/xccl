@@ -22,8 +22,8 @@ typedef struct xccl_mhba_coll_req {
     xccl_coll_op_args_t args;
     xccl_mhba_team_t   *team;
     int                 seq_num;
-    int                 buff_change_flag;
-    int                 self_change_flag;
+    int                 need_update_mkey;
+    int                 buffer_reg_change_flag;
     xccl_tl_coll_req_t *barrier_req;
     int                 block_size;
     int                 started;
