@@ -51,7 +51,8 @@ xccl_status_t xccl_ucx_reduce_knomial_progress(xccl_ucx_collreq_t *req)
                 if (vpeer < group_size) {
                     peer = (vpeer + root) % group_size;
                     xccl_ucx_recv_nb((void*)((ptrdiff_t)scratch + req->reduce_kn.active_reqs*data_size),
-                                     data_size, peer, team, req->tag,
+                                     data_size, req->src_mem_type,
+                                     peer, team, req->tag,
                                      &reqs[req->reduce_kn.active_reqs]);
                     req->reduce_kn.active_reqs++;
                     req->reduce_kn.phase = 1;
@@ -60,8 +61,9 @@ xccl_status_t xccl_ucx_reduce_knomial_progress(xccl_ucx_collreq_t *req)
         } else if (pos > 0) {
             vroot_at_level = vrank - pos*dist;
             root_at_level  = (vroot_at_level + root) % group_size;
-            xccl_ucx_send_nb(src_buffer, data_size, root_at_level,
-                            team, req->tag, &reqs[req->reduce_kn.active_reqs++]);
+            xccl_ucx_send_nb(src_buffer, data_size, req->reduce_kn.data_buf_mtype,
+                             root_at_level,
+                             team, req->tag, &reqs[req->reduce_kn.active_reqs++]);
             req->reduce_kn.phase = 2;
             assert(req->reduce_kn.active_reqs == 1);
         }
@@ -81,7 +83,8 @@ xccl_status_t xccl_ucx_reduce_knomial_progress(xccl_ucx_collreq_t *req)
                                                 req->args.reduce_info.dt,
                                                 req->args.reduce_info.op,
                                                 req->src_mem_type);
-                req->reduce_kn.data_buf = dst_buffer;
+                req->reduce_kn.data_buf       = dst_buffer;
+                req->reduce_kn.data_buf_mtype = req->dst_mem_type;
                 src_buffer = dst_buffer;
             }
             req->reduce_kn.active_reqs = 0;
@@ -107,10 +110,11 @@ xccl_status_t xccl_ucx_reduce_knomial_start(xccl_ucx_collreq_t *req)
         req->reduce_kn.radix = group_size;
     }
 
-    req->reduce_kn.active_reqs = 0;
-    req->reduce_kn.phase       = 0;
-    req->reduce_kn.dist        = 1;
-    req->reduce_kn.data_buf    = req->args.buffer_info.src_buffer;
+    req->reduce_kn.active_reqs    = 0;
+    req->reduce_kn.phase          = 0;
+    req->reduce_kn.dist           = 1;
+    req->reduce_kn.data_buf       = req->args.buffer_info.src_buffer;
+    req->reduce_kn.data_buf_mtype = req->src_mem_type;
     CALC_DIST(group_size, req->reduce_kn.radix, req->reduce_kn.max_dist);
 
     xccl_mem_component_alloc(&req->reduce_kn.scratch,

@@ -85,16 +85,16 @@ xccl_ucx_barrier_knomial_progress(xccl_ucx_collreq_t *req)
 
     if (KN_EXTRA == node_type) {
             peer = KN_RECURSIVE_GET_PROXY(myrank, full_size);
-            xccl_ucx_send_nb(NULL, 0, peer,
+            xccl_ucx_send_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN, peer,
                             (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
-            xccl_ucx_recv_nb(NULL, 0, peer,
+            xccl_ucx_recv_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN, peer,
                             (xccl_ucx_team_t *)team, req->tag, &reqs[1]);
             active_reqs = 2;
     }
 
     if (KN_PROXY == node_type) {
         peer = KN_RECURSIVE_GET_EXTRA(myrank, full_size);
-        xccl_ucx_recv_nb(NULL, 0, peer,
+        xccl_ucx_recv_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN, peer,
                         (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
         active_reqs = 1;
     }
@@ -117,7 +117,7 @@ PHASE_EXTRA:
             peer = (myrank + k*radix_pow) % step_size
                 + (myrank - myrank % step_size);
             if (peer >= full_size) continue;
-            xccl_ucx_send_nb(NULL, 0, peer,
+            xccl_ucx_send_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN, peer,
                             (xccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
             active_reqs++;
         }
@@ -126,7 +126,7 @@ PHASE_EXTRA:
             peer = (myrank + k*radix_pow) % step_size
                 + (myrank - myrank % step_size);
             if (peer >= full_size) continue;
-            xccl_ucx_recv_nb(NULL, 0, peer,
+            xccl_ucx_recv_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN, peer,
                             (xccl_ucx_team_t *)team, req->tag, &reqs[active_reqs]);
             active_reqs++;
         }
@@ -142,7 +142,7 @@ PHASE_EXTRA:
     }
     if (KN_PROXY == node_type) {
         peer = KN_RECURSIVE_GET_EXTRA(myrank, full_size);
-        xccl_ucx_send_nb(NULL, 0, peer,
+        xccl_ucx_send_nb(NULL, 0, UCS_MEMORY_TYPE_UNKNOWN, peer,
                         (xccl_ucx_team_t *)team, req->tag, &reqs[0]);
         active_reqs = 1;
         goto PHASE_PROXY;

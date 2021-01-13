@@ -1,18 +1,22 @@
 /**
-* Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
+* Copyright (C) Mellanox Technologies Ltd. 2020-2021.  ALL RIGHTS RESERVED.
 *
 * See file LICENSE for terms.
 */
+
 #ifndef UCX_TEAM_SENDRECV_H_
 #define UCX_TEAM_SENDRECV_H_
+
 #include "xccl_ucx_tag.h"
 #include "xccl_ucx_context.h"
 #include "xccl_ucx_team.h"
 #include <assert.h>
 
-void xccl_ucx_send_completion_cb(void* request, ucs_status_t status);
+void xccl_ucx_send_completion_cb(void* request, ucs_status_t status,
+                                 void *user_data);
 void xccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
-                                     ucp_tag_recv_info_t *info);
+                                 const ucp_tag_recv_info_t *info,
+                                 void *user_data);
 
 #define TEAM_UCX_MAKE_TAG(_tag, _rank, _context_id)                 \
     ((((uint64_t) (_tag))        << TEAM_UCX_TAG_BITS_OFFSET)  |    \
@@ -46,41 +50,32 @@ void xccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
         }                                                               \
     } while(0)
 
-#define TEAM_UCX_CHECK_SEND_REQ() do{           \
-        TEAM_UCX_CHECK_REQ_STATUS();            \
-        *req = ucx_req;                         \
+#define TEAM_UCX_CHECK_SEND_REQ() do { \
+        TEAM_UCX_CHECK_REQ_STATUS();   \
+        *req = ucx_req;                \
     } while(0)
 
-#define TEAM_UCX_CHECK_RECV_REQ() do {                          \
-        TEAM_UCX_CHECK_REQ_STATUS();                            \
-        /* Is this necessary? Can it call _cb? */               \
-        ucp_tag_recv_info_t info;                               \
-        ucs_status_t status = ucp_request_test(ucx_req, &info); \
-        if (status == UCS_INPROGRESS) {                         \
-            *req = ucx_req;                                     \
-        } else {                                                \
-            xccl_ucx_req_free(ucx_req);                     \
-            *req = NULL;                                        \
-        }                                                       \
+#define TEAM_UCX_CHECK_RECV_REQ() do { \
+        TEAM_UCX_CHECK_REQ_STATUS();   \
+        *req = ucx_req;                \
     } while(0)
-
 
 #define TEAM_UCX_WAIT_REQ(_req) do {                                    \
         if (!(_req)) {                                                  \
-            return XCCL_SUCCESS;                                         \
+            return XCCL_SUCCESS;                                        \
         }                                                               \
         if (UCS_PTR_IS_ERR((_req))) {                                   \
             fprintf(stderr, "Error in %s;  dest %d;"                    \
                     " ep %d; errmsg %s",__FUNCTION__,                   \
                     dest_group_rank, *((uint16_t *)ep),                 \
                     ucs_status_string(UCS_PTR_STATUS((_req))));         \
-            return XCCL_ERROR;                                           \
+            return XCCL_ERROR;                                          \
         }                                                               \
                                                                         \
         while (UCS_INPROGRESS == ucp_request_check_status((_req))) {    \
             ucp_worker_progress(TEAM_UCX_WORKER(team));                 \
         }                                                               \
-        xccl_ucx_req_free((_req));                                  \
+        xccl_ucx_req_free((_req));                                      \
     } while(0)
 
 static inline ucp_ep_h get_p2p_ep(xccl_ucx_team_t *team, int rank)
@@ -102,34 +97,52 @@ static inline void xccl_ucx_req_free(xccl_ucx_request_t *req)
 }
 
 static inline xccl_status_t
-xccl_ucx_send_nb(void *buffer, size_t msglen, int dest_group_rank,
-                xccl_ucx_team_t *team, uint32_t tag, xccl_ucx_request_t **req)
+xccl_ucx_send_nb(void *buffer, size_t msglen, ucs_memory_type_t mtype,
+                 int dest_group_rank, xccl_ucx_team_t *team, uint32_t tag,
+                 xccl_ucx_request_t **req)
 {
-    ucp_datatype_t datatype = ucp_dt_make_contig(msglen);
-    ucp_tag_t ucp_tag       =
-        TEAM_UCX_MAKE_SEND_TAG(tag, team->super.params.oob.rank, team->ctx_id);
-    /* fprintf(stderr,"send to group_rank %d, len %d, tag %d\n", dest_group_rank, msglen, tag); */
-    ucp_ep_h ep = get_p2p_ep(team, dest_group_rank);
-    xccl_ucx_request_t *ucx_req = (xccl_ucx_request_t *)
-        ucp_tag_send_nb(ep, buffer, 1, datatype,
-                        ucp_tag, xccl_ucx_send_completion_cb);
+    ucp_request_param_t req_param;
+    xccl_ucx_request_t  *ucx_req;
+    ucp_ep_h            ep;
+    ucp_tag_t           ucp_tag;
+
+    ep = get_p2p_ep(team, dest_group_rank);
+    ucp_tag = TEAM_UCX_MAKE_SEND_TAG(tag, team->super.params.oob.rank,
+                                     team->ctx_id);
+    req_param.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
+                             UCP_OP_ATTR_FIELD_DATATYPE |
+                             UCP_OP_ATTR_FIELD_MEMORY_TYPE;
+    req_param.datatype     = ucp_dt_make_contig(msglen);
+    req_param.cb.send      = xccl_ucx_send_completion_cb;
+    req_param.memory_type  = mtype;
+
+    ucx_req = (xccl_ucx_request_t*)ucp_tag_send_nbx(ep, buffer, 1, ucp_tag,
+                                                    &req_param);
     TEAM_UCX_CHECK_SEND_REQ();
     return XCCL_OK;
 }
 
 static inline xccl_status_t
-xccl_ucx_recv_nb(void *buffer, size_t msglen, int dest_group_rank,
-                xccl_ucx_team_t *team, uint32_t tag, xccl_ucx_request_t **req)
+xccl_ucx_recv_nb(void *buffer, size_t msglen, ucs_memory_type_t mtype,
+                 int dest_group_rank, xccl_ucx_team_t *team, uint32_t tag,
+                 xccl_ucx_request_t **req)
 {
-    ucp_datatype_t datatype = ucp_dt_make_contig(msglen);
-    ucp_tag_t ucp_tag, ucp_tag_mask;
-    /* fprintf(stderr,"recv from group_rank %d, len %d, tag %d\n", dest_group_rank, msglen, tag); */
+    ucp_request_param_t req_param;
+    xccl_ucx_request_t  *ucx_req;
+    ucp_tag_t           ucp_tag, ucp_tag_mask;
+
     TEAM_UCX_MAKE_RECV_TAG(ucp_tag, ucp_tag_mask, tag,
                            dest_group_rank, team->ctx_id);
-    ucp_ep_h ep = get_p2p_ep(team, dest_group_rank);
-    xccl_ucx_request_t* ucx_req  = (xccl_ucx_request_t *)
-        ucp_tag_recv_nb(TEAM_UCX_WORKER(team), buffer, 1, datatype,
-                        ucp_tag, ucp_tag_mask, xccl_ucx_recv_completion_cb);
+    req_param.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
+                             UCP_OP_ATTR_FIELD_DATATYPE |
+                             UCP_OP_ATTR_FIELD_MEMORY_TYPE;
+    req_param.datatype     = ucp_dt_make_contig(msglen);
+    req_param.cb.recv      = xccl_ucx_recv_completion_cb;
+    req_param.memory_type  = mtype;
+
+    ucx_req  = (xccl_ucx_request_t*)ucp_tag_recv_nbx(TEAM_UCX_WORKER(team),
+                                                     buffer, 1, ucp_tag,
+                                                     ucp_tag_mask, &req_param);
     TEAM_UCX_CHECK_RECV_REQ();
     return XCCL_OK;
 }
@@ -203,16 +216,21 @@ xccl_ucx_testall(xccl_ucx_team_t *team, xccl_ucx_request_t **reqs,
 #endif
 
 static inline xccl_status_t
-xccl_ucx_send_recv(void *send_buf, size_t send_msg_size, int dest_group_rank, uint32_t sendtag,
-                   void *recv_buf, size_t recv_msg_size, int src_group_rank, uint32_t recvtag,
+xccl_ucx_send_recv(void *send_buf, size_t send_msg_size,
+                   ucs_memory_type_t send_mtype, int dest_group_rank,
+                   uint32_t sendtag,
+                   void *recv_buf, size_t recv_msg_size,
+                   ucs_memory_type_t recv_mtype, int src_group_rank,
+                   uint32_t recvtag,
                    xccl_ucx_team_t *team)
 {
     xccl_ucx_request_t *copy_reqs[2];
     xccl_status_t      status;
 
-    xccl_ucx_send_nb(send_buf, send_msg_size, dest_group_rank, team, sendtag, &copy_reqs[0]);
-    xccl_ucx_recv_nb(recv_buf, recv_msg_size, src_group_rank, team, recvtag, &copy_reqs[1]);
-
+    xccl_ucx_send_nb(send_buf, send_msg_size, send_mtype, dest_group_rank,
+                     team, sendtag, &copy_reqs[0]);
+    xccl_ucx_recv_nb(recv_buf, recv_msg_size, recv_mtype,
+                     src_group_rank, team, recvtag, &copy_reqs[1]);
     do {
         status = xccl_ucx_testall(team, copy_reqs, 2);
     } while ( status == XCCL_INPROGRESS);

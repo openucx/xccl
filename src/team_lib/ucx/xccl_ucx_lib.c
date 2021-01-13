@@ -1,8 +1,9 @@
 /**
-* Copyright (C) Mellanox Technologies Ltd. 2001-2020.  ALL RIGHTS RESERVED.
+* Copyright (C) Mellanox Technologies Ltd. 2001-2021.  ALL RIGHTS RESERVED.
 *
 * See file LICENSE for terms.
 */
+
 #include "config.h"
 #include "xccl_ucx_lib.h"
 #include "xccl_ucx_team.h"
@@ -40,9 +41,16 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
         UCS_CONFIG_TYPE_TABLE(xccl_tl_context_config_table)
     },
 
+    {"BLOCK_STREAM", "no",
+     "Block stream while collective is in progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream),
+     UCS_CONFIG_TYPE_BOOL
+    },
+
     {"NET_DEVICES", "all",
      "Specifies which network device(s) to use",
-     ucs_offsetof(xccl_tl_ucx_context_config_t, devices), UCS_CONFIG_TYPE_STRING_ARRAY
+     ucs_offsetof(xccl_tl_ucx_context_config_t, devices),
+     UCS_CONFIG_TYPE_STRING_ARRAY
     },
 
     {"BARRIER_KN_RADIX", "4",
@@ -440,32 +448,70 @@ xccl_ucx_collective_init(xccl_coll_op_args_t *coll_args,
 static xccl_status_t xccl_ucx_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
-    return req->start(req);
-}
+    xccl_status_t st;
 
-static xccl_status_t xccl_ucx_collective_wait(xccl_tl_coll_req_t *request)
-{
-    xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
-    xccl_status_t status;
-    while (XCCL_INPROGRESS == req->complete) {
-        if (XCCL_OK != (status = req->progress(req))) {
-            return status;
-        };
+    req->stream_req = NULL;
+    if (req->args.field_mask & XCCL_COLL_OP_ARGS_FIELD_STREAM) {
+        st = xccl_mc_event_record(&req->args.stream, &req->ready_to_start);
+        if (st != XCCL_OK) {
+            return st;
+        }
+        if (TEAM_UCX_CTX_REQ(req)->block_stream) {
+            xccl_mem_component_start_acitivity(&req->args.stream,
+                                               &req->stream_req);
+        }
+        st = xccl_mc_event_query(req->ready_to_start);
+        if (st == XCCL_INPROGRESS) {
+            /* collective is not ready to start, start it later*/
+            return XCCL_OK;
+        }
+        if (st != XCCL_OK) {
+            return st;
+        }
+        xccl_mc_event_free(req->ready_to_start);
     }
-    assert(XCCL_OK == req->complete);
-    return XCCL_OK;
+    req->ready_to_start = NULL;
+    return req->start(req);
 }
 
 static xccl_status_t xccl_ucx_collective_test(xccl_tl_coll_req_t *request)
 {
     xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
     xccl_status_t status;
+
+    if (req->ready_to_start != NULL) {
+        status = xccl_mc_event_query(req->ready_to_start);
+        if (status != XCCL_OK) {
+            return status;
+        }
+        xccl_mc_event_free(req->ready_to_start);
+        req->ready_to_start = NULL;
+        req->start(req);
+    }
     if (XCCL_INPROGRESS == req->complete) {
         if (XCCL_OK != (status = req->progress(req))) {
             return status;
         };
+        if ((XCCL_INPROGRESS != req->complete) &&
+            (req->stream_req != NULL)) {
+            xccl_mem_component_finish_acitivity(req->stream_req);
+            req->stream_req = NULL;
+        }
     }
+
     return req->complete;
+}
+
+static xccl_status_t xccl_ucx_collective_wait(xccl_tl_coll_req_t *request)
+{
+    xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
+    xccl_status_t status;
+
+    do {
+        status = xccl_ucx_collective_test(request);
+    } while (status == XCCL_INPROGRESS);
+
+    return status;
 }
 
 static xccl_status_t xccl_ucx_collective_finalize(xccl_tl_coll_req_t *request)
@@ -550,15 +596,17 @@ xccl_team_lib_ucx_t xccl_team_lib_ucx = {
     .super.global_mem_unmap      = NULL,
 };
 
-void xccl_ucx_send_completion_cb(void* request, ucs_status_t status)
+void xccl_ucx_send_completion_cb(void *request, ucs_status_t status,
+                                 void *user_data)
 {
-    xccl_ucx_request_t *req = request;
+    xccl_ucx_request_t *req = (xccl_ucx_request_t*)request;
     req->status = XCCL_UCX_REQUEST_DONE;
 }
 
 void xccl_ucx_recv_completion_cb(void* request, ucs_status_t status,
-                                     ucp_tag_recv_info_t *info)
+                                 const ucp_tag_recv_info_t *info,
+                                 void *user_data)
 {
-    xccl_ucx_request_t *req = request;
+    xccl_ucx_request_t *req = (xccl_ucx_request_t*)request;
     req->status = XCCL_UCX_REQUEST_DONE;
 }
