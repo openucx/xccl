@@ -14,12 +14,15 @@ typedef enum {
     /* Operation is queued and still in progress */
     XCCL_INPROGRESS                 =   1,
 
+    /* Operation is queued but has not started yet*/
+    XCCL_INITIALIZED                =   2,
+
     /* Failure codes */
     XCCL_ERR_NO_MESSAGE             =  -1,
     XCCL_ERR_NO_RESOURCE            =  -2,
     XCCL_ERR_NO_MEMORY              =  -4,
     XCCL_ERR_INVALID_PARAM          =  -5,
-    XCCL_ERR_UNREACHABLE            =  -6,    
+    XCCL_ERR_UNREACHABLE            =  -6,
     XCCL_ERR_NOT_IMPLEMENTED        =  -8,
     XCCL_ERR_MESSAGE_TRUNCATED      =  -9,
     XCCL_ERR_NO_PROGRESS            = -10,

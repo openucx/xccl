@@ -1,11 +1,21 @@
 #include <api/xccl.h>
 #include <cuda.h>
 
-__global__ void dummy_kernel(volatile int *stop) {
-    int should_stop;
+__global__ void dummy_kernel(volatile xccl_status_t *status, int *is_free) {
+    xccl_status_t st;
+
+    if (*status == XCCL_OK) {
+        /* was requested to stop allready */
+        *is_free = 1;
+        return;
+    } else {
+        *status = XCCL_INPROGRESS;
+    }
     do {
-        should_stop = *stop;
-    } while(!should_stop);
+        st = *status;
+    } while(st != XCCL_OK);
+
+    *is_free = 1;
     return;
 }
 
@@ -13,9 +23,10 @@ __global__ void dummy_kernel(volatile int *stop) {
 extern "C" {
 #endif
 
-cudaError_t xccl_cuda_dummy_kernel(int *stop, cudaStream_t stream)
+cudaError_t xccl_cuda_dummy_kernel(volatile xccl_status_t *status, int *is_free,
+                                   cudaStream_t stream)
 {
-    dummy_kernel<<<1, 1, 0, stream>>>(stop);
+    dummy_kernel<<<1, 1, 0, stream>>>(status, is_free);
     return cudaGetLastError();
 }
 

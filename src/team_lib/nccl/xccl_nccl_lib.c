@@ -81,11 +81,23 @@ static ucs_config_field_t xccl_team_lib_nccl_config_table[] = {
     {NULL}
 };
 
+const char* xccl_nccl_sync_names[] = {
+    [XCCL_NCCL_COMPLETION_SYNC_EVENT]    = "event",
+    [XCCL_NCCL_COMPLETION_SYNC_CALLBACK] = "callback",
+};
+
+
 static ucs_config_field_t xccl_tl_nccl_context_config_table[] = {
     {"", "",
      NULL,
      ucs_offsetof(xccl_tl_nccl_context_config_t, super),
      UCS_CONFIG_TYPE_TABLE(xccl_tl_context_config_table)
+    },
+
+    {"SYNC", "event",
+     "Determines how XCCL tests completion of NCCL collective",
+     ucs_offsetof(xccl_tl_nccl_context_config_t, completion_sync),
+     UCS_CONFIG_TYPE_ENUM(xccl_nccl_sync_names)
     },
 
     {NULL}
@@ -131,7 +143,15 @@ xccl_nccl_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
                          xccl_tl_context_t **context)
 {
     xccl_nccl_context_t *ctx = malloc(sizeof(*ctx));
+    xccl_tl_nccl_context_config_t *tl_config;
 
+    if (ctx == NULL) {
+        xccl_nccl_error("failed to allocate memory for nccl context");
+        return XCCL_ERR_NO_MEMORY;
+    }
+    tl_config = ucs_derived_of(config, xccl_tl_nccl_context_config_t);
+    ctx->completion_sync = tl_config->completion_sync;
+    xccl_nccl_debug("sync type: %s", xccl_nccl_sync_names[ctx->completion_sync]);
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
     *context = &ctx->super;
 
@@ -271,63 +291,73 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
     return XCCL_OK;
 }
 
+static void nccl_completion_callback(void *request) {
+    xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
+    req->status = XCCL_OK;
+}
+
 static xccl_status_t
 xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
-    cudaStream_t  *stream;
     xccl_status_t st;
+    cudaStream_t *stream;
 
     st = req->coll_start(request);
     if (st != XCCL_OK) {
+        xccl_nccl_error("collective start failed %d", st);
         return st;
     }
-    stream = (cudaStream_t*)req->args.stream.stream;
-    CUDACHECK(cudaEventRecord(req->completed, *stream));
 
-    return XCCL_OK;
-}
+    if (req->completed != NULL) {
+        st = xccl_mc_event_record(&req->args.stream, &req->completed);
+    } else {
+        stream = (cudaStream_t*)req->args.stream.stream;
+        req->status = XCCL_INPROGRESS;
+        CUDACHECK(cudaLaunchHostFunc(*stream, nccl_completion_callback, req));
+        st = XCCL_OK;
+    }
 
-static xccl_status_t
-xccl_nccl_collective_wait(xccl_tl_coll_req_t *request)
-{
-    xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
-    cudaError_t cuda_st;
-
-    CUDACHECK(cudaEventSynchronize(req->completed));
-
-    return XCCL_OK;
+    return st;
 }
 
 static xccl_status_t
 xccl_nccl_collective_test(xccl_tl_coll_req_t *request)
 {
     xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
-    cudaError_t cuda_st;
+    xccl_status_t st;
 
-    cuda_st = cudaEventQuery(req->completed);
-    switch(cuda_st) {
-    case cudaSuccess:
-        return XCCL_OK;
-    case cudaErrorNotReady:
-        return XCCL_INPROGRESS;
-    default:
-        return XCCL_ERR_NO_MESSAGE;
+    if (req->completed != NULL) {
+        /* use event to determine collective status */
+        req->status = xccl_mc_event_query(req->completed);
+        if (req->status != XCCL_INPROGRESS) {
+            st = xccl_mc_event_free(req->completed);
+            req->completed = NULL;
+            if (st != XCCL_OK) {
+                return st;
+            }
+        }
     }
+
+    return req->status;
+}
+
+static xccl_status_t
+xccl_nccl_collective_wait(xccl_tl_coll_req_t *request)
+{
+    xccl_status_t st;
+
+    do {
+        st = xccl_nccl_collective_test(request);
+    } while (st == XCCL_INPROGRESS);
+
+    return st;
 }
 
 static xccl_status_t
 xccl_nccl_collective_finalize(xccl_tl_coll_req_t *request)
 {
-    xccl_nccl_coll_req_t *req = ucs_derived_of(request, xccl_nccl_coll_req_t);
-
-    if (cudaEventQuery(req->completed) != cudaSuccess) {
-        xccl_nccl_error("calling collective finalize before collective is done");
-        return XCCL_ERR_NO_MESSAGE;
-    }
-
-    CUDACHECK(cudaEventDestroy(req->completed));
-    free(req);
+    free(request);
 
     return XCCL_OK;
 }

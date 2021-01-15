@@ -32,7 +32,19 @@ xccl_nccl_collective_init_base(xccl_coll_op_args_t *coll_args,
 
     (*request)->team      = nccl_team;
     (*request)->super.lib = &xccl_team_lib_nccl.super;
-    CUDACHECK(cudaEventCreateWithFlags(&((*request)->completed), cuda_event_flags));
+
+    switch((TEAM_NCCL_CTX_REQ(*request)->completion_sync)) {
+    case XCCL_NCCL_COMPLETION_SYNC_EVENT:
+        ((*request)->completed) = (void*)0x1;
+        break;
+    case XCCL_NCCL_COMPLETION_SYNC_CALLBACK:
+        ((*request)->completed) = NULL;
+        break;
+    default:
+        xccl_nccl_error("wrong completion sync type");
+        free(*request);
+        return XCCL_ERR_INVALID_PARAM;
+    }
 
     return XCCL_OK;
 }

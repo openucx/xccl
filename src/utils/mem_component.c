@@ -195,6 +195,20 @@ xccl_status_t xccl_mem_component_start_acitivity(xccl_stream_t *stream,
     return st;
 }
 
+xccl_status_t xccl_mem_component_query_activity(xccl_mem_component_stream_request_t *req)
+{
+    int mt = req->mem_type;
+    xccl_status_t st;
+
+    if (mem_components[mt] == NULL) {
+        xccl_error("mem component %s is not available", ucs_memory_type_names[mt]);
+    }
+
+    st = mem_components[mt]->query_stream_activity(req);
+
+    return st;
+}
+
 xccl_status_t xccl_mem_component_finish_acitivity(xccl_mem_component_stream_request_t *req)
 {
     int mt = req->mem_type;

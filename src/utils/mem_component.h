@@ -41,6 +41,7 @@ typedef struct xccl_mem_component {
     xccl_status_t (*event_free)(xccl_mc_event_t *event);
     xccl_status_t (*start_stream_activity)(xccl_stream_t *stream,
                                            xccl_mem_component_stream_request_t **req);
+    xccl_status_t (*query_stream_activity)(xccl_mem_component_stream_request_t *req);
     xccl_status_t (*finish_stream_activity)(xccl_mem_component_stream_request_t *req);
     void          (*close)();
     void          *dlhandle;
@@ -63,6 +64,8 @@ xccl_status_t xccl_mem_component_reduce(void *sbuf1, void *sbuf2, void *target,
 
 xccl_status_t xccl_mem_component_start_acitivity(xccl_stream_t *stream,
                                                  xccl_mem_component_stream_request_t **req);
+
+xccl_status_t xccl_mem_component_query_activity(xccl_mem_component_stream_request_t *req);
 
 xccl_status_t xccl_mem_component_finish_acitivity(xccl_mem_component_stream_request_t *req);
 
