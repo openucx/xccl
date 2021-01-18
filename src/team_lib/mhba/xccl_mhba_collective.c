@@ -28,35 +28,51 @@ static xccl_status_t xccl_mhba_node_fanin(xccl_mhba_team_t     *team,
                                           xccl_mhba_coll_req_t *request)
 {
     int  i;
-    int *ctrl_v;
+    uint64_t *ctrl_v;
     int  index = SEQ_INDEX(request->seq_num);
     if (team->op_busy[index] && !request->started) {
         return XCCL_INPROGRESS;
     } //wait for slot to be open
     team->op_busy[index] = 1;
     request->started     = 1;
-    xccl_mhba_update_mkeys_entries(&team->node,
-                                   request); // no option for failure status
 
     if (team->node.sbgp->group_rank != team->node.asr_rank) {
-
-        *team->node.ops[index].my_ctrl = request->buffer_reg_change_flag ? -request->seq_num : request->seq_num;
+        *team->node.ops[index].my_ctrl = request->seq_num;
+        if(request->send_buffer_reg_change_flag){
+            *team->node.ops[index].my_ctrl |= ((uint64_t)1) << 63;
+        }
+        if(request->recv_buffer_reg_change_flag){
+            *team->node.ops[index].my_ctrl |= ((uint64_t)1) << 62;
+        }
     } else {
         for (i = 0; i < team->node.sbgp->group_size; i++) {
             if (i == team->node.sbgp->group_rank) {
                 continue;
             }
-            ctrl_v = (int *)((ptrdiff_t)team->node.ops[index].ctrl +
+            ctrl_v = (uint64_t *)((ptrdiff_t)team->node.ops[index].ctrl +
                              MHBA_CTRL_SIZE * i);
-            if (*ctrl_v == -request->seq_num) {
-                request->need_update_mkey = 1;
-            } else if (*ctrl_v != request->seq_num) {
+            uint64_t seq = (*ctrl_v <<2) >> 2;
+            if (seq != request->seq_num) {
                 return XCCL_INPROGRESS;
             }
         }
-        request->need_update_mkey = request->buffer_reg_change_flag ? 1 : request->need_update_mkey;
-        request->need_update_mkey = (request->args.buffer_info.len != team->previous_msg_size[index]) ? 1
-                : request->need_update_mkey;
+        for (i = 0; i < team->node.sbgp->group_size; i++) {
+            if (i == team->node.sbgp->group_rank) {
+                continue;
+            }
+            ctrl_v = (uint64_t *)((ptrdiff_t)team->node.ops[index].ctrl +
+                             MHBA_CTRL_SIZE * i);
+            uint64_t change_bits = *ctrl_v >>62;
+            if (change_bits & 1){
+                request->need_update_recv_mkey = 1;
+            }
+            if (change_bits & 2){
+                request->need_update_send_mkey = 1;
+            }
+        }
+        uint64_t size_changed = request->args.buffer_info.len != team->previous_msg_size[index];
+        request->need_update_recv_mkey |= request->recv_buffer_reg_change_flag | size_changed;
+        request->need_update_send_mkey |= request->send_buffer_reg_change_flag | size_changed;
     }
     return XCCL_OK;
 }
@@ -76,28 +92,29 @@ static xccl_status_t xccl_mhba_reg_fanin_start(xccl_coll_task_t *task)
     ucs_rcache_region_t* recv_ptr;
     if(UCS_OK != ucs_rcache_get(team->rcache, (void *)request->args.buffer_info.src_buffer,
                                 request->args.buffer_info.len * team->size,
-                                PROT_READ, NULL, &send_ptr)) {
+                                PROT_READ, &request->send_buffer_reg_change_flag, &send_ptr)) {
         xccl_mhba_error("Failed to register send_bf memory (errno=%d)", errno);
         return XCCL_ERR_NO_RESOURCE;
     }
     request->send_rcache_region_p = xccl_rcache_ucs_get_reg_data(send_ptr);
+    request->send_buffer_reg_change_flag |= request->send_rcache_region_p->mr->addr != team->previous_send_address[SEQ_INDEX(request->seq_num)];
 
     if(UCS_OK != ucs_rcache_get(team->rcache, (void *)request->args.buffer_info.dst_buffer,
                                 request->args.buffer_info.len * team->size,
-                                PROT_WRITE, NULL,&recv_ptr)) {
+                                PROT_WRITE, &request->recv_buffer_reg_change_flag,&recv_ptr)) {
         xccl_mhba_error("Failed to register receive_bf memory");
         ucs_rcache_region_put(team->rcache,request->send_rcache_region_p->region);
         return XCCL_ERR_NO_RESOURCE;
     }
     request->recv_rcache_region_p = xccl_rcache_ucs_get_reg_data(recv_ptr);
-
-    request->buffer_reg_change_flag = (request->send_rcache_region_p->mr->addr != team->previous_send_address[SEQ_INDEX(request->seq_num)])||
-                      (request->recv_rcache_region_p->mr->addr != team->previous_recv_address[SEQ_INDEX(request->seq_num)]);
+    request->recv_buffer_reg_change_flag |= request->recv_rcache_region_p->mr->addr != team->previous_recv_address[SEQ_INDEX(request->seq_num)];
 
     xccl_mhba_debug("fanin start");
     /* start task if completion event received */
     task->state = XCCL_TASK_STATE_INPROGRESS;
     /* Start fanin */
+    xccl_mhba_update_mkeys_entries(&team->node,
+                                   request); // no option for failure status
     if (XCCL_OK == xccl_mhba_node_fanin(team, request)) {
         xccl_mhba_debug("fanin complete");
         task->state = XCCL_TASK_STATE_COMPLETED;
@@ -190,11 +207,9 @@ static xccl_status_t xccl_mhba_asr_barrier_start(xccl_coll_task_t *task)
     xccl_mhba_team_t     *team    = request->team;
     xccl_mhba_debug("asr barrier start");
 
-    if(request->need_update_mkey) {
-        // despite while statement in poll_umr_cq, non blocking because have independent cq,
-        // will be finished in a finite time
-        xccl_mhba_populate_send_recv_mkeys(team, request);
-    }
+    // despite while statement in poll_umr_cq, non blocking because have independent cq,
+    // will be finished in a finite time
+    xccl_mhba_populate_send_recv_mkeys(team, request);
 
     //Reset atomic notification counter to 0
     memset(team->node.storage + MHBA_CTRL_SIZE * SEQ_INDEX(request->seq_num), 0,
@@ -511,7 +526,8 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     void *        transpose_buf = NULL;
     int           i, block_msgsize, block_size;
     xccl_status_t status;
-    request->need_update_mkey = 0;
+    request->need_update_recv_mkey = 0, request->need_update_send_mkey = 0, request->recv_buffer_reg_change_flag = 0,
+    request->send_buffer_reg_change_flag = 0;
     request->started = 0;
     if (len > team->max_msg_size) {
         xccl_mhba_error("msg size too long");
@@ -558,6 +574,9 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->seq_num = team->sequence_number;
     xccl_mhba_debug("Seq num is %d", request->seq_num);
     team->sequence_number++;
+    if(team->sequence_number >> 62){
+        team->sequence_number = 0;
+    }
 
     for (i = 0; i < n_tasks; i++) {
         request->tasks[i].req = request;

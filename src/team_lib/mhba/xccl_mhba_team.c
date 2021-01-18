@@ -95,6 +95,8 @@ static ucs_status_t rcache_reg_mr(void *context, ucs_rcache_t *rcache,void *arg,
     size_t length             = (size_t)(rregion->super.end - rregion->super.start);
     xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
     mhba_reg->region = rregion;
+    int* change_flag = (int*) arg;
+    *change_flag = 1;
     mhba_reg->mr = ibv_reg_mr(team->node.shared_pd, addr, length, (rregion->prot == PROT_WRITE) ? IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE : 0);
     if (!mhba_reg->mr) {
         xccl_mhba_error("Failed to register memory");

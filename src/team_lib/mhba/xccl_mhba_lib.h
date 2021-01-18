@@ -79,7 +79,7 @@ typedef struct xccl_mhba_context {
 
 typedef struct xccl_mhba_op {
     void               *ctrl;
-    int                *my_ctrl;
+    uint64_t           *my_ctrl;
     void               *send_umr_data;
     void               *my_send_umr_data;
     void               *recv_umr_data;
@@ -143,7 +143,7 @@ typedef struct xccl_mhba_team {
     uint64_t             max_msg_size;
     xccl_mhba_node_t     node;
     xccl_mhba_net_t      net;
-    int                  sequence_number;
+    uint64_t             sequence_number;
     int                  op_busy[MAX_OUTSTANDING_OPS];
     int                  cq_completions[MAX_OUTSTANDING_OPS];
     xccl_mhba_context_t *context;
