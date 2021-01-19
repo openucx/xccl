@@ -282,20 +282,23 @@ xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_team_t     *team,
     int               recv_mem_access_flags =
         IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
     xccl_status_t     status;
-    status = populate_mkey(
-        node, send_mem_access_flags, node->ops[index].send_mkey,
-        node->ops[index].send_umr_data, req->block_size, team->size, 1);
-    if (status != XCCL_OK) {
-        xccl_mhba_error("Failed to populate send umr[%d]", index);
-        return status;
+    if(xccl_mhba_get_my_ctrl(team, index)->mkey_cache_flag & XCCL_MHBA_NEED_SEND_MKEY_UPDATE) {
+        status = populate_mkey(
+                node, send_mem_access_flags, node->ops[index].send_mkey,
+                node->ops[index].send_umr_data, req->block_size, team->size, 1);
+        if (status != XCCL_OK) {
+            xccl_mhba_error("Failed to populate send umr[%d]", index);
+            return status;
+        }
     }
-
-    status = populate_mkey(
-        node, recv_mem_access_flags, node->ops[index].recv_mkey,
-        node->ops[index].recv_umr_data, req->block_size, team->size, 1);
-    if (status != XCCL_OK) {
-        xccl_mhba_error("Failed to populate recv umr[%d]", index);
-        return status;
+    if(xccl_mhba_get_my_ctrl(team, index)->mkey_cache_flag & XCCL_MHBA_NEED_RECV_MKEY_UPDATE) {
+        status = populate_mkey(
+                node, recv_mem_access_flags, node->ops[index].recv_mkey,
+                node->ops[index].recv_umr_data, req->block_size, team->size, 1);
+        if (status != XCCL_OK) {
+            xccl_mhba_error("Failed to populate recv umr[%d]", index);
+            return status;
+        }
     }
     return XCCL_OK;
 }

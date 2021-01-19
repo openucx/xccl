@@ -88,15 +88,20 @@ static void build_rank_map(xccl_mhba_team_t *mhba_team)
     free(data);
 }
 
-static ucs_status_t rcache_reg_mr(void *context, ucs_rcache_t *rcache,void *arg, ucs_rcache_region_t *rregion,
-                                  uint16_t flags){
+static ucs_status_t rcache_reg_mr(void *context, ucs_rcache_t *rcache, void *arg,
+                                  ucs_rcache_region_t *rregion, uint16_t flags)
+{
     xccl_mhba_team_t *team    = (xccl_mhba_team_t*)context;
     void *addr                = (void*)rregion->super.start;
     size_t length             = (size_t)(rregion->super.end - rregion->super.start);
     xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
+    int* change_flag          = (int*) arg;
+
     mhba_reg->region = rregion;
-    int* mem_flags = (int*) arg;
-    mhba_reg->mr = ibv_reg_mr(team->node.shared_pd, addr, length, *mem_flags);
+    *change_flag     = 1;
+    mhba_reg->mr     = ibv_reg_mr(team->node.shared_pd, addr, length,
+                                  (rregion->prot == PROT_WRITE) ? IBV_ACCESS_LOCAL_WRITE
+                                  | IBV_ACCESS_REMOTE_WRITE : 0);
     if (!mhba_reg->mr) {
         xccl_mhba_error("Failed to register memory");
         return UCS_ERR_NO_MESSAGE;
@@ -104,14 +109,17 @@ static ucs_status_t rcache_reg_mr(void *context, ucs_rcache_t *rcache,void *arg,
     return UCS_OK;
 }
 
-static void rcache_dereg_mr(void *context, ucs_rcache_t *rcache, ucs_rcache_region_t *rregion) {
+static void rcache_dereg_mr(void *context, ucs_rcache_t *rcache,
+                            ucs_rcache_region_t *rregion)
+{
     xccl_mhba_reg_t* mhba_reg = xccl_rcache_ucs_get_reg_data(rregion);
     assert(mhba_reg->region == rregion);
     ibv_dereg_mr(mhba_reg->mr);
     mhba_reg->mr = NULL;
 }
 
-static xccl_status_t create_rcache(xccl_mhba_team_t* mhba_team) {
+static xccl_status_t create_rcache(xccl_mhba_team_t* mhba_team)
+{
     static ucs_rcache_ops_t rcache_ucs_ops = {
             .mem_reg     = rcache_reg_mr,
             .mem_dereg   = rcache_dereg_mr,
@@ -143,7 +151,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                                          xccl_team_t        *base_team,
                                          xccl_tl_team_t    **team)
 {
-    xccl_mhba_context_t    *ctx = ucs_derived_of(context, xccl_mhba_context_t);
+    xccl_mhba_context_t    *ctx       = ucs_derived_of(context, xccl_mhba_context_t);
     xccl_mhba_team_t       *mhba_team = malloc(sizeof(*mhba_team));
     xccl_sbgp_t            *node, *net;
     xccl_status_t           status;
@@ -243,9 +251,9 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                    MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS +
                    MHBA_CTRL_SIZE * node_size * i;
         op->my_ctrl =
-            (void *)((ptrdiff_t)op->ctrl + node->group_rank * MHBA_CTRL_SIZE);
+            (xccl_mhba_ctrl_t *)((ptrdiff_t)op->ctrl + node->group_rank * MHBA_CTRL_SIZE);
         memset(op->my_ctrl, 0, MHBA_CTRL_SIZE);
-        *((int *)op->my_ctrl) = -1; // because sequence number begin from 0
+        op->my_ctrl->seq_num = -1; // because sequence number begin from 0
         op->send_umr_data =
             (void *)((ptrdiff_t)mhba_team->node.storage +
                      (node_size + 1) * MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS +
@@ -262,6 +270,9 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     calc_block_size(mhba_team);
     mhba_team->requested_block_size = ctx->cfg.block_size;
     if (mhba_team->node.asr_rank == node->group_rank) {
+        for(i=0;i<MAX_OUTSTANDING_OPS;i++) {
+            mhba_team->previous_msg_size[i] = 0;
+        }
         if (mhba_team->transpose) {
             mhba_team->transpose_buf = malloc(ctx->cfg.transpose_buf_size);
             if (!mhba_team->transpose_buf) {

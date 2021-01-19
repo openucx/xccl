@@ -69,6 +69,13 @@ extern xccl_team_lib_mhba_t xccl_team_lib_mhba;
 #define xccl_mhba_trace_poll(_fmt, ...)                                        \
     xccl_team_mhba_log_component(UCS_LOG_LEVEL_TRACE_POLL, _fmt, ##__VA_ARGS__)
 
+#define MHBA_CTRL_SIZE 128 //todo change according to arch
+#define MHBA_DATA_SIZE sizeof(struct mlx5dv_mr_interleaved)
+#define MHBA_NUM_OF_BLOCKS_SIZE_BINS 8
+#define MAX_TRANSPOSE_SIZE 8000 // HW transpose unit is limited to matrix size
+#define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
+#define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
+
 typedef struct xccl_mhba_context {
     xccl_tl_context_t                  super;
     struct xccl_tl_mhba_context_config cfg;
@@ -77,9 +84,19 @@ typedef struct xccl_mhba_context {
     int                                ib_port;
 } xccl_mhba_context_t;
 
+enum {
+    XCCL_MHBA_NEED_SEND_MKEY_UPDATE = UCS_BIT(1),
+    XCCL_MHBA_NEED_RECV_MKEY_UPDATE = UCS_BIT(2),
+};
+
+typedef struct xccl_mhba_ctrl {
+    int      seq_num;
+    uint8_t  mkey_cache_flag;
+} xccl_mhba_ctrl_t;
+
 typedef struct xccl_mhba_op {
     void               *ctrl;
-    int                *my_ctrl;
+    xccl_mhba_ctrl_t   *my_ctrl;
     void               *send_umr_data;
     void               *my_send_umr_data;
     void               *recv_umr_data;
@@ -104,13 +121,6 @@ typedef struct xccl_mhba_node {
     struct ibv_qp_ex    *umr_qpx;
     struct mlx5dv_qp_ex *umr_mlx5dv_qp_ex;
 } xccl_mhba_node_t;
-
-#define MHBA_CTRL_SIZE 128 //todo change according to arch
-#define MHBA_DATA_SIZE sizeof(struct mlx5dv_mr_interleaved)
-#define MHBA_NUM_OF_BLOCKS_SIZE_BINS 8
-#define MAX_TRANSPOSE_SIZE 8000 // HW transpose unit is limited to matrix size
-#define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
-#define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
 
 typedef struct xccl_mhba_reg {
     struct ibv_mr       *mr;
@@ -149,6 +159,9 @@ typedef struct xccl_mhba_team {
     xccl_mhba_context_t *context;
     int                  blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
     int                  size;
+    int                  previous_msg_size[MAX_OUTSTANDING_OPS];
+    void*                previous_send_address[MAX_OUTSTANDING_OPS];
+    void*                previous_recv_address[MAX_OUTSTANDING_OPS];
     uint64_t             dummy_atomic_buff;
     ucs_rcache_t        *rcache;
     int                  requested_block_size;
@@ -164,4 +177,18 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                                          xccl_tl_team_t    **team);
 xccl_status_t xccl_mhba_team_create_test(xccl_tl_team_t *team);
 xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team);
+
+static inline xccl_mhba_ctrl_t*
+xccl_mhba_get_ctrl(xccl_mhba_team_t *team, int op_index, int rank)
+{
+    return (xccl_mhba_ctrl_t*)((ptrdiff_t)team->node.ops[op_index].ctrl +
+                               MHBA_CTRL_SIZE * rank);
+}
+
+static inline xccl_mhba_ctrl_t*
+xccl_mhba_get_my_ctrl(xccl_mhba_team_t *team, int op_index)
+{
+    int my_rank = team->node.sbgp->group_rank;
+    return xccl_mhba_get_ctrl(team, op_index, my_rank);
+}
 #endif
