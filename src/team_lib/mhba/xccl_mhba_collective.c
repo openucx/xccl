@@ -532,7 +532,7 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     }
     xccl_schedule_init(&request->schedule, team->super.ctx);
     if (team->transpose_hw_limitations) {
-        block_size = (len == 1) ? team->blocks_sizes[__ucs_ilog2_u32(len - 1)+1] : team->blocks_sizes[0];
+        block_size = (len != 1) ? team->blocks_sizes[__ucs_ilog2_u32(len - 1)+1] : team->blocks_sizes[0];
     } else {
         block_size = team->node.sbgp->group_size;
     }

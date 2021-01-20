@@ -53,7 +53,7 @@ static void calc_block_size(xccl_mhba_team_t *team)
             block_size -= 1;
         }
         team->blocks_sizes[i] = block_size;
-        msg_len << 1;
+        msg_len = msg_len << 1;
     }
 }
 
