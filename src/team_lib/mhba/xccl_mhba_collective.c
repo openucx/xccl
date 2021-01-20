@@ -359,7 +359,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     rank        = team->net.rank_map[team->net.sbgp->group_rank];
 
     for (i = 0; i < net_size; i++) {
-        cyc_rank = (i+team->net.sbgp->group_rank)%net_size;
+        cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
         //send all blocks from curr node to some ARR
         for (j = 0; j < xccl_round_up(node_size, block_size); j++) {
@@ -449,7 +449,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
     rank        = team->net.rank_map[team->net.sbgp->group_rank];
 
     for (i = 0; i < net_size; i++) {
-        cyc_rank = (i+team->net.sbgp->group_rank)%net_size;
+        cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
         //send all blocks from curr node to some ARR
         for (j = 0; j < xccl_round_up(node_size, block_size); j++) {
