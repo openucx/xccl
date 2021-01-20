@@ -22,7 +22,7 @@ void xccl_ucx_mem_map(void *addr, size_t length, ucs_memory_type_t mem_type,
                               UCP_MEM_MAP_PARAM_FIELD_LENGTH  |
                               UCP_MEM_MAP_PARAM_FIELD_MEMORY_TYPE;
     mmap_params.address     = addr;
-    mmap_params.length     = length;
+    mmap_params.length      = length;
     mmap_params.memory_type = mem_type;
 
     /* do map and umap to populate the cache */
@@ -137,17 +137,27 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
     } else {
         ctx->ucp_eps = NULL;
     }
-    ctx->block_stream              = cfg->block_stream;
-    ctx->num_to_probe              = cfg->num_to_probe;
-    ctx->barrier_kn_radix          = cfg->barrier_kn_radix;
-    ctx->bcast_kn_radix            = cfg->bcast_kn_radix;
-    ctx->reduce_kn_radix           = cfg->reduce_kn_radix;
-    ctx->allreduce_kn_radix        = cfg->allreduce_kn_radix;
-    ctx->allreduce_alg_id          = cfg->allreduce_alg_id;
-    ctx->alltoall_pairwise_chunk   = cfg->alltoall_pairwise_chunk;
-    ctx->alltoall_pairwise_reverse = cfg->alltoall_pairwise_reverse;
-    ctx->alltoall_pairwise_barrier = cfg->alltoall_pairwise_barrier;
-    ctx->pre_mem_map               = cfg->pre_mem_map;
+
+    ctx->block_stream[XCCL_ALLGATHER] = cfg->block_stream_allgather;
+    ctx->block_stream[XCCL_ALLREDUCE] = cfg->block_stream_allreduce;
+    ctx->block_stream[XCCL_ALLTOALLV] = cfg->block_stream_alltoallv;
+    ctx->block_stream[XCCL_ALLTOALL]  = cfg->block_stream_alltoall;
+    ctx->block_stream[XCCL_BARRIER]   = cfg->block_stream_barrier;
+    ctx->block_stream[XCCL_BCAST]     = cfg->block_stream_bcast;
+    ctx->block_stream[XCCL_REDUCE]    = cfg->block_stream_reduce;
+    ctx->block_stream[XCCL_FANIN]     = 0;
+    ctx->block_stream[XCCL_FANOUT]    = 0;
+    ctx->num_to_probe                 = cfg->num_to_probe;
+    ctx->barrier_kn_radix             = cfg->barrier_kn_radix;
+    ctx->bcast_kn_radix               = cfg->bcast_kn_radix;
+    ctx->reduce_kn_radix              = cfg->reduce_kn_radix;
+    ctx->allreduce_kn_radix           = cfg->allreduce_kn_radix;
+    ctx->allreduce_alg_id             = cfg->allreduce_alg_id;
+    ctx->alltoall_pairwise_chunk      = cfg->alltoall_pairwise_chunk;
+    ctx->alltoall_pairwise_reverse    = cfg->alltoall_pairwise_reverse;
+    ctx->alltoall_pairwise_barrier    = cfg->alltoall_pairwise_barrier;
+    ctx->pre_mem_map                  = cfg->pre_mem_map;
+    ctx->lazy_start                   = cfg->lazy_start;
 
     ctx->next_cid           = 0;
     *context = &ctx->super;

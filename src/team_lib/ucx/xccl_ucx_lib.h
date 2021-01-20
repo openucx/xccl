@@ -32,7 +32,14 @@ typedef struct xccl_tl_ucx_context_config {
     unsigned                 alltoall_pairwise_barrier;
     unsigned                 pre_mem_map;
     int                      ppn;
-    int                      block_stream;
+    int                      block_stream_allgather;
+    int                      block_stream_allreduce;
+    int                      block_stream_alltoall;
+    int                      block_stream_alltoallv;
+    int                      block_stream_barrier;
+    int                      block_stream_bcast;
+    int                      block_stream_reduce;
+    int                      lazy_start;
 } xccl_tl_ucx_context_config_t;
 
 extern xccl_team_lib_ucx_t xccl_team_lib_ucx;

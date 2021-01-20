@@ -1,10 +1,11 @@
 #include "cuda_mem_component.h"
 #include <stdlib.h>
+#include <cuda.h>
 
 xccl_cuda_mem_component_t xccl_cuda_mem_component;
 
 #define NUM_STREAM_REQUESTS 128
-#define NUM_EVENTS NUM_STREAM_REQUESTS
+#define NUM_EVENTS (2*NUM_STREAM_REQUESTS)
 
 #define CUDACHECK(cmd) do {                                         \
         cudaError_t e = cmd;                                        \
@@ -13,6 +14,14 @@ xccl_cuda_mem_component_t xccl_cuda_mem_component;
                              cudaGetErrorString(e));                \
             return XCCL_ERR_NO_MESSAGE;                             \
         }                                                           \
+} while(0)
+
+#define CUCHECK(cmd) do {                                  \
+        CUresult e = cmd;                                  \
+        if( e != CUDA_SUCCESS) {                           \
+            fprintf(stderr, "cuda failed wtih ret:%d", e); \
+            return XCCL_ERR_NO_MESSAGE;                    \
+        }                                                  \
 } while(0)
 
 #define XCCL_CUDA_INIT_RESOUCES() do {               \
@@ -27,7 +36,19 @@ xccl_cuda_mem_component_t xccl_cuda_mem_component;
 
 static xccl_status_t xccl_cuda_open()
 {
+    //TODO: use parser
+    char *env;
+
     xccl_cuda_mem_component.stream = 0;
+    xccl_cuda_mem_component.activity = XCCL_CUDA_MC_ACTIVITY_KERNEL;
+    env = getenv("XCCL_MC_CUDA_ACTIVITY");
+    if (env) {
+        if (strcmp(env, "kernel") == 0) {
+            xccl_cuda_mem_component.activity = XCCL_CUDA_MC_ACTIVITY_KERNEL;
+        } else if (strcmp(env, "driver") == 0) {
+            xccl_cuda_mem_component.activity = XCCL_CUDA_MC_ACTIVITY_DRIVER;
+        }
+    }
     return XCCL_OK;
 }
 
@@ -64,9 +85,6 @@ static xccl_status_t xccl_cuda_alloc_resources()
                   (void**)&(xccl_cuda_mem_component.stream_requests[i].dev_is_free),
                   (void*)&(xccl_cuda_mem_component.stream_requests[i].is_free),
                   0));
-        CUDACHECK(cudaEventCreateWithFlags(
-                  &xccl_cuda_mem_component.stream_requests[i].event,
-                  cudaEventDisableTiming));
     }
     for (i = 0; i < NUM_EVENTS; i++) {
         xccl_cuda_mem_component.events[i].is_free = 1;
@@ -74,27 +92,25 @@ static xccl_status_t xccl_cuda_alloc_resources()
                   &xccl_cuda_mem_component.events[i].cuda_event,
                   cudaEventDisableTiming));
     }
+    if (xccl_cuda_mem_component.activity == XCCL_CUDA_MC_ACTIVITY_DRIVER) {
+        CUdevice device;
+        int attr;
+
+        CUCHECK(cuCtxGetDevice(&device));
+        CUCHECK(cuDeviceGetAttribute(&attr,
+                                     CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_MEM_OPS,
+                                     device));
+        if (attr == 0) {
+            printf("CUDA MC: cuda memops are not supported or disabled "
+                   "fallback to kernel\n");
+            xccl_cuda_mem_component.activity = XCCL_CUDA_MC_ACTIVITY_KERNEL;
+        }
+    }
 
     return XCCL_OK;
 }
 
 /* Consider using UCS allocator */
-static xccl_status_t
-xccl_cuda_get_free_stream_request(xccl_cuda_mem_component_stream_request_t **request) {
-    int i;
-    xccl_cuda_mem_component_stream_request_t *req;
-    for (i = 0; i < NUM_STREAM_REQUESTS; i++) {
-        req = xccl_cuda_mem_component.stream_requests + i;
-        if (req->is_free) {
-            req->is_free = 0;
-            *request = req;
-            return XCCL_OK;
-        }
-    }
-
-    return XCCL_ERR_NO_RESOURCE;
-}
-
 static xccl_status_t
 xccl_cuda_get_free_event(xccl_cuda_mc_event_t **event) {
     int i;
@@ -104,6 +120,34 @@ xccl_cuda_get_free_event(xccl_cuda_mc_event_t **event) {
         if (et->is_free) {
             et->is_free = 0;
             *event = et;
+            return XCCL_OK;
+        }
+    }
+
+    return XCCL_ERR_NO_RESOURCE;
+}
+
+static xccl_status_t
+xccl_cuda_get_free_stream_request(
+    xccl_cuda_mem_component_stream_request_t **request)
+{
+    int i;
+    xccl_status_t status;
+    xccl_cuda_mem_component_stream_request_t *req;
+    for (i = 0; i < NUM_STREAM_REQUESTS; i++) {
+        req = xccl_cuda_mem_component.stream_requests + i;
+        if (req->is_free) {
+            status = xccl_cuda_get_free_event(&req->start_event);
+            if (status != XCCL_OK) {
+               return status;
+            }
+            status = xccl_cuda_get_free_event(&req->finish_event);
+            if (status != XCCL_OK) {
+                req->start_event->is_free = 1;
+                return status;
+            }
+            req->is_free = 0;
+            *request = req;
             return XCCL_OK;
         }
     }
@@ -159,10 +203,23 @@ xccl_cuda_start_acitivity(xccl_stream_t *stream,
     request->status = XCCL_INITIALIZED;
     user_stream = *((cudaStream_t*)stream->stream);
     internal_stream = xccl_cuda_mem_component.stream;
+    CUDACHECK(cudaEventRecord(request->start_event->cuda_event, user_stream));
+    CUDACHECK(cudaStreamWaitEvent(internal_stream,
+                                  request->start_event->cuda_event, 0));
+    // switch (xccl_cuda_mem_component.activity) {
+    //     case XCCL_CUDA_MC_ACTIVITY_KERNEL:
     CUDACHECK(xccl_cuda_dummy_kernel(request->dev_status, request->dev_is_free,
-                                     internal_stream));
-    CUDACHECK(cudaEventRecord(request->event, internal_stream));
-    CUDACHECK(cudaStreamWaitEvent(user_stream, request->event, 0));
+                        internal_stream));
+    //         break;
+    //     case XCCL_CUDA_MC_ACTIVITY_DRIVER:
+    //         CUCHECK(cuStreamWriteValue32(internal_stream, request->dev_status, XCCL_INPROGRESS, 0));
+
+    //         break;
+    // }
+
+    CUDACHECK(cudaEventRecord(request->finish_event->cuda_event, internal_stream));
+    CUDACHECK(cudaStreamWaitEvent(user_stream,
+                                  request->finish_event->cuda_event, 0));
     *req = &request->super;
 
     return XCCL_OK;
@@ -185,6 +242,8 @@ xccl_cuda_finish_acitivity(xccl_mem_component_stream_request_t *req)
 
     request = ucs_derived_of(req, xccl_cuda_mem_component_stream_request_t);
     /* set status to XCCL_OK to request kernel to stop */
+    request->start_event->is_free = 1;
+    request->finish_event->is_free = 1;
     request->status = XCCL_OK;
 
     return XCCL_OK;
@@ -266,9 +325,6 @@ static void xccl_cuda_close()
     if (xccl_cuda_mem_component.stream != 0) {
         for (i = 0; i < NUM_EVENTS; i++) {
             cudaEventDestroy(xccl_cuda_mem_component.events[i].cuda_event);
-        }
-        for (i = 0; i < NUM_STREAM_REQUESTS; i++) {
-            cudaEventDestroy(xccl_cuda_mem_component.stream_requests[i].event);
         }
         cudaFreeHost(xccl_cuda_mem_component.stream_requests);
         cudaStreamDestroy(xccl_cuda_mem_component.stream);

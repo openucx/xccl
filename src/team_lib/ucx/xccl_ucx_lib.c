@@ -41,11 +41,47 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
         UCS_CONFIG_TYPE_TABLE(xccl_tl_context_config_table)
     },
 
-    {"BLOCK_STREAM", "no",
-     "Block stream while collective is in progress",
-     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream),
+    {"BLOCK_STREAM_ALLGATHER", "no",
+     "Block stream while allgather is in progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream_allgather),
      UCS_CONFIG_TYPE_BOOL
-    },
+     },
+
+    {"BLOCK_STREAM_ALLREDUCE", "no",
+     "Block stream while allreduce is in progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream_allreduce),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"BLOCK_STREAM_ALLTOALL", "no",
+     "Block stream while alltoall is in progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream_alltoall),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"BLOCK_STREAM_ALLTOALLV", "no",
+     "Block stream while alltoallv is in progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream_alltoallv),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"BLOCK_STREAM_BCAST", "no",
+     "Block stream while bcast is in progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream_bcast),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"BLOCK_STREAM_BARRIER", "no",
+     "Block stream while barrier is in progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream_barrier),
+     UCS_CONFIG_TYPE_BOOL
+     },
+
+    {"BLOCK_STREAM_REDUCE", "no",
+     "Block stream while reduce is in progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, block_stream_reduce),
+     UCS_CONFIG_TYPE_BOOL
+     },
 
     {"NET_DEVICES", "all",
      "Specifies which network device(s) to use",
@@ -121,6 +157,12 @@ static ucs_config_field_t xccl_tl_ucx_context_config_table[] = {
      "Estimated number of processes per node",
      ucs_offsetof(xccl_tl_ucx_context_config_t, ppn),
      UCS_CONFIG_TYPE_UINT
+    },
+
+    {"LAZY_START", "no",
+     "Postpone collective start to first call to progress",
+     ucs_offsetof(xccl_tl_ucx_context_config_t, lazy_start),
+     UCS_CONFIG_TYPE_BOOL
     },
 
     {NULL}
@@ -469,7 +511,7 @@ static inline xccl_status_t
 xccl_ucx_barrier_init(xccl_coll_op_args_t *coll_args,
                       xccl_tl_coll_req_t **request, xccl_tl_team_t *team)
 {
-    //TODO alg selection for allreduce should happen here
+    //TODO alg selection for barrier should happen here
     xccl_ucx_collreq_t *req;
     xccl_ucx_coll_base_init(coll_args, team, &req);
     req->start = xccl_ucx_barrier_knomial_start;
@@ -511,7 +553,9 @@ static xccl_status_t xccl_ucx_collective_post(xccl_tl_coll_req_t *request)
 
     req->stream_req = NULL;
     if (req->args.field_mask & XCCL_COLL_OP_ARGS_FIELD_STREAM) {
-        if (TEAM_UCX_CTX_REQ(req)->block_stream) {
+        if (TEAM_UCX_CTX_REQ(req)->block_stream[req->args.coll_type]) {
+            xccl_ucx_trace("starting kernel req %p coll %d", req,
+                           req->args.coll_type);
             st = xccl_mem_component_start_acitivity(&req->args.stream,
                                                     &req->stream_req);
             if (st != XCCL_OK) {
@@ -528,6 +572,8 @@ static xccl_status_t xccl_ucx_collective_post(xccl_tl_coll_req_t *request)
                 return st;
             }
         } else {
+            xccl_ucx_trace("waiting for event req %p coll %d", req,
+                           req->args.coll_type);
             st = xccl_mc_event_record(&req->args.stream, &req->ready_to_start);
             if (st != XCCL_OK) {
                 return st;
@@ -543,6 +589,11 @@ static xccl_status_t xccl_ucx_collective_post(xccl_tl_coll_req_t *request)
             xccl_mc_event_free(req->ready_to_start);
         }
     }
+    if (TEAM_UCX_CTX_REQ(req)->lazy_start) {
+        /* collective is ready to start but will start it later*/
+        req->ready_to_start = (void*)0x2;
+        return XCCL_OK;
+    }
     req->ready_to_start = NULL;
     return req->start(req);
 }
@@ -553,22 +604,24 @@ static xccl_status_t xccl_ucx_collective_test(xccl_tl_coll_req_t *request)
     xccl_status_t status;
 
     if (req->ready_to_start != NULL) {
-        if (TEAM_UCX_CTX_REQ(req)->block_stream) {
-            status = xccl_mem_component_query_activity(req->stream_req);
-            /* status can't be XCCL_OK since collective wasn't started*/
-            assert(status != XCCL_OK);
-            if (status == XCCL_INITIALIZED) {
-                return XCCL_INPROGRESS;
-            } else if (status != XCCL_INPROGRESS) {
-                /* error */
-                return status;
+        if ((ptrdiff_t)req->ready_to_start != 0x2) {
+            if (TEAM_UCX_CTX_REQ(req)->block_stream[req->args.coll_type]) {
+                status = xccl_mem_component_query_activity(req->stream_req);
+                /* status can't be XCCL_OK since collective wasn't started*/
+                assert(status != XCCL_OK);
+                if (status == XCCL_INITIALIZED) {
+                    return XCCL_INPROGRESS;
+                } else if (status != XCCL_INPROGRESS) {
+                    /* error */
+                    return status;
+                }
+            } else {
+                status = xccl_mc_event_query(req->ready_to_start);
+                if (status != XCCL_OK) {
+                    return status;
+                }
+                xccl_mc_event_free(req->ready_to_start);
             }
-        } else {
-            status = xccl_mc_event_query(req->ready_to_start);
-            if (status != XCCL_OK) {
-                return status;
-            }
-            xccl_mc_event_free(req->ready_to_start);
         }
         req->ready_to_start = NULL;
         req->start(req);
