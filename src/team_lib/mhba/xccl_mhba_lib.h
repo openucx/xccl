@@ -31,8 +31,6 @@ typedef struct xccl_tl_mhba_context_config {
     int                      block_size;
 } xccl_tl_mhba_context_config_t;
 
-//todo add block_size config
-
 typedef struct xccl_team_lib_mhba {
     xccl_team_lib_t             super;
     xccl_team_lib_mhba_config_t config;
