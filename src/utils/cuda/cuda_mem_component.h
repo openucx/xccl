@@ -22,8 +22,6 @@ typedef struct xccl_cuda_mem_component_stream_request {
     void                                *dev_is_free;
     xccl_status_t                       status;
     void                                *dev_status;
-    xccl_cuda_mc_event_t                *start_event;
-    xccl_cuda_mc_event_t                *finish_event;
 } xccl_cuda_mem_component_stream_request_t;
 
 typedef enum xccl_cuda_mc_activity {
