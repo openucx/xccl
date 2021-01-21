@@ -1,6 +1,15 @@
 #include <api/xccl.h>
 #include <cuda.h>
 
+#define CUDACHECK(cmd) do {                                         \
+        cudaError_t e = cmd;                                        \
+        if( e != cudaSuccess && e != cudaErrorCudartUnloading ) {   \
+            fprintf(stderr, "cuda failed wtih ret:%d(%s)", e,       \
+                             cudaGetErrorString(e));                \
+            return XCCL_ERR_NO_MESSAGE;                             \
+        }                                                           \
+} while(0)
+
 __global__ void dummy_kernel(volatile xccl_status_t *status, int *is_free) {
     xccl_status_t st;
 
@@ -23,11 +32,12 @@ __global__ void dummy_kernel(volatile xccl_status_t *status, int *is_free) {
 extern "C" {
 #endif
 
-cudaError_t xccl_cuda_dummy_kernel(volatile xccl_status_t *status, int *is_free,
-                                   cudaStream_t stream)
+xccl_status_t xccl_cuda_dummy_kernel(xccl_status_t *status, int *is_free,
+                                     cudaStream_t stream)
 {
     dummy_kernel<<<1, 1, 0, stream>>>(status, is_free);
-    return cudaGetLastError();
+    CUDACHECK(cudaGetLastError());
+    return XCCL_OK;
 }
 
 #ifdef __cplusplus

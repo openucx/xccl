@@ -44,9 +44,9 @@ static xccl_status_t xccl_cuda_open()
     env = getenv("XCCL_MC_CUDA_ACTIVITY");
     if (env) {
         if (strcmp(env, "kernel") == 0) {
-            xccl_cuda_mem_component.activity = XCCL_CUDA_MC_ACTIVITY_KERNEL;
+            xccl_cuda_mem_component.activity_fn_type = XCCL_CUDA_MC_ACTIVITY_KERNEL;
         } else if (strcmp(env, "driver") == 0) {
-            xccl_cuda_mem_component.activity = XCCL_CUDA_MC_ACTIVITY_DRIVER;
+            xccl_cuda_mem_component.activity_fn_type = XCCL_CUDA_MC_ACTIVITY_DRIVER;
         }
     }
     return XCCL_OK;
@@ -61,6 +61,22 @@ static xccl_status_t xccl_cuda_mem_alloc(void **ptr, size_t len)
 static xccl_status_t xccl_cuda_mem_free(void *ptr)
 {
     CUDACHECK(cudaFree(ptr));
+    return XCCL_OK;
+}
+
+xccl_status_t xccl_cuda_dummy_kernel(xccl_status_t *status, int *is_free,
+                                     cudaStream_t stream);
+
+xccl_status_t xccl_activity_driver(xccl_status_t *status, int *is_free,
+                                   cudaStream_t stream)
+{
+    CUdeviceptr status_ptr  = (CUdeviceptr)status;
+    CUdeviceptr is_free_ptr = (CUdeviceptr)is_free;
+
+    CUCHECK(cuStreamWriteValue32(stream, status_ptr, XCCL_INPROGRESS, 0));
+    CUCHECK(cuStreamWaitValue32(stream, status_ptr, XCCL_OK,
+                                CU_STREAM_WAIT_VALUE_EQ));
+    CUCHECK(cuStreamWriteValue32(stream, is_free_ptr, 1, 0));
     return XCCL_OK;
 }
 
@@ -92,7 +108,7 @@ static xccl_status_t xccl_cuda_alloc_resources()
                   &xccl_cuda_mem_component.events[i].cuda_event,
                   cudaEventDisableTiming));
     }
-    if (xccl_cuda_mem_component.activity == XCCL_CUDA_MC_ACTIVITY_DRIVER) {
+    if (xccl_cuda_mem_component.activity_fn_type == XCCL_CUDA_MC_ACTIVITY_DRIVER) {
         CUdevice device;
         int attr;
 
@@ -103,8 +119,12 @@ static xccl_status_t xccl_cuda_alloc_resources()
         if (attr == 0) {
             printf("CUDA MC: cuda memops are not supported or disabled "
                    "fallback to kernel\n");
-            xccl_cuda_mem_component.activity = XCCL_CUDA_MC_ACTIVITY_KERNEL;
+            xccl_cuda_mem_component.activity = xccl_cuda_dummy_kernel;
+        } else {
+            xccl_cuda_mem_component.activity = xccl_activity_driver;
         }
+    } else {
+        xccl_cuda_mem_component.activity = xccl_cuda_dummy_kernel;
     }
 
     return XCCL_OK;
@@ -182,9 +202,6 @@ xccl_status_t xccl_cuda_reduce_multi(void *sbuf1, void *sbuf2, void *rbuf,
                                        xccl_cuda_mem_component.stream);
 }
 
-cudaError_t xccl_cuda_dummy_kernel(xccl_status_t *status, int *is_free,
-                                   cudaStream_t stream);
-
 xccl_status_t
 xccl_cuda_start_acitivity(xccl_stream_t *stream,
                           xccl_mem_component_stream_request_t **req)
@@ -206,17 +223,12 @@ xccl_cuda_start_acitivity(xccl_stream_t *stream,
     CUDACHECK(cudaEventRecord(request->start_event->cuda_event, user_stream));
     CUDACHECK(cudaStreamWaitEvent(internal_stream,
                                   request->start_event->cuda_event, 0));
-    // switch (xccl_cuda_mem_component.activity) {
-    //     case XCCL_CUDA_MC_ACTIVITY_KERNEL:
-    CUDACHECK(xccl_cuda_dummy_kernel(request->dev_status, request->dev_is_free,
-                        internal_stream));
-    //         break;
-    //     case XCCL_CUDA_MC_ACTIVITY_DRIVER:
-    //         CUCHECK(cuStreamWriteValue32(internal_stream, request->dev_status, XCCL_INPROGRESS, 0));
-
-    //         break;
-    // }
-
+    st = xccl_cuda_mem_component.activity(request->dev_status,
+                                          request->dev_is_free,
+                                          internal_stream);
+    if (st != XCCL_OK) {
+        return st;
+    }
     CUDACHECK(cudaEventRecord(request->finish_event->cuda_event, internal_stream));
     CUDACHECK(cudaStreamWaitEvent(user_stream,
                                   request->finish_event->cuda_event, 0));

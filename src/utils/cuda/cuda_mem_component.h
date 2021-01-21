@@ -31,12 +31,16 @@ typedef enum xccl_cuda_mc_activity {
     XCCL_CUDA_MC_ACTIVITY_DRIVER,
 } xccl_cuda_mc_activity_t;
 
+typedef xccl_status_t (*activity_fn)(xccl_status_t *dev_status, int *is_free,
+                                     cudaStream_t stream);
+
 typedef struct xccl_cuda_mem_component {
     xccl_mem_component_t                     super;
     cudaStream_t                             stream;
     xccl_cuda_mem_component_stream_request_t *stream_requests;
     xccl_cuda_mc_event_t                     *events;
-    xccl_cuda_mc_activity_t                  activity;
+    xccl_cuda_mc_activity_t                  activity_fn_type;
+    activity_fn                              activity;
 } xccl_cuda_mem_component_t;
 
 #endif
