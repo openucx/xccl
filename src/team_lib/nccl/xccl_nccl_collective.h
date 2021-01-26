@@ -16,12 +16,14 @@
 typedef xccl_status_t (*xccl_nccl_collective_start_fn)(xccl_tl_coll_req_t *req);
 
 typedef struct xccl_nccl_coll_req {
-    xccl_tl_coll_req_t            super;
-    xccl_coll_op_args_t           args;
-    xccl_nccl_team_t              *team;
-    xccl_nccl_collective_start_fn coll_start;
-    xccl_mc_event_t               *completed;
-    xccl_status_t                 status;
+    xccl_tl_coll_req_t               super;
+    xccl_coll_op_args_t              args;
+    xccl_nccl_team_t                 *team;
+    xccl_nccl_collective_start_fn    coll_start;
+    xccl_nccl_completion_sync_type_t sync;
+    xccl_mc_event_t                  *completed;
+    xccl_cuda_status_t               *status;
+    float                            *barrier_buf;
 } xccl_nccl_coll_req_t;
 
 xccl_status_t
@@ -49,9 +51,15 @@ xccl_nccl_allgather_init(xccl_coll_op_args_t *coll_args,
                          xccl_nccl_coll_req_t *request,
                          xccl_nccl_team_t *team);
 xccl_status_t
+xccl_nccl_barrier_init(xccl_coll_op_args_t *coll_args,
+                       xccl_nccl_coll_req_t *request,
+                       xccl_nccl_team_t *team);
+
+xccl_status_t
 xccl_nccl_bcast_init(xccl_coll_op_args_t *coll_args,
                      xccl_nccl_coll_req_t *request,
                      xccl_nccl_team_t *team);
+
 
 #define TEAM_NCCL_CTX_REQ(_req) \
         (ucs_derived_of((_req)->team->super.ctx, xccl_nccl_context_t))

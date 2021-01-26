@@ -7,6 +7,7 @@
 #include "xccl_nccl_collective.h"
 #include "mem_component.h"
 #include <ucs/memory/memory_type.h>
+#include <cuda.h>
 
 extern ncclDataType_t xccl_to_nccl_dtype[XCCL_DT_LAST_PREDEFINED];
 extern ncclRedOp_t    xccl_to_nccl_reduce_op[XCCL_OP_LAST_PREDEFINED];
@@ -72,6 +73,12 @@ static ucs_config_field_t xccl_team_lib_nccl_config_table[] = {
      UCS_CONFIG_TYPE_BOOL
     },
 
+    {"BARRIER", "1",
+     "Enable NCCL barrier",
+     ucs_offsetof(xccl_team_lib_nccl_config_t, enable_barrier),
+     UCS_CONFIG_TYPE_BOOL
+    },
+
     {"BCAST", "1",
      "Enable NCCL broadcast",
      ucs_offsetof(xccl_team_lib_nccl_config_t, enable_bcast),
@@ -84,6 +91,7 @@ static ucs_config_field_t xccl_team_lib_nccl_config_table[] = {
 const char* xccl_nccl_sync_names[] = {
     [XCCL_NCCL_COMPLETION_SYNC_EVENT]    = "event",
     [XCCL_NCCL_COMPLETION_SYNC_CALLBACK] = "callback",
+    [XCCL_NCCL_COMPLETION_SYNC_MEMOPS]   = "memops"
 };
 
 
@@ -127,6 +135,9 @@ static xccl_status_t xccl_nccl_lib_open(xccl_team_lib_h self,
     if (cfg->enable_allgather) {
         tl->super.params.coll_types |= XCCL_COLL_CAP_ALLGATHER;
     }
+    if (cfg->enable_barrier) {
+        tl->super.params.coll_types |= XCCL_COLL_CAP_BARRIER;
+    }
     if (cfg->enable_bcast) {
         tl->super.params.coll_types |= XCCL_COLL_CAP_BCAST;
     }
@@ -144,13 +155,29 @@ xccl_nccl_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
 {
     xccl_nccl_context_t *ctx = malloc(sizeof(*ctx));
     xccl_tl_nccl_context_config_t *tl_config;
+    int attr;
+    CUdevice device;
 
     if (ctx == NULL) {
         xccl_nccl_error("failed to allocate memory for nccl context");
         return XCCL_ERR_NO_MEMORY;
     }
     tl_config = ucs_derived_of(config, xccl_tl_nccl_context_config_t);
-    ctx->completion_sync = tl_config->completion_sync;
+    if (tl_config->completion_sync == XCCL_NCCL_COMPLETION_SYNC_MEMOPS) {
+        CUCHECK(cuCtxGetDevice(&device));
+        CUCHECK(cuDeviceGetAttribute(&attr,
+                                     CU_DEVICE_ATTRIBUTE_CAN_USE_STREAM_MEM_OPS,
+                                     device));
+        if (attr == 0) {
+            xccl_nccl_warn("memops are not supported or disabled");
+            ctx->completion_sync = XCCL_NCCL_COMPLETION_SYNC_EVENT;
+        } else {
+            ctx->completion_sync = XCCL_NCCL_COMPLETION_SYNC_MEMOPS;
+        }
+    } else {
+        ctx->completion_sync = tl_config->completion_sync;
+    }
+
     xccl_nccl_debug("sync type: %s", xccl_nccl_sync_names[ctx->completion_sync]);
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
     *context = &ctx->super;
@@ -178,9 +205,22 @@ xccl_nccl_team_create_post(xccl_tl_context_t *context,
     ncclUniqueId unique_id, *gathered_ids;
     ncclResult_t nccl_st;
     int leastPriority=-1, greatestPriority=-1;
+    int i;
 
     XCCL_TEAM_SUPER_INIT(nccl_team->super, context, params);
     gathered_ids = (ncclUniqueId*)malloc(params->oob.size*sizeof(ncclUniqueId));
+    if (gathered_ids == NULL) {
+        return XCCL_ERR_NO_MEMORY;
+    }
+
+    CUDACHECK(cudaHostAlloc((void**)&nccl_team->status_pool,
+        STATUS_POOL_SIZE * sizeof(xccl_cuda_status_t), cudaHostAllocMapped));
+    for (i = 0; i < STATUS_POOL_SIZE; i++) {
+        CUDACHECK(cudaHostGetDevicePointer(
+            (void**)&(nccl_team->status_pool[i].dev_st),
+            (void*)&(nccl_team->status_pool[i].st), 0));
+        nccl_team->status_pool[i].is_free = 1;
+    }
 
     if (params->oob.rank == 0) {
         nccl_st = ncclGetUniqueId(&unique_id);
@@ -212,6 +252,9 @@ xccl_nccl_team_create_post(xccl_tl_context_t *context,
 static xccl_status_t
 xccl_nccl_team_create_test(xccl_tl_team_t *team)
 {
+    if (team == NULL) {
+        return XCCL_ERR_NO_MESSAGE;
+    }
     return XCCL_OK;
 }
 
@@ -224,6 +267,9 @@ xccl_nccl_team_destroy(xccl_tl_team_t *team)
     }
     if (nccl_team->stream != 0) {
         CUDACHECK(cudaStreamDestroy(nccl_team->stream));
+    }
+    if (nccl_team->status_pool != NULL) {
+        CUDACHECK(cudaFreeHost(nccl_team->status_pool));
     }
     free(team);
     return XCCL_OK;
@@ -241,18 +287,18 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
     ncclRedOp_t          nccl_redop;
     ncclDataType_t       nccl_dt;
 
-    status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
-                                     &mem_type);
-    if (status != XCCL_OK) {
-        xccl_nccl_error("Memtype detection error");
-        return XCCL_ERR_INVALID_PARAM;
+    if (coll_args->coll_type != XCCL_BARRIER) {
+        status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
+                                         &mem_type);
+        if (status != XCCL_OK) {
+            xccl_nccl_error("Memtype detection error");
+            return XCCL_ERR_INVALID_PARAM;
+        }
+        if (mem_type != UCS_MEMORY_TYPE_CUDA) {
+            xccl_nccl_error("doesn't support memtype %d", mem_type);
+            return XCCL_ERR_UNSUPPORTED;
+        }
     }
-
-    if (mem_type != UCS_MEMORY_TYPE_CUDA) {
-        xccl_nccl_error("doesn't support memtype %d", mem_type);
-        return XCCL_ERR_UNSUPPORTED;
-    }
-
     if (!(UCS_BIT(coll_args->coll_type) & xccl_team_lib_nccl.super.params.coll_types)) {
         xccl_nccl_error("collective is not supported or disabled");
     }
@@ -275,6 +321,9 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
     case XCCL_ALLGATHER:
         status = xccl_nccl_allgather_init(coll_args, req, nccl_team);
         break;
+    case XCCL_BARRIER:
+        status = xccl_nccl_barrier_init(coll_args, req, nccl_team);
+        break;
     case XCCL_BCAST:
         status = xccl_nccl_bcast_init(coll_args, req, nccl_team);
         break;
@@ -293,15 +342,15 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
 
 static void nccl_completion_callback(void *request) {
     xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
-    req->status = XCCL_OK;
+    req->status->st = XCCL_OK;
 }
 
 static xccl_status_t
 xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
 {
-    xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
+    xccl_nccl_coll_req_t *req    = ucs_derived_of(request, xccl_nccl_coll_req_t);
+    cudaStream_t         *stream = (cudaStream_t*)req->args.stream.stream;;
     xccl_status_t st;
-    cudaStream_t *stream;
 
     st = req->coll_start(request);
     if (st != XCCL_OK) {
@@ -309,14 +358,20 @@ xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
         return st;
     }
 
-    if (req->completed != NULL) {
+    switch(req->sync) {
+    case XCCL_NCCL_COMPLETION_SYNC_EVENT:
         st = xccl_mc_event_record(&req->args.stream, &req->completed);
-    } else {
-        stream = (cudaStream_t*)req->args.stream.stream;
-        req->status = XCCL_INPROGRESS;
+        break;
+    case XCCL_NCCL_COMPLETION_SYNC_CALLBACK:
         CUDACHECK(cudaLaunchHostFunc(*stream, nccl_completion_callback, req));
+        break;
+        st = XCCL_OK;
+    case XCCL_NCCL_COMPLETION_SYNC_MEMOPS:
+        CUCHECK(cuStreamWriteValue32(*stream, (CUdeviceptr)req->status->dev_st,
+                                     XCCL_OK, 0));
         st = XCCL_OK;
     }
+    req->status->st = XCCL_INPROGRESS;
 
     return st;
 }
@@ -327,19 +382,21 @@ xccl_nccl_collective_test(xccl_tl_coll_req_t *request)
     xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
     xccl_status_t st;
 
-    if (req->completed != NULL) {
-        /* use event to determine collective status */
-        req->status = xccl_mc_event_query(req->completed);
-        if (req->status != XCCL_INPROGRESS) {
-            st = xccl_mc_event_free(req->completed);
-            req->completed = NULL;
-            if (st != XCCL_OK) {
-                return st;
+    if (req->status->st == XCCL_INPROGRESS) {
+        if (req->sync == XCCL_NCCL_COMPLETION_SYNC_EVENT) {
+            /* use event to determine collective status */
+            req->status->st = xccl_mc_event_query(req->completed);
+            if (req->status->st != XCCL_INPROGRESS) {
+                st = xccl_mc_event_free(req->completed);
+                req->completed = NULL;
+                if (st != XCCL_OK) {
+                    return st;
+                }
             }
         }
     }
 
-    return req->status;
+    return req->status->st;
 }
 
 static xccl_status_t
@@ -357,8 +414,13 @@ xccl_nccl_collective_wait(xccl_tl_coll_req_t *request)
 static xccl_status_t
 xccl_nccl_collective_finalize(xccl_tl_coll_req_t *request)
 {
-    free(request);
+    xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
 
+    if (req->barrier_buf) {
+        cudaFree(req->barrier_buf);
+    }
+    req->status->is_free = 1;
+    free(req);
     return XCCL_OK;
 }
 

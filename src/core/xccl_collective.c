@@ -38,6 +38,12 @@ xccl_status_t xccl_collective_init(xccl_coll_op_args_t *coll_args,
             xccl_error("memtype detection error");
             return XCCL_ERR_INVALID_PARAM;
         }
+    } else if ((coll_args->coll_type == XCCL_BARRIER) &&
+               (coll_args->field_mask & XCCL_COLL_OP_ARGS_FIELD_STREAM))
+    {
+        if (coll_args->stream.type == XCCL_STREAM_TYPE_CUDA) {
+            mtype = UCS_MEMORY_TYPE_CUDA;
+        }
     }
 
     tl_team_id = team->coll_team_id[coll_args->coll_type][mtype];

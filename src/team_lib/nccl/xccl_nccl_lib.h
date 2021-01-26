@@ -12,8 +12,15 @@
 
 typedef enum xccl_nccl_completion_sync_type {
     XCCL_NCCL_COMPLETION_SYNC_EVENT,
-    XCCL_NCCL_COMPLETION_SYNC_CALLBACK
+    XCCL_NCCL_COMPLETION_SYNC_CALLBACK,
+    XCCL_NCCL_COMPLETION_SYNC_MEMOPS
 } xccl_nccl_completion_sync_type_t;
+
+typedef struct xccl_cuda_status {
+    int is_free;
+    xccl_status_t st;
+    void         *dev_st;
+} xccl_cuda_status_t;
 
 typedef struct xccl_team_lib_nccl_config {
     xccl_team_lib_config_t           super;
@@ -21,6 +28,7 @@ typedef struct xccl_team_lib_nccl_config {
     int                              enable_alltoall;
     int                              enable_alltoallv;
     int                              enable_allgather;
+    int                              enable_barrier;
     int                              enable_bcast;
 } xccl_team_lib_nccl_config_t;
 
@@ -29,6 +37,8 @@ typedef struct xccl_tl_nccl_context_config {
     char                             *device;
     xccl_nccl_completion_sync_type_t completion_sync;
 } xccl_tl_nccl_context_config_t;
+
+#define STATUS_POOL_SIZE 128
 
 typedef struct xccl_team_lib_nccl {
     xccl_team_lib_t             super;
@@ -59,24 +69,34 @@ typedef struct xccl_nccl_context {
 } xccl_nccl_context_t;
 
 typedef struct xccl_nccl_team {
-    xccl_tl_team_t super;
-    int            team_size;
-    ncclComm_t     nccl_comm;
-    cudaStream_t   stream;
+    xccl_tl_team_t     super;
+    int                team_size;
+    ncclComm_t         nccl_comm;
+    cudaStream_t       stream;
+    xccl_cuda_status_t *status_pool;
 } xccl_nccl_team_t;
 
 #define CUDACHECK(cmd) do {                         \
   cudaError_t e = cmd;                              \
-  if(cudaSuccess != e) {                            \
+  if (cudaSuccess != e) {                           \
     xccl_nccl_error("CUDA error %s:%d '%d' %s",     \
         __FILE__,__LINE__, e, cudaGetErrorName(e)); \
     return XCCL_ERR_NO_MESSAGE;                     \
   }                                                 \
 } while(0)
 
+#define CUCHECK(cmd) do {                           \
+  CUresult e = cmd;                                 \
+  if (CUDA_SUCCESS != e) {                          \
+    xccl_nccl_error("CUDA error %s:%d '%d'",        \
+        __FILE__,__LINE__, e);                      \
+    return XCCL_ERR_NO_MESSAGE;                     \
+  }                                                 \
+} while(0)
+
 #define NCCLCHECK(cmd) do {                           \
   ncclResult_t e = cmd;                               \
-  if(ncclSuccess != e) {                              \
+  if (ncclSuccess != e) {                             \
     xccl_nccl_error("NCCL error %s:%d '%d' %s",       \
         __FILE__,__LINE__, e, ncclGetErrorString(e)); \
     return XCCL_ERR_NO_MESSAGE;                       \

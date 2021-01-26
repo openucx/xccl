@@ -9,6 +9,22 @@
 ncclDataType_t xccl_to_nccl_dtype[XCCL_DT_LAST_PREDEFINED];
 ncclRedOp_t    xccl_to_nccl_reduce_op[XCCL_OP_LAST_PREDEFINED];
 
+static inline xccl_status_t
+xccl_nccl_get_free_status(xccl_nccl_team_t *team, xccl_cuda_status_t **status)
+{
+    int i;
+    xccl_cuda_status_t *st;
+    for (i = 0; i < STATUS_POOL_SIZE; i++) {
+        st = team->status_pool + i;
+        if (st->is_free) {
+            st->is_free = 0;
+            *status = st;
+            return XCCL_OK;
+        }
+    }
+    return XCCL_ERR_NO_RESOURCE;
+}
+
 xccl_status_t
 xccl_nccl_collective_init_base(xccl_coll_op_args_t *coll_args,
                                xccl_nccl_coll_req_t **request,
@@ -16,12 +32,18 @@ xccl_nccl_collective_init_base(xccl_coll_op_args_t *coll_args,
 {
     xccl_nccl_team_t *nccl_team       = ucs_derived_of(team, xccl_nccl_team_t);
     unsigned int     cuda_event_flags = cudaEventDisableTiming;
+    xccl_status_t st;
 
     *request = (xccl_nccl_coll_req_t*)malloc(sizeof(xccl_nccl_coll_req_t));
     if (*request == NULL) {
         return XCCL_ERR_NO_MEMORY;
     }
 
+    st = xccl_nccl_get_free_status(team, &((*request)->status));
+    if (st != XCCL_OK) {
+        free(*request);
+        return st;
+    }
     memcpy(&((*request)->args), coll_args, sizeof(xccl_coll_op_args_t));
     if (!(coll_args->field_mask & XCCL_COLL_OP_ARGS_FIELD_STREAM)) {
     /* use internal stream if stream is not provided via coll_args */
@@ -30,21 +52,10 @@ xccl_nccl_collective_init_base(xccl_coll_op_args_t *coll_args,
         (*request)->args.stream.stream = &nccl_team->stream;
     }
 
-    (*request)->team      = nccl_team;
-    (*request)->super.lib = &xccl_team_lib_nccl.super;
-
-    switch((TEAM_NCCL_CTX_REQ(*request)->completion_sync)) {
-    case XCCL_NCCL_COMPLETION_SYNC_EVENT:
-        ((*request)->completed) = (void*)0x1;
-        break;
-    case XCCL_NCCL_COMPLETION_SYNC_CALLBACK:
-        ((*request)->completed) = NULL;
-        break;
-    default:
-        xccl_nccl_error("wrong completion sync type");
-        free(*request);
-        return XCCL_ERR_INVALID_PARAM;
-    }
+    (*request)->team        = nccl_team;
+    (*request)->super.lib   = &xccl_team_lib_nccl.super;
+    (*request)->sync        = TEAM_NCCL_CTX_REQ(*request)->completion_sync;
+    (*request)->barrier_buf = NULL;
 
     return XCCL_OK;
 }
@@ -214,6 +225,33 @@ xccl_nccl_allgather_init(xccl_coll_op_args_t *coll_args,
                          xccl_nccl_team_t *team)
 {
     request->coll_start = xccl_nccl_allgather_start;
+    return XCCL_OK;
+}
+
+xccl_status_t
+xccl_nccl_barrier_start(xccl_tl_coll_req_t *request)
+{
+    xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
+    xccl_coll_op_args_t  *args = &req->args;
+    ncclResult_t nccl_st;
+    cudaStream_t *stream;
+
+    stream = (cudaStream_t*)args->stream.stream;
+    nccl_st = ncclAllReduce(req->barrier_buf, req->barrier_buf, 4, ncclFloat32,
+                            ncclSum, req->team->nccl_comm, *stream);
+    if (nccl_st != ncclSuccess) {
+        xccl_nccl_error("ncclBarrier failed (%d)", nccl_st);
+        return XCCL_ERR_NO_MESSAGE;
+    }
+}
+
+xccl_status_t
+xccl_nccl_barrier_init(xccl_coll_op_args_t *coll_args,
+                       xccl_nccl_coll_req_t *request,
+                       xccl_nccl_team_t *team)
+{
+    CUDACHECK(cudaMalloc((void**)&request->barrier_buf, 4));
+    request->coll_start = xccl_nccl_barrier_start;
     return XCCL_OK;
 }
 
