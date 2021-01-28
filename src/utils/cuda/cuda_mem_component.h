@@ -38,6 +38,7 @@ typedef struct xccl_cuda_mem_component {
     xccl_cuda_mem_component_stream_request_t *stream_requests;
     xccl_cuda_mc_event_t                     *events;
     xccl_cuda_mc_activity_t                  activity_fn_type;
+    int                                      use_user_stream;
     activity_fn                              activity;
 } xccl_cuda_mem_component_t;
 

@@ -263,6 +263,7 @@ void xccl_mem_component_free_cache()
                 mem_components[mt]->mem_free(mem_components[mt]->cache.buf);
             }
             mem_components[mt]->close();
+            mem_components[mt] = NULL;
         }
     }
 }

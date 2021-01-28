@@ -49,6 +49,19 @@ static xccl_status_t xccl_cuda_open()
             xccl_cuda_mem_component.activity_fn_type = XCCL_CUDA_MC_ACTIVITY_DRIVER;
         }
     }
+    xccl_cuda_mem_component.use_user_stream = 0;
+    env = getenv("XCCL_MC_CUDA_ACTIVITY_STREAM");
+    if (env) {
+        if (strcmp(env, "user") == 0) {
+            xccl_cuda_mem_component.use_user_stream = 1;
+        } else if (strcmp(env, "internal") == 0) {
+            xccl_cuda_mem_component.use_user_stream = 0;
+        } else {
+            fprintf(stderr, "Unknown value of XCCL_MC_CUDA_ACTIVITY_STREAM\n");
+        }
+    }
+    fprintf(stdout, "cuda mc: user stream %d\n",
+            xccl_cuda_mem_component.use_user_stream);
     return XCCL_OK;
 }
 
@@ -143,7 +156,6 @@ xccl_cuda_get_free_event(xccl_cuda_mc_event_t **event) {
             return XCCL_OK;
         }
     }
-
     return XCCL_ERR_NO_RESOURCE;
 }
 
@@ -258,23 +270,33 @@ xccl_cuda_start_acitivity(xccl_stream_t *stream,
     request->status = XCCL_INITIALIZED;
     user_stream = *((cudaStream_t*)stream->stream);
     internal_stream = xccl_cuda_mem_component.stream;
-    st = xccl_cuda_get_free_event(&xccl_event);
-    if (st != XCCL_OK) {
-        fprintf(stderr, "cuda mc: failed to get cuda event (%d)\n", st);
-        return st;
+    if (xccl_cuda_mem_component.use_user_stream) {
+        st = xccl_cuda_mem_component.activity(request->dev_status,
+                                              request->dev_is_free,
+                                              user_stream);
+        if (st != XCCL_OK) {
+            return st;
+        }
+    } else {
+        st = xccl_cuda_get_free_event(&xccl_event);
+        if (st != XCCL_OK) {
+            fprintf(stderr, "cuda mc: failed to get cuda event (%d)\n", st);
+            return st;
+        }
+        cuda_event = xccl_event->cuda_event;
+        CUDACHECK(cudaEventRecord(cuda_event, user_stream));
+        CUDACHECK(cudaStreamWaitEvent(internal_stream, cuda_event, 0));
+        st = xccl_cuda_mem_component.activity(request->dev_status,
+                                            request->dev_is_free,
+                                            internal_stream);
+        if (st != XCCL_OK) {
+            return st;
+            xccl_cuda_event_free(&(xccl_event->super));
+        }
+        CUDACHECK(cudaEventRecord(cuda_event, internal_stream));
+        CUDACHECK(cudaStreamWaitEvent(user_stream, cuda_event, 0));
+        xccl_cuda_event_free(&(xccl_event->super));
     }
-    cuda_event = xccl_event->cuda_event;
-    CUDACHECK(cudaEventRecord(cuda_event, user_stream));
-    CUDACHECK(cudaStreamWaitEvent(internal_stream, cuda_event, 0));
-    st = xccl_cuda_mem_component.activity(request->dev_status,
-                                          request->dev_is_free,
-                                          internal_stream);
-    if (st != XCCL_OK) {
-        return st;
-    }
-    CUDACHECK(cudaEventRecord(cuda_event, internal_stream));
-    CUDACHECK(cudaStreamWaitEvent(user_stream, cuda_event, 0));
-    xccl_cuda_event_free(&(xccl_event->super));
     *req = &request->super;
 
     return XCCL_OK;
@@ -334,6 +356,7 @@ static void xccl_cuda_close()
         for (i = 0; i < NUM_EVENTS; i++) {
             cudaEventDestroy(xccl_cuda_mem_component.events[i].cuda_event);
         }
+        free(xccl_cuda_mem_component.events);
         cudaFreeHost(xccl_cuda_mem_component.stream_requests);
         cudaStreamDestroy(xccl_cuda_mem_component.stream);
     }
