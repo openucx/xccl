@@ -81,6 +81,16 @@ else
     CFLAGS="$CFLAGS -O3 -DNDEBUG"
 fi
 
+AC_ARG_ENABLE([exec-hook],
+AS_HELP_STRING([--enable-exec-hook], [Enable exec-hook (default is YES).]),
+[], [enable_exec_hook=yes])
+
+if test $enable_exec_hook = yes; then
+    AM_CONDITIONAL([ENABLE_EXEC_HOOK], [true])
+else
+    AM_CONDITIONAL([ENABLE_EXEC_HOOK], [false])
+fi
+
 AC_ARG_ENABLE([team-mrail],
 AS_HELP_STRING([--enable-team-mrail], [Enable multirail team (default is NO).]),
 [], [enable_team_mrail=no])
@@ -111,7 +121,7 @@ AC_ARG_WITH([cuda],
             AC_HELP_STRING([--with-cuda=PATH], [Path to non-standard CUDA installation]),
             [AS_IF([test -d $withval/lib64], [cuda_libdir="lib64"], [cuda_libdir="lib"])
              AC_SUBST(CUDA_CPPFLAGS, "-I$withval/include")
-             AC_SUBST(CUDA_LDFLAGS, "-L$withval/$cuda_libdir -lcudart -lcuda")
+             AC_SUBST(CUDA_LDFLAGS, "-L$withval/$cuda_libdir -lcudart -L$withval/$cuda_libdir/stubs -lcuda")
              cuda_happy="yes"],
             [cuda_happy="no"])
 AM_CONDITIONAL([HAVE_CUDA], [test "x$cuda_happy" != xno])

@@ -83,6 +83,7 @@ typedef struct xccl_ucx_collreq {
     xccl_mc_event_t                     *ready_to_start;
     xccl_status_t                       (*start)(struct xccl_ucx_collreq* req);
     xccl_status_t                       (*progress)(struct xccl_ucx_collreq* req);
+    int                                 mapped;
     union {
         struct {
             xccl_ucx_request_t *reqs[MAX_REQS];

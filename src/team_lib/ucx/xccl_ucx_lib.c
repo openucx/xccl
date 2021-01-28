@@ -251,19 +251,7 @@ xccl_ucx_coll_base_init(xccl_coll_op_args_t *coll_args, xccl_tl_team_t *team,
     req->src_mem_type = src_mem_type;
     req->dst_mem_type = dst_mem_type;
     req->stream_req   = NULL;
-
-    // for testing
-    if (ctx->pre_mem_map == XCCL_TEAM_UCX_COLL_INIT_PRE_MAP ||
-        ctx->pre_mem_map == XCCL_TEAM_UCX_COLL_INIT_AND_ALLOC_PRE_MAP) {
-        if (coll_args->coll_type == XCCL_ALLTOALLV || coll_args->coll_type == XCCL_ALLTOALL) {
-            length = xccl_ucx_get_buffer_len(coll_args, team->params.oob.size, 1);
-            xccl_ucx_mem_map(coll_args->buffer_info.src_buffer, length, src_mem_type, ctx);
-            if (coll_args->buffer_info.src_buffer != coll_args->buffer_info.dst_buffer) {
-                length = xccl_ucx_get_buffer_len(coll_args, team->params.oob.size, 0);
-                xccl_ucx_mem_map(coll_args->buffer_info.dst_buffer, length, dst_mem_type, ctx);
-            }
-        }
-    }
+    req->mapped       = 0;
 
     (*request)     = req;
     return XCCL_OK;
@@ -546,6 +534,22 @@ xccl_ucx_collective_init(xccl_coll_op_args_t *coll_args,
     return XCCL_ERR_INVALID_PARAM;
 }
 
+static void xccl_ucx_register(xccl_ucx_collreq_t *req) {
+    size_t length;
+
+    if (TEAM_UCX_CTX_REQ(req)->pre_mem_map == XCCL_TEAM_UCX_COLL_INIT_PRE_MAP ||
+        TEAM_UCX_CTX_REQ(req)->pre_mem_map == XCCL_TEAM_UCX_COLL_INIT_AND_ALLOC_PRE_MAP) {
+        if (req->args.coll_type == XCCL_ALLTOALLV || req->args.coll_type == XCCL_ALLTOALL) {
+            length = xccl_ucx_get_buffer_len(&req->args, req->team->params.oob.size, 1);
+            xccl_ucx_mem_map(req->args.buffer_info.src_buffer, length, req->src_mem_type, TEAM_UCX_CTX_REQ(req));
+            if (req->args.buffer_info.src_buffer != req->args.buffer_info.dst_buffer) {
+                length = xccl_ucx_get_buffer_len(&req->args, req->team->params.oob.size, 0);
+                xccl_ucx_mem_map(req->args.buffer_info.dst_buffer, length, req->dst_mem_type, TEAM_UCX_CTX_REQ(req));
+            }
+        }
+    }
+    req->mapped = 1;
+}
 static xccl_status_t xccl_ucx_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
@@ -594,6 +598,7 @@ static xccl_status_t xccl_ucx_collective_post(xccl_tl_coll_req_t *request)
         req->ready_to_start = (void*)0x2;
         return XCCL_OK;
     }
+    xccl_ucx_register(req);
     req->ready_to_start = NULL;
     return req->start(req);
 }
@@ -603,6 +608,9 @@ static xccl_status_t xccl_ucx_collective_test(xccl_tl_coll_req_t *request)
     xccl_ucx_collreq_t *req = ucs_derived_of(request, xccl_ucx_collreq_t);
     xccl_status_t status;
 
+    if (req->mapped == 0) {
+        xccl_ucx_register(req);
+    }
     if (req->ready_to_start != NULL) {
         if ((ptrdiff_t)req->ready_to_start != 0x2) {
             if (TEAM_UCX_CTX_REQ(req)->block_stream[req->args.coll_type]) {

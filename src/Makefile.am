@@ -59,6 +59,8 @@ libxccl_la_SOURCES =                  \
 
 libxccl_ladir = $(includedir)
 
+if ENABLE_EXEC_HOOK
 install-exec-hook:
 	cp -f $(XCCL_TOP_BUILDDIR)/src/libxccl.la $(libdir)/
 	perl -pi -e "s/installed=no/installed=yes/" $(libdir)/libxccl.la
+endif

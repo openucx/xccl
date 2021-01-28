@@ -60,8 +60,6 @@ static xccl_status_t xccl_cuda_open()
             fprintf(stderr, "Unknown value of XCCL_MC_CUDA_ACTIVITY_STREAM\n");
         }
     }
-    fprintf(stdout, "cuda mc: user stream %d\n",
-            xccl_cuda_mem_component.use_user_stream);
     return XCCL_OK;
 }
 
