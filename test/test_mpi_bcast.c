@@ -50,7 +50,9 @@ int main (int argc, char **argv) {
             .root = r,
             .buffer_info = {
                 .src_buffer = buf,
+                .src_mtype  = UCS_MEMORY_TYPE_UNKNOWN,
                 .dst_buffer = buf,
+                .dst_mtype  = UCS_MEMORY_TYPE_UNKNOWN,
                 .len        = count*sizeof(int),
             },
             .alg.set_by_user = 1,

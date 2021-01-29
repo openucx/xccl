@@ -287,17 +287,9 @@ xccl_nccl_collective_init(xccl_coll_op_args_t *coll_args,
     ncclRedOp_t          nccl_redop;
     ncclDataType_t       nccl_dt;
 
-    if (coll_args->coll_type != XCCL_BARRIER) {
-        status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
-                                         &mem_type);
-        if (status != XCCL_OK) {
-            xccl_nccl_error("Memtype detection error");
-            return XCCL_ERR_INVALID_PARAM;
-        }
-        if (mem_type != UCS_MEMORY_TYPE_CUDA) {
-            xccl_nccl_error("doesn't support memtype %d", mem_type);
-            return XCCL_ERR_UNSUPPORTED;
-        }
+    if (coll_args->buffer_info.src_mtype != UCS_MEMORY_TYPE_CUDA) {
+        xccl_nccl_error("doesn't support memtype %d", mem_type);
+        return XCCL_ERR_UNSUPPORTED;
     }
     if (!(UCS_BIT(coll_args->coll_type) & xccl_team_lib_nccl.super.params.coll_types)) {
         xccl_nccl_error("collective is not supported or disabled");
@@ -349,7 +341,7 @@ static xccl_status_t
 xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
 {
     xccl_nccl_coll_req_t *req    = ucs_derived_of(request, xccl_nccl_coll_req_t);
-    cudaStream_t         *stream = (cudaStream_t*)req->args.stream.stream;;
+    cudaStream_t         stream = (cudaStream_t)req->args.stream.stream;;
     xccl_status_t st;
 
     st = req->coll_start(request);
@@ -363,11 +355,11 @@ xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
         st = xccl_mc_event_record(&req->args.stream, &req->completed);
         break;
     case XCCL_NCCL_COMPLETION_SYNC_CALLBACK:
-        CUDACHECK(cudaLaunchHostFunc(*stream, nccl_completion_callback, req));
+        CUDACHECK(cudaLaunchHostFunc(stream, nccl_completion_callback, req));
         break;
         st = XCCL_OK;
     case XCCL_NCCL_COMPLETION_SYNC_MEMOPS:
-        CUCHECK(cuStreamWriteValue32(*stream, (CUdeviceptr)req->status->dev_st,
+        CUCHECK(cuStreamWriteValue32(stream, (CUdeviceptr)req->status->dev_st,
                                      XCCL_OK, 0));
         st = XCCL_OK;
     }

@@ -413,22 +413,25 @@ typedef struct xccl_reduce_info {
 } xccl_reduce_info_t;
 
 typedef struct xccl_coll_buffer_info {
-    void      *src_buffer;
-    uint32_t  *src_counts;
-    uint32_t  *src_displacements;
-    xccl_dt_t src_datatype;
-    void      *dst_buffer;
-    uint32_t  *dst_counts;
-    uint32_t  *dst_displacements;
-    xccl_dt_t dst_datatype;
-    size_t    len;
+    void              *src_buffer;
+    uint32_t          *src_counts;
+    uint32_t          *src_displacements;
+    xccl_dt_t         src_datatype;
+    ucs_memory_type_t src_mtype;
+    void              *dst_buffer;
+    uint32_t          *dst_counts;
+    uint32_t          *dst_displacements;
+    ucs_memory_type_t dst_mtype;
+    xccl_dt_t         dst_datatype;
+    size_t            len;
 } xccl_coll_buffer_info_t;
 
 typedef struct xccl_coll_get_info {
-    xccl_mem_h memh;
-    ptrdiff_t  offset;
-    void       *local_buffer;
-    size_t len;
+    xccl_mem_h        memh;
+    ucs_memory_type_t mtype;
+    ptrdiff_t         offset;
+    void              *local_buffer;
+    size_t            len;
 } xccl_coll_get_info_t;
 
 typedef struct xccl_coll_algorithm {

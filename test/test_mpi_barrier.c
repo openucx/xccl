@@ -15,6 +15,9 @@ do_barrier(xccl_team_h team) {
     xccl_coll_op_args_t coll = {
         .field_mask = 0,
         .coll_type = XCCL_BARRIER,
+        .buffer_info = {
+            .src_mtype  = UCS_MEMORY_TYPE_UNKNOWN,
+        },
         .alg.set_by_user = 0,
         .tag  = 123, //todo
     };

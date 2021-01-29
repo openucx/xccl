@@ -25,7 +25,9 @@ int main (int argc, char **argv) {
         .coll_type = XCCL_ALLREDUCE,
         .buffer_info = {
             .src_buffer = sbuf,
+            .src_mtype  = UCS_MEMORY_TYPE_UNKNOWN,
             .dst_buffer = rbuf,
+            .dst_mtype  = UCS_MEMORY_TYPE_UNKNOWN,
             .len        = count*sizeof(int),
         },
         .reduce_info = {

@@ -34,7 +34,9 @@ int main (int argc, char **argv) {
             .root        = r,
             .buffer_info = {
                 .src_buffer = sbuf,
+                .src_mtype  = UCS_MEMORY_TYPE_HOST,
                 .dst_buffer = rbuf,
+                .dst_mtype  = UCS_MEMORY_TYPE_HOST,
                 .len        = msg_size,
             },
             .reduce_info = {

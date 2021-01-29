@@ -108,6 +108,7 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
             schedule->super.args[c].xccl_coll.get_info.offset = 0;
             schedule->super.args[c].xccl_coll.get_info.len = coll.buffer_info.len;
             schedule->super.args[c].xccl_coll.get_info.local_buffer = coll.buffer_info.dst_buffer;
+            schedule->super.args[c].xccl_coll.get_info.mtype = coll.buffer_info.dst_mtype;
         }
         schedule->super.args[c].pair = team->pairs[spec.pairs.socket_leaders];
         if (coll.root != team->sbgps[SBGP_SOCKET_LEADERS].group_rank) {
@@ -128,6 +129,7 @@ xccl_status_t build_bcast_schedule(xccl_hier_team_t *team, xccl_coll_op_args_t c
             schedule->super.args[c].xccl_coll.get_info.offset = 0;
             schedule->super.args[c].xccl_coll.get_info.len = coll.buffer_info.len;
             schedule->super.args[c].xccl_coll.get_info.local_buffer = coll.buffer_info.dst_buffer;
+            schedule->super.args[c].xccl_coll.get_info.mtype = coll.buffer_info.dst_mtype;
         }
         schedule->super.args[c].pair = team->pairs[spec.pairs.socket];
         if (coll.root != team->sbgps[SBGP_SOCKET].group_rank) {

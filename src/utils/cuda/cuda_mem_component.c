@@ -7,21 +7,22 @@ xccl_cuda_mem_component_t xccl_cuda_mem_component;
 #define NUM_STREAM_REQUESTS 128
 #define NUM_EVENTS 32
 
-#define CUDACHECK(cmd) do {                                         \
-        cudaError_t e = cmd;                                        \
-        if( e != cudaSuccess && e != cudaErrorCudartUnloading ) {   \
-            fprintf(stderr, "cuda failed wtih ret:%d(%s)", e,       \
-                             cudaGetErrorString(e));                \
-            return XCCL_ERR_NO_MESSAGE;                             \
-        }                                                           \
+#define CUDACHECK(cmd) do {                                        \
+        cudaError_t e = cmd;                                       \
+        if( e != cudaSuccess && e != cudaErrorCudartUnloading ) {  \
+            fprintf(stderr, "cuda failed wtih ret:%d(%s) %s:%d\n", \
+                    e, cudaGetErrorString(e), __FILE__, __LINE__); \
+            return XCCL_ERR_NO_MESSAGE;                            \
+        }                                                          \
 } while(0)
 
-#define CUCHECK(cmd) do {                                  \
-        CUresult e = cmd;                                  \
-        if( e != CUDA_SUCCESS) {                           \
-            fprintf(stderr, "cuda failed wtih ret:%d", e); \
-            return XCCL_ERR_NO_MESSAGE;                    \
-        }                                                  \
+#define CUCHECK(cmd) do {                                      \
+        CUresult e = cmd;                                      \
+        if( e != CUDA_SUCCESS) {                               \
+            fprintf(stderr, "cuda failed wtih ret:%d %s:%d\n", \
+                    e, __FILE__, __LINE__);                    \
+            return XCCL_ERR_NO_MESSAGE;                        \
+        }                                                      \
 } while(0)
 
 #define XCCL_CUDA_INIT_RESOUCES() do {               \
@@ -217,7 +218,7 @@ xccl_status_t xccl_cuda_event_record(xccl_stream_t *stream,
         return st;
     }
 
-    user_stream = *((cudaStream_t*)stream->stream);
+    user_stream = (cudaStream_t)stream->stream;
     CUDACHECK(cudaEventRecord(et->cuda_event, user_stream));
 
     *event = &et->super;
@@ -266,7 +267,7 @@ xccl_cuda_start_acitivity(xccl_stream_t *stream,
     }
 
     request->status = XCCL_INITIALIZED;
-    user_stream = *((cudaStream_t*)stream->stream);
+    user_stream = (cudaStream_t)stream->stream;
     internal_stream = xccl_cuda_mem_component.stream;
     if (xccl_cuda_mem_component.use_user_stream) {
         st = xccl_cuda_mem_component.activity(request->dev_status,

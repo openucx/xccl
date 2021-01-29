@@ -1,13 +1,13 @@
 #include <api/xccl.h>
 #include <cuda.h>
 
-#define CUDACHECK(cmd) do {                                         \
-        cudaError_t e = cmd;                                        \
-        if( e != cudaSuccess && e != cudaErrorCudartUnloading ) {   \
-            fprintf(stderr, "cuda failed wtih ret:%d(%s)", e,       \
-                             cudaGetErrorString(e));                \
-            return XCCL_ERR_NO_MESSAGE;                             \
-        }                                                           \
+#define CUDACHECK(cmd) do {                                        \
+        cudaError_t e = cmd;                                       \
+        if( e != cudaSuccess && e != cudaErrorCudartUnloading ) {  \
+            fprintf(stderr, "cuda failed wtih ret:%d(%s) %s:%d\n", \
+                    e, cudaGetErrorString(e), __FILE__, __LINE__); \
+            return XCCL_ERR_NO_MESSAGE;                            \
+        }                                                          \
 } while(0)
 
 __global__ void dummy_kernel(volatile xccl_status_t *status, int *is_free) {

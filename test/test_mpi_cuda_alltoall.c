@@ -9,7 +9,7 @@
 
 int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
              void *rbuf_mpi, int count, int comm_rank, int comm_size,
-             int use_stream_sync, cudaStream_t *stream)
+             int use_stream_sync, cudaStream_t stream)
 {
     xccl_coll_req_h request;
     MPI_Request     mpi_req;
@@ -23,7 +23,9 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
         .coll_type = XCCL_ALLTOALL,
         .buffer_info = {
             .src_buffer = sbuf,
+            .src_mtype  = UCS_MEMORY_TYPE_CUDA,
             .dst_buffer = rbuf,
+            .dst_mtype  = UCS_MEMORY_TYPE_CUDA,
             .len        = count*sizeof(int),
         },
         .alg.set_by_user = 0,
@@ -40,7 +42,7 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
     XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));
     XCCL_CHECK(xccl_collective_post(request));
     if (use_stream_sync) {
-        while (cudaErrorNotReady == cudaStreamQuery(*stream)) {
+        while (cudaErrorNotReady == cudaStreamQuery(stream)) {
             xccl_collective_test(request);
             xccl_context_progress(team_ctx);
         }
@@ -63,8 +65,8 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_host, void *sbuf_mpi,
     }
 
     cudaMemcpyAsync(rbuf_host, rbuf, comm_size*count*sizeof(int),
-                    cudaMemcpyDeviceToHost, *stream);
-    cudaStreamSynchronize(*stream);
+                    cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
     if (0 != memcmp(rbuf_host, rbuf_mpi, comm_size*count*sizeof(int))) {
         fprintf(stderr, "RST CHECK FAILURE at rank %d, count %d\n", comm_rank, count);
         status = 1;
@@ -128,7 +130,7 @@ int main (int argc, char **argv)
                 cudaStreamSynchronize(stream);
             }
             status_global = run_test(sbuf_cuda, rbuf_cuda, rbuf_host, sbuf_host, rbuf_mpi,
-                                     count, rank, size, use_stream_sync, &stream);
+                                     count, rank, size, use_stream_sync, stream);
             if (status_global) {
                 goto end;
             }

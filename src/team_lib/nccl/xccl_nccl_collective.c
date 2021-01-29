@@ -49,7 +49,7 @@ xccl_nccl_collective_init_base(xccl_coll_op_args_t *coll_args,
     /* use internal stream if stream is not provided via coll_args */
         xccl_nccl_trace("using internal stream");
         (*request)->args.stream.type   = XCCL_STREAM_TYPE_CUDA;
-        (*request)->args.stream.stream = &nccl_team->stream;
+        (*request)->args.stream.stream = (void*)nccl_team->stream;
     }
 
     (*request)->team        = nccl_team;
@@ -66,16 +66,16 @@ xccl_nccl_allreduce_start(xccl_tl_coll_req_t *request)
     xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
     xccl_coll_op_args_t  *args = &req->args;
     ncclResult_t nccl_st;
-    cudaStream_t *stream;
+    cudaStream_t stream;
 
-    stream = (cudaStream_t*)args->stream.stream;
+    stream = (cudaStream_t)args->stream.stream;
     nccl_st = ncclAllReduce(args->buffer_info.src_buffer,
                             args->buffer_info.dst_buffer,
                             args->reduce_info.count,
                             xccl_to_nccl_dtype[args->reduce_info.dt],
                             xccl_to_nccl_reduce_op[args->reduce_info.op],
                             req->team->nccl_comm,
-                            *stream);
+                            stream);
     if (nccl_st != ncclSuccess) {
         xccl_nccl_error("ncclAllReduce failed (%d)", nccl_st);
         return XCCL_ERR_NO_MESSAGE;
@@ -111,9 +111,9 @@ xccl_nccl_alltoall_start(xccl_tl_coll_req_t *request)
     size_t       data_size;
     int          group_size;
     int          peer;
-    cudaStream_t *stream;
+    cudaStream_t stream;
 
-    stream = (cudaStream_t*)args->stream.stream;
+    stream = (cudaStream_t)args->stream.stream;
     NCCLCHECK(ncclCommCount(req->team->nccl_comm, &group_size));
     sbuf      = (ptrdiff_t)args->buffer_info.src_buffer;
     rbuf      = (ptrdiff_t)args->buffer_info.dst_buffer;
@@ -124,11 +124,11 @@ xccl_nccl_alltoall_start(xccl_tl_coll_req_t *request)
         NCCLCHECK(ncclSend((void*)(sbuf + peer*data_size),
                            data_size, ncclChar, peer,
                            req->team->nccl_comm,
-                           *stream));
+                           stream));
         NCCLCHECK(ncclRecv((void*)(rbuf + peer*data_size),
                            data_size, ncclChar, peer,
                            req->team->nccl_comm,
-                           *stream));
+                           stream));
 
     }
     NCCLCHECK(ncclGroupEnd());
@@ -154,9 +154,9 @@ xccl_nccl_alltoallv_start(xccl_tl_coll_req_t *request)
     size_t       size, offset;
     int          send_dt_size, recv_dt_size;
     int          group_size, peer;
-    cudaStream_t *stream;
+    cudaStream_t stream;
 
-    stream = (cudaStream_t*)args->stream.stream;
+    stream = (cudaStream_t)args->stream.stream;
     NCCLCHECK(ncclCommCount(req->team->nccl_comm, &group_size));
     sbuf         = (ptrdiff_t)args->buffer_info.src_buffer;
     rbuf         = (ptrdiff_t)args->buffer_info.dst_buffer;
@@ -170,14 +170,14 @@ xccl_nccl_alltoallv_start(xccl_tl_coll_req_t *request)
         NCCLCHECK(ncclSend((void*)(sbuf + offset),
                            size, ncclChar, peer,
                            req->team->nccl_comm,
-                           *stream));
+                           stream));
 
         offset = recv_dt_size*args->buffer_info.dst_displacements[peer];
         size   = recv_dt_size*args->buffer_info.dst_counts[peer];
         NCCLCHECK(ncclRecv((void*)(rbuf + offset),
                            size, ncclChar, peer,
                            req->team->nccl_comm,
-                           *stream));
+                           stream));
 
     }
     NCCLCHECK(ncclGroupEnd());
@@ -202,15 +202,15 @@ xccl_nccl_allgather_start(xccl_tl_coll_req_t *request)
     xccl_nccl_team_t     *team = ucs_derived_of(req->team, xccl_nccl_team_t);
     xccl_coll_op_args_t  *args = &req->args;
     ncclResult_t nccl_st;
-    cudaStream_t *stream;
+    cudaStream_t stream;
 
-    stream = (cudaStream_t*)args->stream.stream;
+    stream = (cudaStream_t)args->stream.stream;
     nccl_st = ncclAllGather(args->buffer_info.src_buffer,
                             args->buffer_info.dst_buffer,
                             args->buffer_info.len / team->team_size,
                             ncclChar,
                             req->team->nccl_comm,
-                            *stream);
+                            stream);
     if (nccl_st != ncclSuccess) {
         xccl_nccl_error("ncclAllGather failed (%d)", nccl_st);
         return XCCL_ERR_NO_MESSAGE;
@@ -234,11 +234,11 @@ xccl_nccl_barrier_start(xccl_tl_coll_req_t *request)
     xccl_nccl_coll_req_t *req  = ucs_derived_of(request, xccl_nccl_coll_req_t);
     xccl_coll_op_args_t  *args = &req->args;
     ncclResult_t nccl_st;
-    cudaStream_t *stream;
+    cudaStream_t stream;
 
-    stream = (cudaStream_t*)args->stream.stream;
+    stream = (cudaStream_t)args->stream.stream;
     nccl_st = ncclAllReduce(req->barrier_buf, req->barrier_buf, 4, ncclFloat32,
-                            ncclSum, req->team->nccl_comm, *stream);
+                            ncclSum, req->team->nccl_comm, stream);
     if (nccl_st != ncclSuccess) {
         xccl_nccl_error("ncclBarrier failed (%d)", nccl_st);
         return XCCL_ERR_NO_MESSAGE;
@@ -262,16 +262,16 @@ xccl_nccl_bcast_start(xccl_tl_coll_req_t *request)
     xccl_nccl_team_t     *team = ucs_derived_of(req->team, xccl_nccl_team_t);
     xccl_coll_op_args_t  *args = &req->args;
     ncclResult_t nccl_st;
-    cudaStream_t *stream;
+    cudaStream_t stream;
 
-    stream = (cudaStream_t*)args->stream.stream;
+    stream = (cudaStream_t)args->stream.stream;
     nccl_st = ncclBroadcast(args->buffer_info.src_buffer,
                             args->buffer_info.dst_buffer,
                             args->buffer_info.len,
                             ncclChar,
                             args->root,
                             req->team->nccl_comm,
-                            *stream);
+                            stream);
     if (nccl_st != ncclSuccess) {
         xccl_nccl_error("ncclBroadcast failed (%d)", nccl_st);
         return XCCL_ERR_NO_MESSAGE;

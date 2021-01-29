@@ -50,7 +50,9 @@ int main (int argc, char **argv) {
             .root        = r,
             .buffer_info = {
                 .src_buffer = sbuf_cuda,
+                .src_mtype  = UCS_MEMORY_TYPE_CUDA,
                 .dst_buffer = rbuf_cuda,
+                .dst_mtype  = UCS_MEMORY_TYPE_CUDA,
                 .len        = msg_size,
             },
             .reduce_info = {

@@ -51,10 +51,11 @@ int main (int argc, char **argv) {
                 .coll_type = XCCL_FANOUT_GET,
                 .root = r,
                 .get_info = {
-                    .memh       = memh,
-                    .offset     = half,
+                    .memh         = memh,
+                    .mtype        = UCS_MEMORY_TYPE_HOST,
+                    .offset       = half,
                     .local_buffer = (void*)((ptrdiff_t)&buf[0] + half),
-                    .len        = half,
+                    .len          = half,
                 },
             };
             XCCL_CHECK(xccl_collective_init(&coll, &request, xccl_world_team));

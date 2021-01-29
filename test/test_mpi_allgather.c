@@ -47,7 +47,9 @@ int main (int argc, char **argv) {
         .coll_type = XCCL_ALLGATHER,
         .buffer_info = {
             .src_buffer = sbuf,
+            .src_mtype  = UCS_MEMORY_TYPE_UNKNOWN,
             .dst_buffer = rbuf,
+            .dst_mtype  = UCS_MEMORY_TYPE_UNKNOWN,
             .len        = count*sizeof(int),
         },
         .alg.set_by_user = 0,

@@ -118,13 +118,7 @@ xccl_hier_alltoall_init(xccl_coll_op_args_t *coll_args,
     ucs_memory_type_t          mem_type;
     xccl_status_t              status;
 
-    status = xccl_mem_component_type(coll_args->buffer_info.src_buffer,
-                                     &mem_type);
-    if (status != XCCL_OK) {
-        xccl_hier_error("Memtype detection error");
-        return XCCL_ERR_INVALID_PARAM;
-    }
-
+    mem_type = coll_args->buffer_info.src_mtype;
     spec.pairs.flat = XCCL_HIER_PAIR_FLAT_UCX;
     switch (mem_type) {
         case UCS_MEMORY_TYPE_HOST:
@@ -301,8 +295,8 @@ xccl_team_lib_hier_t xccl_team_lib_hier = {
         .table                   = xccl_tl_hier_context_config_table,
         .size                    = sizeof(xccl_tl_hier_context_config_t),
     },
-    .super.params.reproducible   = XCCL_REPRODUCIBILITY_MODE_NON_REPRODUCIBLE,    
-    .super.params.thread_mode    = XCCL_THREAD_MODE_SINGLE | 
+    .super.params.reproducible   = XCCL_REPRODUCIBILITY_MODE_NON_REPRODUCIBLE,
+    .super.params.thread_mode    = XCCL_THREAD_MODE_SINGLE |
                                    XCCL_THREAD_MODE_MULTIPLE,
     .super.params.team_usage     = XCCL_LIB_PARAMS_TEAM_USAGE_SW_COLLECTIVES,
     .super.params.coll_types     = XCCL_COLL_CAP_BARRIER |
