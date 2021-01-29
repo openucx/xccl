@@ -41,16 +41,16 @@ xccl_status_t xccl_ucx_alltoallv_pairwise_progress(xccl_ucx_collreq_t *req)
     uint32_t       *rcv_displ = req->args.buffer_info.dst_displacements;
     size_t         sdt_size   = xccl_dt_size(req->args.buffer_info.src_datatype);
     size_t         rdt_size   = xccl_dt_size(req->args.buffer_info.dst_datatype);
-    int            total_reqs = (chunk > group_size - 1 || chunk <= 0) ?
-                                group_size - 1 : chunk;
+    int            total_reqs = (chunk > group_size || chunk <= 0) ?
+                                group_size : chunk;
     size_t send_data_size, recv_data_size;
     int    step, peer, released_slot, n_polls;
     xccl_status_t status;
     n_polls = 0;
     while (n_polls++ < max_polls &&
-           (req->alltoallv_pairwise.n_rreqs != group_size - 1 ||
-            req->alltoallv_pairwise.n_sreqs != group_size - 1)) {
-        if (req->alltoallv_pairwise.n_rreqs < group_size - 1) {
+           (req->alltoallv_pairwise.n_rreqs != group_size ||
+            req->alltoallv_pairwise.n_sreqs != group_size)) {
+        if (req->alltoallv_pairwise.n_rreqs < group_size) {
             status = xccl_ucx_req_test(team, reqs, total_reqs, &released_slot, 1, 1);
             if (XCCL_OK == status) {
                 peer = get_recv_peer(group_rank, group_size,
@@ -63,7 +63,7 @@ xccl_status_t xccl_ucx_alltoallv_pairwise_progress(xccl_ucx_collreq_t *req)
                 n_polls = 0;
             }
         }
-        if (req->alltoallv_pairwise.n_sreqs < group_size - 1) {
+        if (req->alltoallv_pairwise.n_sreqs < group_size) {
             status = xccl_ucx_req_test(team, reqs+total_reqs, total_reqs,
                                        &released_slot, 1, 1);
             if (XCCL_OK == status) {
@@ -78,8 +78,8 @@ xccl_status_t xccl_ucx_alltoallv_pairwise_progress(xccl_ucx_collreq_t *req)
             }
         }
     }
-    if (req->alltoallv_pairwise.n_rreqs != group_size - 1 ||
-        req->alltoallv_pairwise.n_sreqs != group_size - 1) {
+    if (req->alltoallv_pairwise.n_rreqs != group_size ||
+        req->alltoallv_pairwise.n_sreqs != group_size) {
         return XCCL_OK;
     }
 
@@ -97,8 +97,8 @@ xccl_status_t xccl_ucx_alltoallv_pairwise_start(xccl_ucx_collreq_t *req)
     int    group_size     = req->team->params.oob.size;
     int    chunk          = TEAM_UCX_CTX_REQ(req)->alltoall_pairwise_chunk;
     int    reverse        = TEAM_UCX_CTX_REQ(req)->alltoall_pairwise_reverse;
-    int    total_reqs     = (chunk > group_size - 1 || chunk <= 0) ?
-                             group_size - 1 : chunk;
+    int    total_reqs     = (chunk > group_size || chunk <= 0) ?
+                             group_size : chunk;
     uint32_t  *src_displ  = req->args.buffer_info.src_displacements;
     uint32_t  *rcv_displ  = req->args.buffer_info.dst_displacements;
     size_t    sdt_size    = xccl_dt_size(req->args.buffer_info.src_datatype);
@@ -116,13 +116,6 @@ xccl_status_t xccl_ucx_alltoallv_pairwise_start(xccl_ucx_collreq_t *req)
     }
 
     reqs           = req->alltoallv_pairwise.reqs;
-    send_data_size = req->args.buffer_info.src_counts[group_rank]*sdt_size;
-    recv_data_size = req->args.buffer_info.dst_counts[group_rank]*rdt_size;
-    xccl_ucx_send_recv((void*)(sbuf+src_displ[group_rank]*sdt_size), send_data_size,
-                       req->src_mem_type, group_rank, req->tag,
-                       (void*)(rbuf+rcv_displ[group_rank]*rdt_size), recv_data_size,
-                       req->dst_mem_type, group_rank, req->tag,
-                       (xccl_ucx_team_t *)req->team);
     for (step = 0; step < total_reqs; step++) {
         peer = get_recv_peer(group_rank, group_size, step, reverse);
         recv_data_size = req->args.buffer_info.dst_counts[peer]*rdt_size;
