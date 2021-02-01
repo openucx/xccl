@@ -208,7 +208,9 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             (UINT64_MAX / MAX_OUTSTANDING_OPS) / (node_size * mhba_team->size);
     }
 
-    storage_size = (MHBA_CTRL_SIZE + (2 * MHBA_DATA_SIZE)) * node_size *
+    mhba_team->max_num_of_columns = xccl_round_up(node->group_size, xccl_mhba_calc_max_block_size());
+
+    storage_size = (MHBA_CTRL_SIZE + (2 * MHBA_DATA_SIZE * mhba_team->max_num_of_columns)) * node_size *
                        MAX_OUTSTANDING_OPS +
                    MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS;
 
@@ -257,14 +259,14 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         op->send_umr_data =
             (void *)((ptrdiff_t)mhba_team->node.storage +
                      (node_size + 1) * MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS +
-                     i * MHBA_DATA_SIZE * node_size);
+                     i * MHBA_DATA_SIZE * mhba_team->max_num_of_columns * node_size);
         op->my_send_umr_data = (void *)((ptrdiff_t)op->send_umr_data +
-                                        node->group_rank * MHBA_DATA_SIZE);
+                                        node->group_rank * MHBA_DATA_SIZE * mhba_team->max_num_of_columns);
         op->recv_umr_data =
             (void *)((ptrdiff_t)op->send_umr_data +
-                     MHBA_DATA_SIZE * node_size * MAX_OUTSTANDING_OPS);
+                     MHBA_DATA_SIZE * mhba_team->max_num_of_columns * node_size * MAX_OUTSTANDING_OPS);
         op->my_recv_umr_data = (void *)((ptrdiff_t)op->recv_umr_data +
-                                        node->group_rank * MHBA_DATA_SIZE);
+                                        node->group_rank * MHBA_DATA_SIZE * mhba_team->max_num_of_columns);
     }
 
     calc_block_size(mhba_team);
@@ -510,7 +512,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
         mhba_team->net.ucx_team->ctx->lib->team_destroy(
             mhba_team->net.ucx_team);
 
-        status = xccl_mhba_destroy_mkeys(&mhba_team->node, 0);
+        status = xccl_mhba_destroy_mkeys(mhba_team, 0);
         if (status != XCCL_OK) {
             xccl_mhba_error("failed to destroy Mkeys");
         }
