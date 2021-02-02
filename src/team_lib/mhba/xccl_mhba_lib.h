@@ -95,10 +95,10 @@ typedef struct xccl_mhba_ctrl {
 typedef struct xccl_mhba_op {
     void                *ctrl;
     xccl_mhba_ctrl_t    *my_ctrl;
-    void                *send_umr_data;
-    void                *my_send_umr_data;
-    void                *recv_umr_data;
-    void                *my_recv_umr_data;
+    void               **send_umr_data;
+    void               **my_send_umr_data;
+    void               **recv_umr_data;
+    void               **my_recv_umr_data;
     struct mlx5dv_mkey **send_mkeys;
     struct mlx5dv_mkey **recv_mkeys;
 } xccl_mhba_op_t;
