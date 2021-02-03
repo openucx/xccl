@@ -476,15 +476,13 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
             for (k = 0; k < request->num_of_blocks_columns; k++) {
                 if (j != (request->num_of_blocks_columns -1)){
                     src_addr = (uintptr_t)(col_msgsize * dest_rank + block_msgsize * k);
-                    current_block_msgsize = block_msgsize;
                 } else {
                     src_addr = (uintptr_t)(col_msgsize_leftovers * dest_rank + block_msgsize_leftovers * k);
-                    current_block_msgsize = block_msgsize_leftovers;
                 }
                 if (k != (request->num_of_blocks_columns -1)) {
                     remote_addr = (uintptr_t)(op_msgsize * request->seq_index + col_msgsize * rank +
                                               block_msgsize * j + mkey_msgsize * k);
-                    current_block_msgsize = block_msgsize;
+                    current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize : block_msgsize_leftovers;
                 } else {
                     remote_addr = (uintptr_t)(op_msgsize * request->seq_index + col_msgsize_leftovers * rank +
                                               block_msgsize_leftovers * j + mkey_msgsize * k);
@@ -526,12 +524,12 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
                                              request->tmp_transpose_buf);
                     }
                     else {
-                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size,block_size_leftovers_side,
+                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size_leftovers_side,block_size,
                                                 request->args.buffer_info.len);
                     }
                 } else {
                     if (j != request->num_of_blocks_columns){
-                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size_leftovers_side,block_size,
+                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size,block_size_leftovers_side,
                                                 request->args.buffer_info.len);
                     } else {
                         transpose_square_mat(request->transpose_buf_mr->addr,
@@ -656,15 +654,13 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
             for (k = 0; k < request->num_of_blocks_columns; k++) {
                 if (j != (request->num_of_blocks_columns -1)){
                     src_addr = (uintptr_t)(col_msgsize * dest_rank + block_msgsize * k);
-                    current_block_msgsize = block_msgsize;
                 } else {
                     src_addr = (uintptr_t)(col_msgsize_leftovers * dest_rank + block_msgsize_leftovers * k);
-                    current_block_msgsize = block_msgsize_leftovers;
                 }
                 if (k != (request->num_of_blocks_columns -1)) {
                     remote_addr = (uintptr_t)(op_msgsize * request->seq_index + col_msgsize * rank +
                                               block_msgsize * j + mkey_msgsize * k);
-                    current_block_msgsize = block_msgsize;
+                    current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize : block_msgsize_leftovers;
                 } else {
                     remote_addr = (uintptr_t)(op_msgsize * request->seq_index + col_msgsize_leftovers * rank +
                                               block_msgsize_leftovers * j + mkey_msgsize * k);
