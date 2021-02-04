@@ -365,11 +365,11 @@ static void update_mkey_entry(xccl_mhba_node_t *node, xccl_mhba_coll_req_t *req,
                                                       node->ops[req->seq_index].my_send_umr_data[i] :
                                                       node->ops[req->seq_index].my_recv_umr_data[i]);
             mkey_entry->addr = (uintptr_t) buff->addr + i * (req->block_size * req->args.buffer_info.len);
-            mkey_entry->bytes_count = (i == (req->num_of_blocks_columns - 1)) ? (node->sbgp->group_size % req->block_size)
-                    * req->args.buffer_info.len : req->block_size * req->args.buffer_info.len;
+            mkey_entry->bytes_count = (i == (req->num_of_blocks_columns - 1)) ? ((node->sbgp->group_size % req->block_size)
+                    * req->args.buffer_info.len) : (req->block_size * req->args.buffer_info.len);
             mkey_entry->bytes_skip = (i == (req->num_of_blocks_columns - 1)) ?
-                    (node->sbgp->group_size - (node->sbgp->group_size % req->block_size)) * req->args.buffer_info.len :
-                    (node->sbgp->group_size - req->block_size) * req->args.buffer_info.len;
+                    ((node->sbgp->group_size - (node->sbgp->group_size % req->block_size)) * req->args.buffer_info.len) :
+                    ((node->sbgp->group_size - req->block_size) * req->args.buffer_info.len);
             mkey_entry->lkey = direction_send ? buff->lkey : buff->rkey;
             xccl_mhba_debug("%s MasterMKey Strided KLM entries[%d,%d]: addr = 0x%x, "
                             "bytes_count = %d, bytes_skip = %d,lkey=0x%x",

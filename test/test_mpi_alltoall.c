@@ -63,7 +63,7 @@ int run_test(void *sbuf, void *rbuf, void *rbuf_mpi, int count, int rank, int si
 
 int main (int argc, char **argv)
 {
-    const int iters = 13;
+    const int iters = argc > 3 ? atoi(argv[3]) : 10;;
     size_t msglen_min, msglen_max;
     int count_max, count_min, count,
         rank, size, i, status_global;
@@ -85,7 +85,7 @@ int main (int argc, char **argv)
     rbuf     = malloc(count_max*size*sizeof(int));
     rbuf_mpi = malloc(count_max*size*sizeof(int));
     for (i=0; i<count_max*size; i++) {
-        sbuf[i] = rank+1+i;
+        sbuf[i] = rank * rank + rank + i - 1;
     }
 /* regular alltoall */
     for (count = count_min; count <= count_max; count *= 2) {
@@ -96,7 +96,6 @@ int main (int argc, char **argv)
                 goto end;
             }
         }
-        count *= 2;
     }
 
 /* in-place alltoall */

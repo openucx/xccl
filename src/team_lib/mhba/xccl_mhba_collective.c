@@ -297,18 +297,19 @@ static inline xccl_status_t send_atomic(struct ibv_qp *qp, uint64_t remote_addr,
     return XCCL_OK;
 }
 
-static inline void tranpose_non_square_mat(void *addr, int rows_len, int columns_len, int unit_size){
-    void *tmp = malloc(rows_len * columns_len * unit_size);
+static inline void tranpose_non_square_mat(void *addr, int transposed_rows_len, int transposed_columns_len, int unit_size){
+    void *tmp = malloc(transposed_rows_len * transposed_columns_len * unit_size);
     if (!tmp){
         xccl_mhba_error("malloc failed");
     }
     int i, j;
-    for(i = 0 ;i < columns_len;i++){
-        for(j = 0;j < rows_len;j++){
-            memcpy(tmp + unit_size*((i*rows_len)+j),addr+unit_size*((j*columns_len)+i),unit_size);
+    for(i = 0 ;i < transposed_columns_len;i++){
+        for(j = 0;j < transposed_rows_len;j++){
+            memcpy(tmp + (unit_size * (i * transposed_rows_len + j)),addr +
+            (unit_size * ((j * transposed_columns_len) + i)),unit_size);
         }
     }
-    memcpy(addr,tmp,unit_size*rows_len*columns_len);
+    memcpy(addr,tmp,unit_size*transposed_rows_len*transposed_columns_len);
     free(tmp);
 }
 
@@ -517,19 +518,19 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
                     }
                 }
 
-                if (k != request->num_of_blocks_columns -1){
-                    if (j != request->num_of_blocks_columns){
+                if (k != (request->num_of_blocks_columns - 1)){
+                    if (j != (request->num_of_blocks_columns - 1)){
                         transpose_square_mat(request->transpose_buf_mr->addr,
                                              block_size, request->args.buffer_info.len,
                                              request->tmp_transpose_buf);
                     }
                     else {
-                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size_leftovers_side,block_size,
+                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size,block_size_leftovers_side,
                                                 request->args.buffer_info.len);
                     }
                 } else {
-                    if (j != request->num_of_blocks_columns){
-                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size,block_size_leftovers_side,
+                    if (j != (request->num_of_blocks_columns - 1)){
+                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size_leftovers_side,block_size,
                                                 request->args.buffer_info.len);
                     } else {
                         transpose_square_mat(request->transpose_buf_mr->addr,
@@ -731,6 +732,10 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     int           i, block_msgsize, block_size;
     xccl_status_t status;
     request->started = 0;
+    request->seq_num = team->sequence_number;
+    request->seq_index = SEQ_INDEX(team->sequence_number);
+    xccl_mhba_debug("Seq num is %d", request->seq_num);
+    team->sequence_number += 1;
     if (len > team->max_msg_size) {
         xccl_mhba_error("msg size too long");
         return XCCL_ERR_NO_RESOURCE;
@@ -748,8 +753,8 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->num_of_blocks_columns = (team->node.sbgp->group_size % block_size) ?
             xccl_round_up(team->node.sbgp->group_size,block_size) : 0;
     block_msgsize = SQUARED(block_size) * len;
-    if (team->node.sbgp->group_rank == team->node.asr_rank) {
-        xccl_mhba_info("Block size is %d", block_size);
+    if (((team->net.sbgp->group_rank == 0) && (team->node.sbgp->group_rank == team->node.asr_rank)) && (len != team->previous_msg_size[request->seq_index])) {
+        xccl_mhba_info("Block size is %d msg_size is %d", block_size,len);
     }
 
     request->block_size        = block_size;
@@ -761,10 +766,6 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
         xccl_mhba_error("malloc tasks failed");
         return XCCL_ERR_NO_MEMORY;
     }
-    request->seq_num = team->sequence_number;
-    request->seq_index = SEQ_INDEX(team->sequence_number);
-    xccl_mhba_debug("Seq num is %d", request->seq_num);
-    team->sequence_number++;
     for (i = 0; i < n_tasks; i++) {
         request->tasks[i].req = request;
         xccl_coll_task_init(&request->tasks[i].super);
