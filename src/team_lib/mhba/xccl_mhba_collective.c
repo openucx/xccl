@@ -523,8 +523,7 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
                         transpose_square_mat(request->transpose_buf_mr->addr,
                                              block_size, request->args.buffer_info.len,
                                              request->tmp_transpose_buf);
-                    }
-                    else {
+                    } else {
                         tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size,block_size_leftovers_side,
                                                 request->args.buffer_info.len);
                     }
@@ -753,7 +752,8 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->num_of_blocks_columns = (team->node.sbgp->group_size % block_size) ?
             xccl_round_up(team->node.sbgp->group_size,block_size) : 0;
     block_msgsize = SQUARED(block_size) * len;
-    if (((team->net.sbgp->group_rank == 0) && (team->node.sbgp->group_rank == team->node.asr_rank)) && (len != team->previous_msg_size[request->seq_index])) {
+    if (((team->net.sbgp->group_rank == 0) && (team->node.sbgp->group_rank == team->node.asr_rank)) &&
+        (len != team->previous_msg_size[request->seq_index])) {
         xccl_mhba_info("Block size is %d msg_size is %d", block_size,len);
     }
 
@@ -798,8 +798,7 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
             if(request->num_of_blocks_columns){
                 request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
                     xccl_mhba_send_blocks_leftovers_start_with_transpose;
-            }
-            else {
+            } else {
                 request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
                     xccl_mhba_send_blocks_start_with_transpose;
             }
@@ -807,8 +806,7 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
             if(request->num_of_blocks_columns) {
                 request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
                     xccl_mhba_send_blocks_leftovers_start;
-            }
-            else {
+            } else {
                 request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
                     xccl_mhba_send_blocks_start;
             }
@@ -822,8 +820,7 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
         if (team->transpose) {
             if (ctx->cfg.transpose_buf_size >= block_msgsize) {
                 request->transpose_buf_mr = team->transpose_buf_mr;
-            }
-            else {
+            } else {
                 transpose_buf = malloc(block_msgsize);
                 if (!transpose_buf) {
                     xccl_mhba_error("failed to allocate transpose buffer of %d bytes",

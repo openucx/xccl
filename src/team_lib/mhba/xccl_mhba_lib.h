@@ -128,14 +128,6 @@ static inline xccl_mhba_reg_t* xccl_rcache_ucs_get_reg_data(ucs_rcache_region_t 
     return (xccl_mhba_reg_t *)((ptrdiff_t)region + sizeof(ucs_rcache_region_t));
 }
 
-static inline int xccl_mhba_calc_max_block_size(){
-    int block_row_size = 0;
-    while((SQUARED(block_row_size + 1) * MAX_MSG_SIZE) <= MAX_TRANSPOSE_SIZE){
-        block_row_size += 1;
-    }
-    return block_row_size;
-}
-
 typedef struct xccl_mhba_net {
     xccl_sbgp_t    *sbgp;
     int             net_size;

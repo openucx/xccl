@@ -147,6 +147,14 @@ static xccl_status_t create_rcache(xccl_mhba_team_t* mhba_team)
     return XCCL_OK;
 }
 
+static inline int xccl_mhba_calc_max_block_size(){
+    int block_row_size = 0;
+    while((SQUARED(block_row_size + 1) * MAX_MSG_SIZE) <= MAX_TRANSPOSE_SIZE){
+        block_row_size += 1;
+    }
+    return block_row_size;
+}
+
 xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                                          xccl_team_params_t *params,
                                          xccl_team_t        *base_team,
@@ -474,12 +482,20 @@ fail_after_transpose_reg:
     ibv_dereg_mr(mhba_team->transpose_buf_mr);
     free(mhba_team->transpose_buf);
 fail_ptr_malloc:
-    for (i = 0; i < MAX_OUTSTANDING_OPS; i++) {
+    for (i; i >= 0; i--) {
         xccl_mhba_op_t *op = &mhba_team->node.ops[i];
-        free(op->recv_umr_data);
-        free(op->send_umr_data);
-        free(op->my_send_umr_data);
-        free(op->my_recv_umr_data);
+        if (op->recv_umr_data) {
+            free(op->recv_umr_data);
+        }
+        if (op->send_umr_data) {
+            free(op->send_umr_data);
+        }
+        if (op->my_send_umr_data) {
+            free(op->my_send_umr_data);
+        }
+        if (op->my_recv_umr_data) {
+            free(op->my_recv_umr_data);
+        }
     }
 fail_after_shmat:
     if (-1 == shmdt(mhba_team->node.storage)) {

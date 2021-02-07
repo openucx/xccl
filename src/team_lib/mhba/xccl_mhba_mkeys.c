@@ -290,46 +290,26 @@ xccl_status_t xccl_mhba_populate_send_recv_mkeys(xccl_mhba_team_t     *team,
         IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
     int               i;
     xccl_status_t     status;
+    int repeat_count = req->num_of_blocks_columns ? team->net.sbgp->group_size : team->size/req->block_size;
+    int n_mkeys = req->num_of_blocks_columns ? req->num_of_blocks_columns : 1;
     if(xccl_mhba_get_my_ctrl(team, req->seq_index)->mkey_cache_flag & XCCL_MHBA_NEED_SEND_MKEY_UPDATE) {
-        if(req->num_of_blocks_columns) {
-            for (i = 0; i < req->num_of_blocks_columns;i++) {
-                status = populate_mkey(
-                        team, send_mem_access_flags, node->ops[req->seq_index].send_mkeys[i],
-                        node->ops[req->seq_index].send_umr_data[i], team->net.sbgp->group_size, 1);
-                if (status != XCCL_OK) {
-                    xccl_mhba_error("Failed to populate send umr[%d,%d]", req->seq_index, i);
-                    return status;
-                }
-            }
-        }
-        else {
+        for (i = 0; i < n_mkeys;i++) {
             status = populate_mkey(
-                    team, send_mem_access_flags, node->ops[req->seq_index].send_mkeys[0],
-                    node->ops[req->seq_index].send_umr_data[0], team->size / req->block_size, 1);
+                    team, send_mem_access_flags, node->ops[req->seq_index].send_mkeys[i],
+                    node->ops[req->seq_index].send_umr_data[i], repeat_count, 1);
             if (status != XCCL_OK) {
-                xccl_mhba_error("Failed to populate send umr[%d]", req->seq_index);
+                xccl_mhba_error("Failed to populate send umr[%d,%d]", req->seq_index, i);
                 return status;
             }
         }
     }
     if(xccl_mhba_get_my_ctrl(team, req->seq_index)->mkey_cache_flag & XCCL_MHBA_NEED_RECV_MKEY_UPDATE) {
-        if(req->num_of_blocks_columns) {
-            for (i = 0; i < req->num_of_blocks_columns;i++) {
-                status = populate_mkey(
-                        team, recv_mem_access_flags, node->ops[req->seq_index].recv_mkeys[i],
-                        node->ops[req->seq_index].recv_umr_data[i], team->net.sbgp->group_size, 1);
-                if (status != XCCL_OK) {
-                    xccl_mhba_error("Failed to populate recv umr[%d,%d]", req->seq_index, i);
-                    return status;
-                }
-            }
-        }
-        else {
+        for (i = 0; i < n_mkeys;i++) {
             status = populate_mkey(
-                    team, recv_mem_access_flags, node->ops[req->seq_index].recv_mkeys[0],
-                    node->ops[req->seq_index].recv_umr_data[0], team->size / req->block_size, 1);
+                    team, recv_mem_access_flags, node->ops[req->seq_index].recv_mkeys[i],
+                    node->ops[req->seq_index].recv_umr_data[i], repeat_count, 1);
             if (status != XCCL_OK) {
-                xccl_mhba_error("Failed to populate recv umr[%d]", req->seq_index);
+                xccl_mhba_error("Failed to populate recv umr[%d,%d]", req->seq_index, i);
                 return status;
             }
         }
@@ -357,8 +337,7 @@ static void update_mkey_entry(xccl_mhba_node_t *node, xccl_mhba_coll_req_t *req,
                         direction_send ? "send" : "recv", node->sbgp->group_rank,
                         mkey_entry->addr, mkey_entry->bytes_count,
                         mkey_entry->bytes_skip, mkey_entry->lkey);
-    }
-    else {
+    } else {
         for(i=0; i< req->num_of_blocks_columns;i++){
             mkey_entry =
                     (struct mlx5dv_mr_interleaved *) (direction_send ?
