@@ -28,11 +28,6 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
      ucs_offsetof(xccl_tl_mhba_context_config_t, transpose),
      UCS_CONFIG_TYPE_UINT},
 
-    {"TRANSPOSE_HW_LIMITATIONS", "1",
-     "Boolean - with transpose hw limitations or not",
-     ucs_offsetof(xccl_tl_mhba_context_config_t, transpose_hw_limitations),
-     UCS_CONFIG_TYPE_UINT},
-
     {"IB_GLOBAL", "0", "Use global ib routing",
      ucs_offsetof(xccl_tl_mhba_context_config_t, ib_global),
      UCS_CONFIG_TYPE_UINT},

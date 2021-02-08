@@ -172,7 +172,6 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     int                     i, j, net_size, node_size, asr_cq_size;
     mhba_team->node.asr_rank            = 0; //todo check in future if always 0
     mhba_team->transpose                = ctx->cfg.transpose;
-    mhba_team->transpose_hw_limitations = ctx->cfg.transpose_hw_limitations;
     mhba_team->context                  = ctx;
     mhba_team->size                     = params->oob.size;
     mhba_team->sequence_number          = 0;
@@ -208,14 +207,6 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
     assert(mhba_team->net.sbgp->status == XCCL_SBGP_ENABLED ||
            node->group_rank != 0);
-
-    if (mhba_team->transpose_hw_limitations) {
-        mhba_team->max_msg_size = MAX_MSG_SIZE;
-    } else {
-        //todo check calc
-        mhba_team->max_msg_size =
-            (UINT64_MAX / MAX_OUTSTANDING_OPS) / (node_size * mhba_team->size);
-    }
 
     mhba_team->max_num_of_columns = xccl_round_up(node->group_size, xccl_mhba_calc_max_block_size());
 

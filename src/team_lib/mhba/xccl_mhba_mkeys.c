@@ -206,7 +206,7 @@ static xccl_status_t create_and_populate_recv_team_mkey(xccl_mhba_team_t *team)
             team_mkey_klm_entries[(i * team->max_num_of_columns) + j].addr = 0;
             //length could be minimized for all mkeys beside the first, but no need because address space is big enough
             team_mkey_klm_entries[(i * team->max_num_of_columns) + j].length =
-                    node->sbgp->group_size * team->max_msg_size * team->size;
+                    node->sbgp->group_size * MAX_MSG_SIZE * team->size;
             //todo check lkey or rkey
             team_mkey_klm_entries[(i * team->max_num_of_columns) + j].lkey =
                     node->ops[i].recv_mkeys[j]->rkey;
