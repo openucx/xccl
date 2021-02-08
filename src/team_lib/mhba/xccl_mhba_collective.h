@@ -23,6 +23,7 @@ typedef struct xccl_mhba_coll_req {
     xccl_mhba_team_t   *team;
     int                 seq_num;
     int                 seq_index;
+    int                 num_of_blocks_columns;
     xccl_tl_coll_req_t *barrier_req;
     int                 block_size;
     int                 started;

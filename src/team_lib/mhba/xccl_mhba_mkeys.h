@@ -29,5 +29,5 @@ xccl_status_t xccl_mhba_update_mkeys_entries(xccl_mhba_node_t     *node,
 
 xccl_status_t xccl_mhba_destroy_umr(xccl_mhba_node_t *node);
 
-xccl_status_t xccl_mhba_destroy_mkeys(xccl_mhba_node_t *node, int error_mode);
+xccl_status_t xccl_mhba_destroy_mkeys(xccl_mhba_team_t *team, int error_mode);
 #endif //XCCL_MHBA_MKEYS_H

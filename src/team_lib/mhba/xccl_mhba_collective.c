@@ -297,6 +297,22 @@ static inline xccl_status_t send_atomic(struct ibv_qp *qp, uint64_t remote_addr,
     return XCCL_OK;
 }
 
+static inline void tranpose_non_square_mat(void *addr, int transposed_rows_len, int transposed_columns_len, int unit_size){
+    void *tmp = malloc(transposed_rows_len * transposed_columns_len * unit_size);
+    if (!tmp){
+        xccl_mhba_error("malloc failed");
+    }
+    int i, j;
+    for(i = 0 ;i < transposed_columns_len;i++){
+        for(j = 0;j < transposed_rows_len;j++){
+            memcpy(tmp + (unit_size * (i * transposed_rows_len + j)),addr +
+            (unit_size * ((j * transposed_columns_len) + i)),unit_size);
+        }
+    }
+    memcpy(addr,tmp,unit_size*transposed_rows_len*transposed_columns_len);
+    free(tmp);
+}
+
 static inline void transpose_square_mat(void *addr, int side_len, int unit_size,
                                         void *temp_buffer)
 {
@@ -344,7 +360,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     size_t                len       = request->args.buffer_info.len;
     int                   node_size = team->node.sbgp->group_size;
     int                   net_size  = team->net.sbgp->group_size;
-    int           op_msgsize    = node_size * team->max_msg_size * team->size;
+    int           op_msgsize    = node_size * team->max_msg_size * team->size * team->max_num_of_columns;
     int           node_msgsize  = SQUARED(node_size) * len;
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
@@ -362,9 +378,9 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
         //send all blocks from curr node to some ARR
-        for (j = 0; j < xccl_round_up(node_size, block_size); j++) {
-            for (k = 0; k < xccl_round_up(node_size, block_size); k++) {
-                src_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * dest_rank +
+        for (j = 0; j < (node_size / block_size); j++) {
+            for (k = 0; k < (node_size / block_size); k++) {
+                src_addr = (uintptr_t)(node_msgsize * dest_rank +
                                        col_msgsize * j + block_msgsize * k);
                 remote_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * rank +
                                           block_msgsize * j + col_msgsize * k);
@@ -372,7 +388,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                 // SW Transpose
                 status = send_block_data(
                     team->node.umr_qp, src_addr, block_msgsize,
-                    team->node.team_send_mkey->lkey,
+                    team->node.ops[request->seq_index].send_mkeys[0]->lkey,
                     (uintptr_t)request->transpose_buf_mr->addr,
                     request->transpose_buf_mr->rkey, IBV_SEND_SIGNALED, 1);
                 if (status != XCCL_OK) {
@@ -426,6 +442,130 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     return XCCL_OK;
 }
 
+static xccl_status_t
+xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
+{
+    xccl_mhba_task_t     *self      = ucs_derived_of(task, xccl_mhba_task_t);
+    xccl_mhba_coll_req_t *request   = self->req;
+    xccl_mhba_team_t     *team      = request->team;
+    size_t                len       = request->args.buffer_info.len;
+    int                   node_size = team->node.sbgp->group_size;
+    int                   net_size  = team->net.sbgp->group_size;
+    int           op_msgsize    = node_size * team->max_msg_size * team->size * team->max_num_of_columns;
+    int           mkey_msgsize    = node_size * team->max_msg_size * team->size;
+    int           block_size    = request->block_size;
+    int           col_msgsize   = len * block_size * node_size;
+    int           block_msgsize = SQUARED(block_size) * len;
+    int           block_size_leftovers_side = node_size % request->block_size;
+    int           col_msgsize_leftovers     = len * block_size_leftovers_side * node_size;
+    int           block_msgsize_leftovers   = block_size_leftovers_side * block_size * len;
+    int           corner_msgsize   = SQUARED(block_size_leftovers_side) * len;
+    int           i, j, k, dest_rank, rank, n_compl, ret, cyc_rank, current_block_msgsize;
+    uint64_t      src_addr, remote_addr;
+    struct ibv_wc transpose_completion[1];
+    xccl_status_t status;
+
+    xccl_mhba_debug("send blocks start");
+    task->state = XCCL_TASK_STATE_INPROGRESS;
+    rank        = team->net.rank_map[team->net.sbgp->group_rank];
+
+    for (i = 0; i < net_size; i++) {
+        cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
+        dest_rank = team->net.rank_map[cyc_rank];
+        //send all blocks from curr node to some ARR
+        for (j = 0; j < request->num_of_blocks_columns; j++) {
+            for (k = 0; k < request->num_of_blocks_columns; k++) {
+                if (j != (request->num_of_blocks_columns -1)){
+                    src_addr = (uintptr_t)(col_msgsize * dest_rank + block_msgsize * k);
+                } else {
+                    src_addr = (uintptr_t)(col_msgsize_leftovers * dest_rank + block_msgsize_leftovers * k);
+                }
+                if (k != (request->num_of_blocks_columns -1)) {
+                    remote_addr = (uintptr_t)(op_msgsize * request->seq_index + col_msgsize * rank +
+                                              block_msgsize * j + mkey_msgsize * k);
+                    current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize : block_msgsize_leftovers;
+                } else {
+                    remote_addr = (uintptr_t)(op_msgsize * request->seq_index + col_msgsize_leftovers * rank +
+                                              block_msgsize_leftovers * j + mkey_msgsize * k);
+                    current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize_leftovers : corner_msgsize;
+                }
+
+                prepost_dummy_recv(team->node.umr_qp, 1);
+                // SW Transpose
+                status = send_block_data(
+                        team->node.umr_qp, src_addr, current_block_msgsize,
+                        team->node.ops[request->seq_index].send_mkeys[j]->lkey,
+                        (uintptr_t)request->transpose_buf_mr->addr,
+                        request->transpose_buf_mr->rkey, IBV_SEND_SIGNALED, 1);
+                if (status != XCCL_OK) {
+                    xccl_mhba_error(
+                            "Failed sending block to transpose buffer[%d,%d,%d]", i, j, k);
+                    return status;
+                }
+                n_compl = 0;
+                while (n_compl != 2) {
+                    ret = ibv_poll_cq(team->node.umr_cq, 1, transpose_completion);
+                    if (ret > 0) {
+                        if (transpose_completion[0].status != IBV_WC_SUCCESS) {
+                            xccl_mhba_error(
+                                    "local copy for transpose CQ returned "
+                                    "completion with status %s (%d)",
+                                    ibv_wc_status_str(transpose_completion[0].status),
+                                    transpose_completion[0].status);
+                            return XCCL_ERR_NO_MESSAGE;
+                        }
+                        n_compl++;
+                    }
+                }
+
+                if (k != (request->num_of_blocks_columns - 1)){
+                    if (j != (request->num_of_blocks_columns - 1)){
+                        transpose_square_mat(request->transpose_buf_mr->addr,
+                                             block_size, request->args.buffer_info.len,
+                                             request->tmp_transpose_buf);
+                    } else {
+                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size,block_size_leftovers_side,
+                                                request->args.buffer_info.len);
+                    }
+                } else {
+                    if (j != (request->num_of_blocks_columns - 1)){
+                        tranpose_non_square_mat(request->transpose_buf_mr->addr,block_size_leftovers_side,block_size,
+                                                request->args.buffer_info.len);
+                    } else {
+                        transpose_square_mat(request->transpose_buf_mr->addr,
+                                             block_size_leftovers_side, request->args.buffer_info.len,
+                                             request->tmp_transpose_buf);
+                    }
+                }
+
+                status = send_block_data(
+                        team->net.qps[cyc_rank],
+                        (uintptr_t)request->transpose_buf_mr->addr, current_block_msgsize,
+                        request->transpose_buf_mr->lkey, remote_addr,
+                        team->net.rkeys[cyc_rank], IBV_SEND_SIGNALED, 0);
+                if (status != XCCL_OK) {
+                    xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
+                    return status;
+                }
+                while (!ibv_poll_cq(team->net.cq, 1, transpose_completion)) {}
+            }
+        }
+    }
+
+    for (i = 0; i < net_size; i++) {
+        status = send_atomic(team->net.qps[i],
+                             (uintptr_t)team->net.remote_ctrl[i].addr +
+                             (request->seq_index * MHBA_CTRL_SIZE),
+                             team->net.remote_ctrl[i].rkey, team, request);
+        if (status != XCCL_OK) {
+            xccl_mhba_error("Failed sending atomic to node [%d]", i);
+            return status;
+        }
+    }
+    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+    return XCCL_OK;
+}
+
 // add polling mechanism for blocks in order to maintain const qp tx rx
 static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
 {
@@ -435,7 +575,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
     size_t                len       = request->args.buffer_info.len;
     int                   node_size = team->node.sbgp->group_size;
     int                   net_size  = team->net.sbgp->group_size;
-    int           op_msgsize    = node_size * team->max_msg_size * team->size;
+    int           op_msgsize    = node_size * team->max_msg_size * team->size * team->max_num_of_columns;
     int           node_msgsize  = SQUARED(node_size) * len;
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
@@ -452,15 +592,83 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
         //send all blocks from curr node to some ARR
-        for (j = 0; j < xccl_round_up(node_size, block_size); j++) {
-            for (k = 0; k < xccl_round_up(node_size, block_size); k++) {
+        for (j = 0; j < (node_size / block_size); j++) {
+            for (k = 0; k < (node_size / block_size); k++) {
                 src_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * dest_rank +
                                        col_msgsize * j + block_msgsize * k);
                 remote_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * rank +
                                           block_msgsize * j + col_msgsize * k);
 
                 status = send_block_data(team->net.qps[cyc_rank], src_addr, block_msgsize,
-                                         team->node.team_send_mkey->lkey,
+                                         team->node.ops[request->seq_index].send_mkeys[0]->lkey,
+                                         remote_addr, team->net.rkeys[cyc_rank], 0, 0);
+                if (status != XCCL_OK) {
+                    xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
+                    return status;
+                }
+            }
+        }
+        status = send_atomic(team->net.qps[cyc_rank],
+                             (uintptr_t)team->net.remote_ctrl[cyc_rank].addr +
+                             (request->seq_index * MHBA_CTRL_SIZE),
+                             team->net.remote_ctrl[cyc_rank].rkey, team, request);
+        if (status != XCCL_OK) {
+            xccl_mhba_error("Failed sending atomic to node [%d]", i);
+            return status;
+        }
+    }
+    xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
+    return XCCL_OK;
+}
+
+static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *task)
+{
+    xccl_mhba_task_t     *self      = ucs_derived_of(task, xccl_mhba_task_t);
+    xccl_mhba_coll_req_t *request   = self->req;
+    xccl_mhba_team_t     *team      = request->team;
+    size_t                len       = request->args.buffer_info.len;
+    int                   node_size = team->node.sbgp->group_size;
+    int                   net_size  = team->net.sbgp->group_size;
+    int           op_msgsize    = node_size * team->max_msg_size * team->size * team->max_num_of_columns;
+    int           mkey_msgsize    = node_size * team->max_msg_size * team->size;
+    int           block_size    = request->block_size;
+    int           col_msgsize   = len * block_size * node_size;
+    int           block_msgsize = SQUARED(block_size) * len;
+    int           block_size_leftovers_side = node_size % request->block_size;
+    int           col_msgsize_leftovers     = len * block_size_leftovers_side * node_size;
+    int           block_msgsize_leftovers   = block_size_leftovers_side * block_size * len;
+    int           corner_msgsize   = SQUARED(block_size_leftovers_side) * len;
+    int           i, j, k, dest_rank, rank, cyc_rank, current_block_msgsize;
+    uint64_t      src_addr, remote_addr;
+    xccl_status_t status;
+
+    xccl_mhba_debug("send blocks start");
+    task->state = XCCL_TASK_STATE_INPROGRESS;
+    rank        = team->net.rank_map[team->net.sbgp->group_rank];
+
+    for (i = 0; i < net_size; i++) {
+        cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
+        dest_rank = team->net.rank_map[cyc_rank];
+        //send all blocks from curr node to some ARR
+        for (j = 0; j < request->num_of_blocks_columns; j++) {
+            for (k = 0; k < request->num_of_blocks_columns; k++) {
+                if (j != (request->num_of_blocks_columns -1)){
+                    src_addr = (uintptr_t)(col_msgsize * dest_rank + block_msgsize * k);
+                } else {
+                    src_addr = (uintptr_t)(col_msgsize_leftovers * dest_rank + block_msgsize_leftovers * k);
+                }
+                if (k != (request->num_of_blocks_columns -1)) {
+                    remote_addr = (uintptr_t)(op_msgsize * request->seq_index + col_msgsize * rank +
+                                              block_msgsize * j + mkey_msgsize * k);
+                    current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize : block_msgsize_leftovers;
+                } else {
+                    remote_addr = (uintptr_t)(op_msgsize * request->seq_index + col_msgsize_leftovers * rank +
+                                              block_msgsize_leftovers * j + mkey_msgsize * k);
+                    current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize_leftovers : corner_msgsize;
+                }
+
+                status = send_block_data(team->net.qps[cyc_rank], src_addr, current_block_msgsize,
+                                         team->node.ops[request->seq_index].send_mkeys[j]->lkey,
                                          remote_addr, team->net.rkeys[cyc_rank], 0, 0);
                 if (status != XCCL_OK) {
                     xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
@@ -523,6 +731,10 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     int           i, block_msgsize, block_size;
     xccl_status_t status;
     request->started = 0;
+    request->seq_num = team->sequence_number;
+    request->seq_index = SEQ_INDEX(team->sequence_number);
+    xccl_mhba_debug("Seq num is %d", request->seq_num);
+    team->sequence_number += 1;
     if (len > team->max_msg_size) {
         xccl_mhba_error("msg size too long");
         return XCCL_ERR_NO_RESOURCE;
@@ -537,25 +749,14 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     block_size = team->requested_block_size ? team->requested_block_size : block_size;
 
     //todo following section correct assuming homogenous PPN across all nodes
-    if (team->node.sbgp->group_size % block_size != 0) {
-        if (team->node.sbgp->group_rank == team->node.asr_rank) {
-            xccl_mhba_warn("Block size was decreased to fit node PPN");
-        }
-        while (team->node.sbgp->group_size % block_size && block_size > 2) {
-            block_size -= 1;
-        }
-    }
+    request->num_of_blocks_columns = (team->node.sbgp->group_size % block_size) ?
+            xccl_round_up(team->node.sbgp->group_size,block_size) : 0;
     block_msgsize = SQUARED(block_size) * len;
-    if (team->node.sbgp->group_rank == team->node.asr_rank) {
-        xccl_mhba_info("Block size is %d", block_size);
+    if (((team->net.sbgp->group_rank == 0) && (team->node.sbgp->group_rank == team->node.asr_rank)) &&
+        (len != team->previous_msg_size[request->seq_index])) {
+        xccl_mhba_info("Block size is %d msg_size is %d", block_size,len);
     }
-    if (team->node.sbgp->group_size % block_size) {
-        if (team->node.sbgp->group_rank == team->node.asr_rank) {
-            xccl_mhba_error("node PPN can't be divided by any block size, or "
-                            "block size is 1 - NOT SUPPORTED");
-        }
-        return XCCL_ERR_NO_RESOURCE;
-    }
+
     request->block_size        = block_size;
     request->transpose_buf_mr  = NULL;
     request->tmp_transpose_buf = NULL;
@@ -565,10 +766,6 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
         xccl_mhba_error("malloc tasks failed");
         return XCCL_ERR_NO_MEMORY;
     }
-    request->seq_num = team->sequence_number;
-    request->seq_index = SEQ_INDEX(team->sequence_number);
-    xccl_mhba_debug("Seq num is %d", request->seq_num);
-    team->sequence_number++;
     for (i = 0; i < n_tasks; i++) {
         request->tasks[i].req = request;
         xccl_coll_task_init(&request->tasks[i].super);
@@ -598,11 +795,21 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
             xccl_mhba_asr_barrier_start;
         request->tasks[1].super.progress = xccl_mhba_asr_barrier_progress;
         if (team->transpose) {
-            request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
-                xccl_mhba_send_blocks_start_with_transpose;
+            if(request->num_of_blocks_columns){
+                request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
+                    xccl_mhba_send_blocks_leftovers_start_with_transpose;
+            } else {
+                request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
+                    xccl_mhba_send_blocks_start_with_transpose;
+            }
         } else {
-            request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
-                xccl_mhba_send_blocks_start;
+            if(request->num_of_blocks_columns) {
+                request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
+                    xccl_mhba_send_blocks_leftovers_start;
+            } else {
+                request->tasks[2].super.handlers[XCCL_EVENT_COMPLETED] =
+                    xccl_mhba_send_blocks_start;
+            }
         }
         request->tasks[2].super.progress = xccl_mhba_send_blocks_progress;
 
@@ -613,8 +820,7 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
         if (team->transpose) {
             if (ctx->cfg.transpose_buf_size >= block_msgsize) {
                 request->transpose_buf_mr = team->transpose_buf_mr;
-            }
-            else {
+            } else {
                 transpose_buf = malloc(block_msgsize);
                 if (!transpose_buf) {
                     xccl_mhba_error("failed to allocate transpose buffer of %d bytes",

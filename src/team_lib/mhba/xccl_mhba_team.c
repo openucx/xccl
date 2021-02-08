@@ -7,6 +7,7 @@
 #include "xccl_mhba_ib.h"
 #include <sys/shm.h>
 #include <ucm/api/ucm.h>
+#include "utils/utils.h"
 
 typedef struct bcast_data {
     int  shmid;
@@ -146,6 +147,14 @@ static xccl_status_t create_rcache(xccl_mhba_team_t* mhba_team)
     return XCCL_OK;
 }
 
+static inline int xccl_mhba_calc_max_block_size(){
+    int block_row_size = 0;
+    while((SQUARED(block_row_size + 1) * MAX_MSG_SIZE) <= MAX_TRANSPOSE_SIZE){
+        block_row_size += 1;
+    }
+    return block_row_size;
+}
+
 xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                                          xccl_team_params_t *params,
                                          xccl_team_t        *base_team,
@@ -160,7 +169,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     size_t                  storage_size, local_data_size;
     uint32_t               *local_data, *global_data;
     bcast_data_t            bcast_data;
-    int                     i, net_size, node_size, asr_cq_size;
+    int                     i, j, net_size, node_size, asr_cq_size;
     mhba_team->node.asr_rank            = 0; //todo check in future if always 0
     mhba_team->transpose                = ctx->cfg.transpose;
     mhba_team->transpose_hw_limitations = ctx->cfg.transpose_hw_limitations;
@@ -208,7 +217,9 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             (UINT64_MAX / MAX_OUTSTANDING_OPS) / (node_size * mhba_team->size);
     }
 
-    storage_size = (MHBA_CTRL_SIZE + (2 * MHBA_DATA_SIZE)) * node_size *
+    mhba_team->max_num_of_columns = xccl_round_up(node->group_size, xccl_mhba_calc_max_block_size());
+
+    storage_size = (MHBA_CTRL_SIZE + (2 * MHBA_DATA_SIZE * mhba_team->max_num_of_columns)) * node_size *
                        MAX_OUTSTANDING_OPS +
                    MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS;
 
@@ -247,6 +258,16 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     }
     for (i = 0; i < MAX_OUTSTANDING_OPS; i++) {
         xccl_mhba_op_t *op = &mhba_team->node.ops[i];
+
+        op->my_recv_umr_data = (void **) malloc(sizeof(void*) * mhba_team->max_num_of_columns);
+        op->my_send_umr_data = (void **) malloc(sizeof(void*) * mhba_team->max_num_of_columns);
+        op->send_umr_data = (void **) malloc(sizeof(void*) * mhba_team->max_num_of_columns);
+        op->recv_umr_data = (void **) malloc(sizeof(void*) * mhba_team->max_num_of_columns);
+        if(!op->my_recv_umr_data || !op->my_send_umr_data || !op->send_umr_data || !op->recv_umr_data){
+            xccl_mhba_error("malloc failed");
+            goto fail_ptr_malloc;
+        }
+
         op->ctrl           = mhba_team->node.storage +
                    MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS +
                    MHBA_CTRL_SIZE * node_size * i;
@@ -254,17 +275,19 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             (xccl_mhba_ctrl_t *)((ptrdiff_t)op->ctrl + node->group_rank * MHBA_CTRL_SIZE);
         memset(op->my_ctrl, 0, MHBA_CTRL_SIZE);
         op->my_ctrl->seq_num = -1; // because sequence number begin from 0
-        op->send_umr_data =
-            (void *)((ptrdiff_t)mhba_team->node.storage +
-                     (node_size + 1) * MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS +
-                     i * MHBA_DATA_SIZE * node_size);
-        op->my_send_umr_data = (void *)((ptrdiff_t)op->send_umr_data +
-                                        node->group_rank * MHBA_DATA_SIZE);
-        op->recv_umr_data =
-            (void *)((ptrdiff_t)op->send_umr_data +
-                     MHBA_DATA_SIZE * node_size * MAX_OUTSTANDING_OPS);
-        op->my_recv_umr_data = (void *)((ptrdiff_t)op->recv_umr_data +
-                                        node->group_rank * MHBA_DATA_SIZE);
+        for(j=0;j<mhba_team->max_num_of_columns;j++) {
+            op->send_umr_data[j] =
+                    (void *) ((ptrdiff_t) mhba_team->node.storage +
+                              (node_size + 1) * MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS +
+                              i * MHBA_DATA_SIZE * mhba_team->max_num_of_columns * node_size + j * MHBA_DATA_SIZE * node_size);
+            op->my_send_umr_data[j] = (void *) ((ptrdiff_t) op->send_umr_data[j] +
+                                             node->group_rank * MHBA_DATA_SIZE);
+            op->recv_umr_data[j] =
+                    (void *) ((ptrdiff_t) op->send_umr_data[j] +
+                              MHBA_DATA_SIZE * mhba_team->max_num_of_columns * node_size * MAX_OUTSTANDING_OPS);
+            op->my_recv_umr_data[j] = (void *) ((ptrdiff_t) op->recv_umr_data[j] +
+                                             node->group_rank * MHBA_DATA_SIZE);
+        }
     }
 
     calc_block_size(mhba_team);
@@ -276,7 +299,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         if (mhba_team->transpose) {
             mhba_team->transpose_buf = malloc(ctx->cfg.transpose_buf_size);
             if (!mhba_team->transpose_buf) {
-                goto fail_after_shmat;
+                goto fail_ptr_malloc;
             }
             mhba_team->transpose_buf_mr =
                 ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->transpose_buf,
@@ -458,6 +481,22 @@ fail_after_cq:
 fail_after_transpose_reg:
     ibv_dereg_mr(mhba_team->transpose_buf_mr);
     free(mhba_team->transpose_buf);
+fail_ptr_malloc:
+    for (i; i >= 0; i--) {
+        xccl_mhba_op_t *op = &mhba_team->node.ops[i];
+        if (op->recv_umr_data) {
+            free(op->recv_umr_data);
+        }
+        if (op->send_umr_data) {
+            free(op->send_umr_data);
+        }
+        if (op->my_send_umr_data) {
+            free(op->my_send_umr_data);
+        }
+        if (op->my_recv_umr_data) {
+            free(op->my_recv_umr_data);
+        }
+    }
 fail_after_shmat:
     if (-1 == shmdt(mhba_team->node.storage)) {
         xccl_mhba_error("failed to shmdt %p, errno %d", mhba_team->node.storage,
@@ -493,6 +532,13 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
     if (status != XCCL_OK) {
         xccl_mhba_error("failed removing shared ctx & pd");
     }
+    for (i = 0; i < MAX_OUTSTANDING_OPS; i++) {
+        xccl_mhba_op_t *op = &mhba_team->node.ops[i];
+        free(op->recv_umr_data);
+        free(op->send_umr_data);
+        free(op->my_send_umr_data);
+        free(op->my_recv_umr_data);
+    }
     if (mhba_team->node.asr_rank == mhba_team->node.sbgp->group_rank) {
         status = xccl_mhba_destroy_umr(&mhba_team->node);
         if (status != XCCL_OK) {
@@ -510,7 +556,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
         mhba_team->net.ucx_team->ctx->lib->team_destroy(
             mhba_team->net.ucx_team);
 
-        status = xccl_mhba_destroy_mkeys(&mhba_team->node, 0);
+        status = xccl_mhba_destroy_mkeys(mhba_team, 0);
         if (status != XCCL_OK) {
             xccl_mhba_error("failed to destroy Mkeys");
         }

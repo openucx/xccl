@@ -93,14 +93,14 @@ typedef struct xccl_mhba_ctrl {
 } xccl_mhba_ctrl_t;
 
 typedef struct xccl_mhba_op {
-    void               *ctrl;
-    xccl_mhba_ctrl_t   *my_ctrl;
-    void               *send_umr_data;
-    void               *my_send_umr_data;
-    void               *recv_umr_data;
-    void               *my_recv_umr_data;
-    struct mlx5dv_mkey *send_mkey;
-    struct mlx5dv_mkey *recv_mkey;
+    void                *ctrl;
+    xccl_mhba_ctrl_t    *my_ctrl;
+    void               **send_umr_data;
+    void               **my_send_umr_data;
+    void               **recv_umr_data;
+    void               **my_recv_umr_data;
+    struct mlx5dv_mkey **send_mkeys;
+    struct mlx5dv_mkey **recv_mkeys;
 } xccl_mhba_op_t;
 
 /* This structure holds resources and data related to the "in-node"
@@ -110,7 +110,6 @@ typedef struct xccl_mhba_node {
     xccl_sbgp_t         *sbgp;
     void                *storage;
     xccl_mhba_op_t       ops[MAX_OUTSTANDING_OPS];
-    struct mlx5dv_mkey  *team_send_mkey;
     struct mlx5dv_mkey  *team_recv_mkey;
     struct ibv_context  *shared_ctx;
     struct ibv_pd       *shared_pd;
@@ -163,6 +162,7 @@ typedef struct xccl_mhba_team {
     uint64_t             dummy_atomic_buff;
     ucs_rcache_t        *rcache;
     int                  requested_block_size;
+    int                  max_num_of_columns;
     struct ibv_mr       *dummy_bf_mr;
     struct ibv_wc       *work_completion;
     void                *transpose_buf;
