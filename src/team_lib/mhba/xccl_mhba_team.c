@@ -208,6 +208,8 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     assert(mhba_team->net.sbgp->status == XCCL_SBGP_ENABLED ||
            node->group_rank != 0);
 
+    mhba_team->max_msg_size = MAX_MSG_SIZE;
+
     mhba_team->max_num_of_columns = xccl_round_up(node->group_size, xccl_mhba_calc_max_block_size());
 
     storage_size = (MHBA_CTRL_SIZE + (2 * MHBA_DATA_SIZE * mhba_team->max_num_of_columns)) * node_size *

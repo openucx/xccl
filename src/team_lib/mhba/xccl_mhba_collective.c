@@ -360,7 +360,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     size_t                len       = request->args.buffer_info.len;
     int                   node_size = team->node.sbgp->group_size;
     int                   net_size  = team->net.sbgp->group_size;
-    int           op_msgsize    = node_size * MAX_MSG_SIZE * team->size * team->max_num_of_columns;
+    int           op_msgsize    = node_size * team->max_msg_size * team->size * team->max_num_of_columns;
     int           node_msgsize  = SQUARED(node_size) * len;
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
@@ -451,8 +451,8 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
     size_t                len       = request->args.buffer_info.len;
     int                   node_size = team->node.sbgp->group_size;
     int                   net_size  = team->net.sbgp->group_size;
-    int           op_msgsize    = node_size * MAX_MSG_SIZE * team->size * team->max_num_of_columns;
-    int           mkey_msgsize    = node_size * MAX_MSG_SIZE * team->size;
+    int           op_msgsize    = node_size * team->max_msg_size * team->size * team->max_num_of_columns;
+    int           mkey_msgsize    = node_size * team->max_msg_size * team->size;
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
     int           block_msgsize = SQUARED(block_size) * len;
@@ -575,7 +575,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
     size_t                len       = request->args.buffer_info.len;
     int                   node_size = team->node.sbgp->group_size;
     int                   net_size  = team->net.sbgp->group_size;
-    int           op_msgsize    = node_size * MAX_MSG_SIZE * team->size * team->max_num_of_columns;
+    int           op_msgsize    = node_size * team->max_msg_size * team->size * team->max_num_of_columns;
     int           node_msgsize  = SQUARED(node_size) * len;
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
@@ -629,8 +629,8 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
     size_t                len       = request->args.buffer_info.len;
     int                   node_size = team->node.sbgp->group_size;
     int                   net_size  = team->net.sbgp->group_size;
-    int           op_msgsize    = node_size * MAX_MSG_SIZE * team->size * team->max_num_of_columns;
-    int           mkey_msgsize    = node_size * MAX_MSG_SIZE * team->size;
+    int           op_msgsize    = node_size * team->max_msg_size * team->size * team->max_num_of_columns;
+    int           mkey_msgsize    = node_size * team->max_msg_size * team->size;
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
     int           block_msgsize = SQUARED(block_size) * len;
@@ -735,7 +735,7 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->seq_index = SEQ_INDEX(team->sequence_number);
     xccl_mhba_debug("Seq num is %d", request->seq_num);
     team->sequence_number += 1;
-    if (len > MAX_MSG_SIZE) {
+    if (len > team->max_msg_size) {
         xccl_mhba_error("msg size too long");
         return XCCL_ERR_NO_RESOURCE;
     }
