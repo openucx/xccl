@@ -266,8 +266,13 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                    MHBA_CTRL_SIZE * node_size * i;
         op->my_ctrl =
             (xccl_mhba_ctrl_t *)((ptrdiff_t)op->ctrl + node->group_rank * MHBA_CTRL_SIZE);
-        memset(op->my_ctrl, 0, MHBA_CTRL_SIZE);
-        op->my_ctrl->seq_num = -1; // because sequence number begin from 0
+        op->my_ctrl->mkey_cache_flag = 0;
+        if (mhba_team->node.asr_rank == node->group_rank) {
+            for (j = 0; j < node->group_size; j++) {
+                xccl_mhba_ctrl_t* rank_ctrl = (xccl_mhba_ctrl_t *) ((ptrdiff_t) op->ctrl + j * MHBA_CTRL_SIZE);
+                rank_ctrl->seq_num = -1; // because sequence number begin from 0
+            }
+        }
         for(j=0;j<mhba_team->max_num_of_columns;j++) {
             op->send_umr_data[j] =
                     (void *) ((ptrdiff_t) mhba_team->node.storage +
