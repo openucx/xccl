@@ -218,6 +218,21 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
     if (mhba_team->node.asr_rank == node->group_rank) {
         bcast_data.shmid = shmget(IPC_PRIVATE, storage_size, IPC_CREAT | 0600);
+        if (bcast_data.shmid == -1) {
+            xccl_mhba_error("failed to allocate sysv shm segment for %d bytes",
+                            storage_size);
+            goto fail;
+        }
+        mhba_team->node.storage = shmat(bcast_data.shmid, NULL, 0);
+        for (i = 0; i < MAX_OUTSTANDING_OPS; i++) {
+            void* ctrl_addr = mhba_team->node.storage + MHBA_CTRL_SIZE * MAX_OUTSTANDING_OPS +
+                    MHBA_CTRL_SIZE * node_size * i;
+            for (j = 0; j < node->group_size; j++) {
+                xccl_mhba_ctrl_t* rank_ctrl = (xccl_mhba_ctrl_t *) ((ptrdiff_t) ctrl_addr + j * MHBA_CTRL_SIZE);
+                memset(rank_ctrl, 0, MHBA_CTRL_SIZE);
+                rank_ctrl->seq_num = -1; // because sequence number begin from 0
+            }
+        }
         bcast_data.net_size = mhba_team->net.sbgp->group_size;
         tmpnam(bcast_data.sock_path); //TODO switch to mkstemp
     }
@@ -237,8 +252,10 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         goto fail_after_share_pd;
     }
     mhba_team->net.net_size = bcast_data.net_size;
-    mhba_team->node.storage = shmat(bcast_data.shmid, NULL, 0);
-    if (mhba_team->node.asr_rank == node->group_rank) {
+    if (mhba_team->node.asr_rank != node->group_rank) {
+        // shmat already performed for asr above
+        mhba_team->node.storage = shmat(bcast_data.shmid, NULL, 0);
+    } else {
         if (shmctl(bcast_data.shmid, IPC_RMID, NULL) == -1) {
             xccl_mhba_error("failed to shmctl IPC_RMID seg %d",
                             bcast_data.shmid);
@@ -266,8 +283,6 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                    MHBA_CTRL_SIZE * node_size * i;
         op->my_ctrl =
             (xccl_mhba_ctrl_t *)((ptrdiff_t)op->ctrl + node->group_rank * MHBA_CTRL_SIZE);
-        memset(op->my_ctrl, 0, MHBA_CTRL_SIZE);
-        op->my_ctrl->seq_num = -1; // because sequence number begin from 0
         for(j=0;j<mhba_team->max_num_of_columns;j++) {
             op->send_umr_data[j] =
                     (void *) ((ptrdiff_t) mhba_team->node.storage +
