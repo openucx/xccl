@@ -72,6 +72,7 @@ extern xccl_team_lib_mhba_t xccl_team_lib_mhba;
 #define MAX_TRANSPOSE_SIZE 8192 // HW transpose unit is limited to matrix size
 #define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
 #define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
+#define MAX_BLOCK_SIZE 64 // from limit of Transpose unit capabilities
 
 typedef struct xccl_mhba_context {
     xccl_tl_context_t                  super;
