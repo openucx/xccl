@@ -47,7 +47,7 @@ static int oob_sbgp_allgather(void *sbuf, void *rbuf, size_t len, int myrank,
 static void calc_block_size(xccl_mhba_team_t *team)
 {
     int i;
-    int block_size = team->node.sbgp->group_size;
+    int block_size = MIN(team->node.sbgp->group_size, MAX_BLOCK_SIZE);
     int msg_len    = 1;
     for (i = 0; i < MHBA_NUM_OF_BLOCKS_SIZE_BINS; i++) {
         while ((block_size * block_size) * msg_len > MAX_TRANSPOSE_SIZE) {
@@ -299,6 +299,10 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     }
 
     calc_block_size(mhba_team);
+    if (ctx->cfg.block_size > MAX_BLOCK_SIZE) {
+        xccl_mhba_error("Max Block size is %d", MAX_BLOCK_SIZE);
+        goto fail_ptr_malloc;
+    }
     mhba_team->requested_block_size = ctx->cfg.block_size;
     if (mhba_team->node.asr_rank == node->group_rank) {
         for(i=0;i<MAX_OUTSTANDING_OPS;i++) {
