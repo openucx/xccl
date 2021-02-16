@@ -9,7 +9,9 @@
 #include "reduce.h"
 #include <stdlib.h>
 
-#define MIN(_a, _b) ((_a < _b) ? _a : _b)
+#define MIN(a, b) ({ __typeof__ (a) _a = (a); \
+                     __typeof__ (b) _b = (b); \
+                     _a < _b ? _a : _b; })
 
 static inline void
 xccl_oob_allreduce(void *sbuf, void *rbuf, size_t count, xccl_dt_t dt, xccl_op_t op,
