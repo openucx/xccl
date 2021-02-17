@@ -177,6 +177,24 @@ static const ucs_memory_type_t stream_to_mem_type[] = {
     [XCCL_STREAM_TYPE_CUDA] = UCS_MEMORY_TYPE_CUDA
 };
 
+xccl_status_t
+xccl_mem_component_memcpy_async(void *sbuf, void *dbuf, size_t size, xccl_stream_t *stream)
+{
+    int mt = stream_to_mem_type[stream->type];
+    xccl_status_t st;
+
+    if (size == 0) {
+        return XCCL_OK;
+    }
+
+    assert(mt != UCS_MEMORY_TYPE_HOST);
+    if (mem_components[mt] == NULL) {
+        xccl_error("mem component %s is not available", ucs_memory_type_names[mt]);
+    }
+
+    return mem_components[mt]->memcpy_async(sbuf, dbuf, size, stream);
+}
+
 xccl_status_t xccl_mem_component_start_acitivity(xccl_stream_t *stream,
                                                  xccl_mem_component_stream_request_t **req)
 {
