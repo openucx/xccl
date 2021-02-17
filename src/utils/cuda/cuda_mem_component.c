@@ -162,6 +162,11 @@ xccl_cuda_start_acitivity(xccl_stream_t *stream,
     return XCCL_OK;
 }
 
+xccl_status_t xccl_cuda_memcpy_async(void *sbuf, void *dbuf, size_t size, xccl_stream_t *stream)
+{
+    CUDACHECK(cudaMemcpyAsync(dbuf, sbuf, size, cudaMemcpyDefault, *((cudaStream_t *) stream->stream)));
+}
+
 xccl_status_t
 xccl_cuda_finish_acitivity(xccl_mem_component_stream_request_t *req)
 {
@@ -266,6 +271,7 @@ xccl_cuda_mem_component_t xccl_cuda_mem_component = {
     xccl_cuda_mem_type,
     xccl_cuda_reduce,
     xccl_cuda_reduce_multi,
+    xccl_cuda_memcpy_async,
     xccl_cuda_event_record,
     xccl_cuda_event_query,
     xccl_cuda_event_free,
