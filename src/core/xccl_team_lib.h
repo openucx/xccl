@@ -103,7 +103,7 @@ xccl_oob_allgather_nb(void *sbuf, void* rbuf, size_t len,
     xccl_ep_range_t r = {
         .type = XCCL_EP_RANGE_UNDEFINED,
     };
-    oob->allgather(sbuf, rbuf, len, 0, r, oob->coll_context, req);
+    oob->allgather(sbuf, rbuf, len, oob->rank, r, oob->coll_context, req);
 }
 
 static inline void
