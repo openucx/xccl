@@ -8,7 +8,7 @@
 #
 
 NVCC = nvcc
-NVCCFLAGS = "-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core" --compiler-options -fno-rtti,-fno-exceptions
+NVCCFLAGS = "${UCS_CPPFLAGS} -I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core" --compiler-options -fno-rtti,-fno-exceptions
 NV_ARCH_FLAGS = -arch=sm_50 \
 		-gencode=arch=compute_37,code=sm_37 \
 		-gencode=arch=compute_50,code=sm_50 \
