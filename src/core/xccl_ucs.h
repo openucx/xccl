@@ -8,7 +8,16 @@
 #define XCCL_UCS_H_
 
 #include <inttypes.h>
-#include <ucs/arch/x86_64/bitops.h>
+
+#if defined(__x86_64__)
+#   include <ucs/arch/x86_64/bitops.h>
+#elif defined(__aarch64__)
+#   include <ucs/arch/aarch64/bitops.h>
+#elif defined(__powerpc64__)
+#   include <ucs/arch/ppc64/bitops.h>
+#else
+#  error "Unsupported architecture"
+#endif
 
 #define ucs_ilog2(_n)                   \
 (                                       \

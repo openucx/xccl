@@ -117,6 +117,13 @@ AC_ARG_WITH([cuda],
 AM_CONDITIONAL([HAVE_CUDA], [test "x$cuda_happy" != xno])
 AC_MSG_RESULT([CUDA support: $cuda_happy; $CUDA_CPPFLAGS $CUDA_LDFLAGS])
 
+AC_ARG_WITH([dpu],
+            AC_HELP_STRING([--with-dpu=yes/no], [Enable/Disable dpu team]),
+            [AS_IF([test "x$with_dpu" != "xno"], dpu_happy="yes", dpu_happy="no")],
+            [dpu_happy="no"])
+AM_CONDITIONAL([HAVE_DPU], [test "x$dpu_happy" != xno])
+AC_MSG_RESULT([DPU support: $dpu_happy])
+
 AM_CONDITIONAL([HAVE_NCCL], [false])
 if test "x$cuda_happy" != xno; then
     m4_include([m4/nccl.m4])
@@ -136,6 +143,7 @@ AC_CONFIG_FILES([
                  src/team_lib/hier/Makefile
                  src/team_lib/multirail/Makefile
                  src/team_lib/nccl/Makefile
+                 src/team_lib/dpu/Makefile
                  src/utils/cuda/Makefile
                  src/utils/cuda/kernels/Makefile
                  test/Makefile
