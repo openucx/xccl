@@ -10,18 +10,24 @@
 #include <cuda.h>
 #include "xccl_team_lib.h"
 
+typedef enum xccl_nccl_completion_sync_type {
+    XCCL_NCCL_COMPLETION_SYNC_EVENT,
+    XCCL_NCCL_COMPLETION_SYNC_CALLBACK
+} xccl_nccl_completion_sync_type_t;
+
 typedef struct xccl_team_lib_nccl_config {
-    xccl_team_lib_config_t super;
-    int enable_allreduce;
-    int enable_alltoall;
-    int enable_alltoallv;
-    int enable_allgather;
-    int enable_bcast;
+    xccl_team_lib_config_t           super;
+    int                              enable_allreduce;
+    int                              enable_alltoall;
+    int                              enable_alltoallv;
+    int                              enable_allgather;
+    int                              enable_bcast;
 } xccl_team_lib_nccl_config_t;
 
 typedef struct xccl_tl_nccl_context_config {
-    xccl_tl_context_config_t super;
-    char                     *device;
+    xccl_tl_context_config_t         super;
+    char                             *device;
+    xccl_nccl_completion_sync_type_t completion_sync;
 } xccl_tl_nccl_context_config_t;
 
 typedef struct xccl_team_lib_nccl {
@@ -48,7 +54,8 @@ extern xccl_team_lib_nccl_t xccl_team_lib_nccl;
 #define xccl_nccl_trace_poll(_fmt, ...)  xccl_team_nccl_log_component(UCS_LOG_LEVEL_TRACE_POLL, _fmt, ## __VA_ARGS__)
 
 typedef struct xccl_nccl_context {
-    xccl_tl_context_t super;
+    xccl_tl_context_t                super;
+    xccl_nccl_completion_sync_type_t completion_sync;
 } xccl_nccl_context_t;
 
 typedef struct xccl_nccl_team {

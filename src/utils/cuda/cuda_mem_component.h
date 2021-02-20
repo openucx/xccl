@@ -13,8 +13,9 @@
 typedef struct xccl_cuda_mem_component_stream_request {
     xccl_mem_component_stream_request_t super;
     int                                 is_free;
-    int                                 stop_request;
-    void                                *dev_stop_request;
+    void                                *dev_is_free;
+    xccl_status_t                       status;
+    void                                *dev_status;
     cudaEvent_t                         event;
 } xccl_cuda_mem_component_stream_request_t;
 

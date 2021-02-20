@@ -511,23 +511,37 @@ static xccl_status_t xccl_ucx_collective_post(xccl_tl_coll_req_t *request)
 
     req->stream_req = NULL;
     if (req->args.field_mask & XCCL_COLL_OP_ARGS_FIELD_STREAM) {
-        st = xccl_mc_event_record(&req->args.stream, &req->ready_to_start);
-        if (st != XCCL_OK) {
-            return st;
-        }
         if (TEAM_UCX_CTX_REQ(req)->block_stream) {
-            xccl_mem_component_start_acitivity(&req->args.stream,
-                                               &req->stream_req);
+            st = xccl_mem_component_start_acitivity(&req->args.stream,
+                                                    &req->stream_req);
+            if (st != XCCL_OK) {
+                return st;
+            }
+            st = xccl_mem_component_query_activity(req->stream_req);
+            if (st == XCCL_INITIALIZED) {
+                /* collective is not ready to start, start it later*/
+                /* assign dummy value to ready_to_start*/
+                req->ready_to_start = (void*)0x1;
+                return XCCL_OK;
+            }
+            if (st != XCCL_INPROGRESS) {
+                return st;
+            }
+        } else {
+            st = xccl_mc_event_record(&req->args.stream, &req->ready_to_start);
+            if (st != XCCL_OK) {
+                return st;
+            }
+            st = xccl_mc_event_query(req->ready_to_start);
+            if (st == XCCL_INPROGRESS) {
+                /* collective is not ready to start, start it later*/
+                return XCCL_OK;
+            }
+            if (st != XCCL_OK) {
+                return st;
+            }
+            xccl_mc_event_free(req->ready_to_start);
         }
-        st = xccl_mc_event_query(req->ready_to_start);
-        if (st == XCCL_INPROGRESS) {
-            /* collective is not ready to start, start it later*/
-            return XCCL_OK;
-        }
-        if (st != XCCL_OK) {
-            return st;
-        }
-        xccl_mc_event_free(req->ready_to_start);
     }
     req->ready_to_start = NULL;
     return req->start(req);
@@ -539,11 +553,23 @@ static xccl_status_t xccl_ucx_collective_test(xccl_tl_coll_req_t *request)
     xccl_status_t status;
 
     if (req->ready_to_start != NULL) {
-        status = xccl_mc_event_query(req->ready_to_start);
-        if (status != XCCL_OK) {
-            return status;
+        if (TEAM_UCX_CTX_REQ(req)->block_stream) {
+            status = xccl_mem_component_query_activity(req->stream_req);
+            /* status can't be XCCL_OK since collective wasn't started*/
+            assert(status != XCCL_OK);
+            if (status == XCCL_INITIALIZED) {
+                return XCCL_INPROGRESS;
+            } else if (status != XCCL_INPROGRESS) {
+                /* error */
+                return status;
+            }
+        } else {
+            status = xccl_mc_event_query(req->ready_to_start);
+            if (status != XCCL_OK) {
+                return status;
+            }
+            xccl_mc_event_free(req->ready_to_start);
         }
-        xccl_mc_event_free(req->ready_to_start);
         req->ready_to_start = NULL;
         req->start(req);
     }
@@ -551,11 +577,11 @@ static xccl_status_t xccl_ucx_collective_test(xccl_tl_coll_req_t *request)
         if (XCCL_OK != (status = req->progress(req))) {
             return status;
         };
-        if ((XCCL_INPROGRESS != req->complete) &&
-            (req->stream_req != NULL)) {
-            xccl_mem_component_finish_acitivity(req->stream_req);
-            req->stream_req = NULL;
-        }
+    }
+    if ((XCCL_INPROGRESS != req->complete) &&
+        (req->stream_req != NULL)) {
+        xccl_mem_component_finish_acitivity(req->stream_req);
+        req->stream_req = NULL;
     }
 
     return req->complete;
