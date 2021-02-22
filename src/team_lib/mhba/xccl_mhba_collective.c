@@ -415,7 +415,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                                      block_size, request->args.buffer_info.len,
                                      request->tmp_transpose_buf);
                 status = send_block_data(
-                    team->net.qps[cyc_rank],
+                    team->net.rc_qps[cyc_rank],
                     (uintptr_t)request->transpose_buf_mr->addr, block_msgsize,
                     request->transpose_buf_mr->lkey, remote_addr,
                     team->net.rkeys[cyc_rank], IBV_SEND_SIGNALED, 0);
@@ -429,7 +429,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     }
 
     for (i = 0; i < net_size; i++) {
-        status = send_atomic(team->net.qps[i],
+        status = send_atomic(team->net.rc_qps[i],
                              (uintptr_t)team->net.remote_ctrl[i].addr +
                                  (request->seq_index * MHBA_CTRL_SIZE),
                              team->net.remote_ctrl[i].rkey, team, request);
@@ -539,7 +539,7 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
                 }
 
                 status = send_block_data(
-                        team->net.qps[cyc_rank],
+                        team->net.rc_qps[cyc_rank],
                         (uintptr_t)request->transpose_buf_mr->addr, current_block_msgsize,
                         request->transpose_buf_mr->lkey, remote_addr,
                         team->net.rkeys[cyc_rank], IBV_SEND_SIGNALED, 0);
@@ -553,7 +553,7 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
     }
 
     for (i = 0; i < net_size; i++) {
-        status = send_atomic(team->net.qps[i],
+        status = send_atomic(team->net.rc_qps[i],
                              (uintptr_t)team->net.remote_ctrl[i].addr +
                              (request->seq_index * MHBA_CTRL_SIZE),
                              team->net.remote_ctrl[i].rkey, team, request);
@@ -599,7 +599,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
                 remote_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * rank +
                                           block_msgsize * j + col_msgsize * k);
 
-                status = send_block_data(team->net.qps[cyc_rank], src_addr, block_msgsize,
+                status = send_block_data(team->net.rc_qps[cyc_rank], src_addr, block_msgsize,
                                          team->node.ops[request->seq_index].send_mkeys[0]->lkey,
                                          remote_addr, team->net.rkeys[cyc_rank], 0, 0);
                 if (status != XCCL_OK) {
@@ -608,7 +608,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
                 }
             }
         }
-        status = send_atomic(team->net.qps[cyc_rank],
+        status = send_atomic(team->net.rc_qps[cyc_rank],
                              (uintptr_t)team->net.remote_ctrl[cyc_rank].addr +
                              (request->seq_index * MHBA_CTRL_SIZE),
                              team->net.remote_ctrl[cyc_rank].rkey, team, request);
@@ -667,7 +667,7 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
                     current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize_leftovers : corner_msgsize;
                 }
 
-                status = send_block_data(team->net.qps[cyc_rank], src_addr, current_block_msgsize,
+                status = send_block_data(team->net.rc_qps[cyc_rank], src_addr, current_block_msgsize,
                                          team->node.ops[request->seq_index].send_mkeys[j]->lkey,
                                          remote_addr, team->net.rkeys[cyc_rank], 0, 0);
                 if (status != XCCL_OK) {
@@ -676,7 +676,7 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
                 }
             }
         }
-        status = send_atomic(team->net.qps[cyc_rank],
+        status = send_atomic(team->net.rc_qps[cyc_rank],
                              (uintptr_t)team->net.remote_ctrl[cyc_rank].addr +
                              (request->seq_index * MHBA_CTRL_SIZE),
                              team->net.remote_ctrl[cyc_rank].rkey, team, request);
