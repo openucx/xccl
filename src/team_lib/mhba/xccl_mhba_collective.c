@@ -440,12 +440,12 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                                      block_size, request->args.buffer_info.len,
                                      request->tmp_transpose_buf);
                 if(team->is_dc){
-                    ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+                    ibv_wr_start(team->net.dcis[current_dci].dc_qpex);
                     send_block_data_dc((uintptr_t) request->transpose_buf_mr->addr, block_msgsize,
                                        request->transpose_buf_mr->lkey, remote_addr, team->net.rkeys[cyc_rank],
-                                       IBV_SEND_SIGNALED, team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
+                                       IBV_SEND_SIGNALED, &team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
                                        team->net.ahs[cyc_rank]);
-                    if(ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)){
+                    if(ibv_wr_complete(team->net.dcis[current_dci].dc_qpex)){
                         xccl_mhba_error("can't post request [%d,%d,%d]", i, j, k);
                         return XCCL_ERR_NO_MESSAGE;
                     }
@@ -468,12 +468,12 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     for (i = 0; i < net_size; i++) {
         if(team->is_dc){
             current_dci = i % NUM_DCI_QPS;
-            ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+            ibv_wr_start(team->net.dcis[current_dci].dc_qpex);
             send_atomic_dc((uintptr_t)team->net.remote_ctrl[i].addr +
                            (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[i].rkey,
-                           team->net.dcis[current_dci], team->net.remote_dctns[i], team->net.ahs[i],
+                           &team->net.dcis[current_dci], team->net.remote_dctns[i], team->net.ahs[i],
                            team, request);
-            if(ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)){
+            if(ibv_wr_complete(team->net.dcis[current_dci].dc_qpex)){
                 xccl_mhba_error("can't post atomic request [%d]", i);
                 return XCCL_ERR_NO_MESSAGE;
             }
@@ -592,12 +592,12 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
                 }
 
                 if(team->is_dc){
-                    ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+                    ibv_wr_start(team->net.dcis[current_dci].dc_qpex);
                     send_block_data_dc((uintptr_t) request->transpose_buf_mr->addr, current_block_msgsize,
                                        request->transpose_buf_mr->lkey, remote_addr, team->net.rkeys[cyc_rank],
-                                       IBV_SEND_SIGNALED, team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
+                                       IBV_SEND_SIGNALED, &team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
                                        team->net.ahs[cyc_rank]);
-                    if(ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)){
+                    if(ibv_wr_complete(team->net.dcis[current_dci].dc_qpex)){
                         xccl_mhba_error("can't post request [%d,%d,%d]", i, j, k);
                         return XCCL_ERR_NO_MESSAGE;
                     }
@@ -620,12 +620,12 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
     for (i = 0; i < net_size; i++) {
         if(team->is_dc){
             current_dci = i % NUM_DCI_QPS;
-            ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+            ibv_wr_start(team->net.dcis[current_dci].dc_qpex);
             send_atomic_dc((uintptr_t)team->net.remote_ctrl[i].addr +
                            (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[i].rkey,
-                           team->net.dcis[current_dci], team->net.remote_dctns[i], team->net.ahs[i],
+                           &team->net.dcis[current_dci], team->net.remote_dctns[i], team->net.ahs[i],
                            team, request);
-            if(ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)){
+            if(ibv_wr_complete(team->net.dcis[current_dci].dc_qpex)){
                 xccl_mhba_error("can't post atomic request [%d]", i);
                 return XCCL_ERR_NO_MESSAGE;
             }
@@ -671,7 +671,8 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
         dest_rank = team->net.rank_map[cyc_rank];
         if (team->is_dc) {
             current_dci = cyc_rank % NUM_DCI_QPS;
-            ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+            ibv_wr_start(team->net.dcis[current_dci].dc_qpex); //todo pay attention for MT - 2 threads cant write
+            // to same QP in same time
         }
         //send all blocks from curr node to some ARR
         for (j = 0; j < (node_size / block_size); j++) {
@@ -685,7 +686,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
                     send_block_data_dc(src_addr, block_msgsize,
                                        team->node.ops[request->seq_index].send_mkeys[0]->lkey, remote_addr,
                                        team->net.rkeys[cyc_rank],
-                                       0, team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
+                                       0, &team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
                                        team->net.ahs[cyc_rank]);
                 } else {
                     status = send_block_data_rc(team->net.rc_qps[cyc_rank], src_addr, block_msgsize,
@@ -701,9 +702,9 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
         if(team->is_dc){
             send_atomic_dc((uintptr_t) team->net.remote_ctrl[cyc_rank].addr +
                            (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[cyc_rank].rkey,
-                           team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank], team->net.ahs[cyc_rank],
+                           &team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank], team->net.ahs[cyc_rank],
                            team, request);
-            if (ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)) {
+            if (ibv_wr_complete(team->net.dcis[current_dci].dc_qpex)) {
                 xccl_mhba_error("can't post requests [%d]", i);
                 return XCCL_ERR_NO_MESSAGE;
             }
@@ -752,7 +753,7 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
         dest_rank = team->net.rank_map[cyc_rank];
         if (team->is_dc) {
             current_dci = cyc_rank % NUM_DCI_QPS;
-            ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+            ibv_wr_start(team->net.dcis[current_dci].dc_qpex);
         }
         //send all blocks from curr node to some ARR
         for (j = 0; j < request->num_of_blocks_columns; j++) {
@@ -776,7 +777,7 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
                     send_block_data_dc(src_addr, current_block_msgsize,
                                        team->node.ops[request->seq_index].send_mkeys[j]->lkey, remote_addr,
                                        team->net.rkeys[cyc_rank],
-                                       0, team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
+                                       0, &team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
                                        team->net.ahs[cyc_rank]);
                 } else {
                     status = send_block_data_rc(team->net.rc_qps[cyc_rank], src_addr, current_block_msgsize,
@@ -792,9 +793,9 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
         if(team->is_dc){
             send_atomic_dc((uintptr_t) team->net.remote_ctrl[cyc_rank].addr +
                            (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[cyc_rank].rkey,
-                           team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank], team->net.ahs[cyc_rank],
+                           &team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank], team->net.ahs[cyc_rank],
                            team, request);
-            if (ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)) {
+            if (ibv_wr_complete(team->net.dcis[current_dci].dc_qpex)) {
                 xccl_mhba_error("can't post requests [%d]", i);
                 return XCCL_ERR_NO_MESSAGE;
             }

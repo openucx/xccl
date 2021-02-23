@@ -509,7 +509,7 @@ dctn_malloc_fail:
 qp_fail:
     if(mhba_team->is_dc){
         for(i =0;i<NUM_DCI_QPS;i++){
-            ibv_destroy_qp(mhba_team->net.dcis[i]->dci_qp);
+            ibv_destroy_qp(mhba_team->net.dcis[i].dci_qp);
         }
         ibv_destroy_qp(mhba_team->net.dct_qp);
     } else {
@@ -602,9 +602,10 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
         free(mhba_team->net.remote_ctrl);
         if(mhba_team->is_dc){
             for(i =0;i<NUM_DCI_QPS;i++){
-                ibv_destroy_qp(mhba_team->net.dcis[i]->dci_qp);
+                ibv_destroy_qp(mhba_team->net.dcis[i].dci_qp);
             }
             ibv_destroy_qp(mhba_team->net.dct_qp);
+            ibv_destroy_srq(mhba_team->net.srq);
             for (i = 0; i < mhba_team->net.net_size; i++) {
                 ibv_destroy_ah(mhba_team->net.ahs[i]);
             }

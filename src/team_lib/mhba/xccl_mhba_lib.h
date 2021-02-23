@@ -140,8 +140,9 @@ typedef struct xccl_mhba_net {
         struct ibv_qp       *dci_qp;
         struct ibv_qp_ex    *dc_qpex;
         struct mlx5dv_qp_ex *dc_mqpex;
-    } * dcis[NUM_DCI_QPS];
+    } dcis[NUM_DCI_QPS];
     struct ibv_qp       *dct_qp;
+    struct ibv_srq      *srq;
     uint32_t            *remote_dctns;
     struct ibv_ah      **ahs;
     struct ibv_cq       *cq;

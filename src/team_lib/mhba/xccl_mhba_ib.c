@@ -4,6 +4,7 @@
  */
 
 #include "xccl_mhba_ib.h"
+#include "utils/utils.h"
 
 xccl_status_t xccl_mhba_create_ibv_ctx(char *ib_devname,
                                        struct ibv_context **ctx)
@@ -156,7 +157,7 @@ xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uin
     qp_attr_to_init.port_num = port_num;
     qp_attr_to_init.qp_access_flags = IBV_ACCESS_LOCAL_WRITE |
                                       IBV_ACCESS_REMOTE_READ |
-                                      IBV_ACCESS_REMOTE_WRITE;
+                                      IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC;
 
     qp_attr_to_rtr.qp_state = IBV_QPS_RTR;
     qp_attr_to_rtr.path_mtu = IBV_MTU_4096;
@@ -173,36 +174,36 @@ xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uin
 
     //create DCIs
     for (i =0; i<NUM_DCI_QPS ;i++) {
-        mhba_team->net.dcis[i]->dci_qp = mlx5dv_create_qp(mhba_team->node.shared_ctx, &attr_ex, &attr_dv);
-        if (!mhba_team->net.dcis[i]->dci_qp) {
+        mhba_team->net.dcis[i].dci_qp = mlx5dv_create_qp(mhba_team->node.shared_ctx, &attr_ex, &attr_dv);
+        if (!mhba_team->net.dcis[i].dci_qp) {
             xccl_mhba_error("Couldn't create DCI QP");
             goto fail;
         }
         // Turn DCI ibv_qp to ibv_qpex and ibv_mqpex
-        mhba_team->net.dcis[i]->dc_qpex = ibv_qp_to_qp_ex(mhba_team->net.dcis[i]->dci_qp);
-        if (!mhba_team->net.dcis[i]->dc_qpex) {
+        mhba_team->net.dcis[i].dc_qpex = ibv_qp_to_qp_ex(mhba_team->net.dcis[i].dci_qp);
+        if (!mhba_team->net.dcis[i].dc_qpex) {
             xccl_mhba_error("Failed turn ibv_qp to ibv_qp_ex, error: %d", errno);
             goto fail;
         }
-        mhba_team->net.dcis[i]->dc_mqpex = mlx5dv_qp_ex_from_ibv_qp_ex(mhba_team->net.dcis[i]->dc_qpex);
-        if (!mhba_team->net.dcis[i]->dc_mqpex) {
+        mhba_team->net.dcis[i].dc_mqpex = mlx5dv_qp_ex_from_ibv_qp_ex(mhba_team->net.dcis[i].dc_qpex);
+        if (!mhba_team->net.dcis[i].dc_mqpex) {
             xccl_mhba_error("Failed turn ibv_qp_ex to mlx5dv_qp_ex, error: %d", errno);
             goto fail;
         }
 
-        if (ibv_modify_qp(mhba_team->net.dcis[i]->dci_qp, &qp_attr_to_init,
+        if (ibv_modify_qp(mhba_team->net.dcis[i].dci_qp, &qp_attr_to_init,
                           IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT) != 0) {
             xccl_mhba_error("Failed to modify init qp");
             goto fail;
         }
 
-        if (ibv_modify_qp(mhba_team->net.dcis[i]->dci_qp, &qp_attr_to_rtr,
+        if (ibv_modify_qp(mhba_team->net.dcis[i].dci_qp, &qp_attr_to_rtr,
                           IBV_QP_STATE | IBV_QP_PATH_MTU | IBV_QP_AV) != 0) {
             xccl_mhba_error("Failed to modify qp to rtr");
             goto fail;
         }
 
-        if (ibv_modify_qp(mhba_team->net.dcis[i]->dci_qp, &qp_attr_to_rts,
+        if (ibv_modify_qp(mhba_team->net.dcis[i].dci_qp, &qp_attr_to_rts,
                           IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY
                           | IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER) != 0) {
             xccl_mhba_error("Failed to modify qp to rts");
@@ -219,7 +220,17 @@ xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uin
     attr_ex.recv_cq = mhba_team->net.cq;
     attr_ex.comp_mask |= IBV_QP_INIT_ATTR_PD;
     attr_ex.pd = mhba_team->node.shared_pd;
-    attr_ex.srq = NULL;
+    struct ibv_srq_init_attr srq_attr;
+    memset(&srq_attr, 0, sizeof(struct ibv_srq_init_attr));
+    srq_attr.attr.max_wr = 1;
+    srq_attr.attr.max_sge = 1;
+    // SRQ isn't really needed since we don't use SEND and RDMA WRITE with IMM, but needed because it's DCT
+    mhba_team->net.srq = ibv_create_srq(mhba_team->node.shared_pd, &srq_attr);
+    if (mhba_team->net.srq  == NULL) {
+        xccl_mhba_error("Failed to create Shared Receive Queue (SRQ)");
+        goto fail;
+    }
+    attr_ex.srq = mhba_team->net.srq ;
 
     attr_dv.comp_mask |= MLX5DV_QP_INIT_ATTR_MASK_DC;
     attr_dv.dc_init_attr.dc_type = MLX5DV_DCTYPE_DCT;
@@ -227,8 +238,8 @@ xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uin
 
     mhba_team->net.dct_qp = mlx5dv_create_qp(mhba_team->node.shared_ctx, &attr_ex, &attr_dv);
     if (mhba_team->net.dct_qp == NULL) {
-        xccl_mhba_error("Couldn't create DCT QP");
-        goto fail;
+        xccl_mhba_error("Couldn't create DCT QP errno=%d",errno);
+        goto srq_fail;
     }
 
     if (ibv_modify_qp(mhba_team->net.dct_qp, &qp_attr_to_init,
@@ -250,9 +261,13 @@ dct_fail:
     if(ibv_destroy_qp(mhba_team->net.dct_qp)) {
         xccl_mhba_error("Couldn't destroy QP");
     }
+srq_fail:
+    if(ibv_destroy_srq(mhba_team->net.srq)) {
+        xccl_mhba_error("Couldn't destroy SRQ");
+    }
 fail:
     for (i=i-1; i>= 0;i--) {
-        if(ibv_destroy_qp(mhba_team->net.dcis[i]->dci_qp)) {
+        if(ibv_destroy_qp(mhba_team->net.dcis[i].dci_qp)) {
             xccl_mhba_error("Couldn't destroy QP");
         }
     }
@@ -265,7 +280,7 @@ xccl_status_t xccl_mhba_create_rc_qps(xccl_mhba_team_t *mhba_team, uint32_t *loc
     memset(&qp_init_attr, 0, sizeof(qp_init_attr));
     //todo change in case of non-homogenous ppn
     qp_init_attr.send_cq = mhba_team->net.cq;
-    qp_init_attr.recv_cq = NULL;
+    qp_init_attr.recv_cq = mhba_team->net.cq;
     qp_init_attr.cap.max_send_wr =
             (SQUARED(mhba_team->node.sbgp->group_size / 2) + 1) * MAX_OUTSTANDING_OPS; // TODO switch back to fixed tx/rx
     qp_init_attr.cap.max_recv_wr = 0;
