@@ -126,7 +126,6 @@ xccl_status_t xccl_mhba_qp_connect(struct ibv_qp *qp, uint32_t qp_num,
 
 xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uint32_t *local_data, uint8_t port_num){
     int i;
-
     struct ibv_qp_init_attr_ex attr_ex;
     struct mlx5dv_qp_init_attr attr_dv;
     struct ibv_qp_attr qp_attr_to_init;
@@ -173,7 +172,6 @@ xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uin
     qp_attr_to_rts.max_rd_atomic = 1;
 
     //create DCIs
-
     for (i =0; i<NUM_DCI_QPS ;i++) {
         mhba_team->net.dcis[i]->dci_qp = mlx5dv_create_qp(mhba_team->node.shared_ctx, &attr_ex, &attr_dv);
         if (!mhba_team->net.dcis[i]->dci_qp) {
@@ -246,7 +244,6 @@ xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uin
     }
 
     local_data[0] = mhba_team->net.dct_qp->qp_num;
-
     return XCCL_OK;
 
 dct_fail:
@@ -293,6 +290,7 @@ xccl_status_t xccl_mhba_create_rc_qps(xccl_mhba_team_t *mhba_team, uint32_t *loc
         local_data[i] = mhba_team->net.rc_qps[i]->qp_num;
     }
     return XCCL_OK;
+
 qp_creation_failure:
     for (i=i-1; i >= 0; i--) {
         if(ibv_destroy_qp(mhba_team->net.rc_qps[i])) {
@@ -302,4 +300,22 @@ qp_creation_failure:
     free(mhba_team->net.rc_qps);
 fail_after_malloc:
     return XCCL_ERR_NO_MESSAGE;
+}
+
+xccl_status_t xccl_mhba_create_ah(struct ibv_ah **ah_ptr, uint16_t lid, uint8_t port_num,
+        xccl_mhba_team_t *mhba_team){
+    struct ibv_ah_attr ah_attr;
+    memset(&ah_attr, 0, sizeof(struct ibv_ah_attr));
+
+    ah_attr.dlid           = lid;
+    ah_attr.port_num       = port_num;
+    ah_attr.is_global     = 0;
+    ah_attr.grh.hop_limit  = 0;
+
+    *ah_ptr = ibv_create_ah(mhba_team->node.shared_pd, &ah_attr);
+    if (!(*ah_ptr)) {
+        xccl_mhba_error("Failed to create ah");
+        return XCCL_ERR_NO_MESSAGE;
+    }
+    return XCCL_OK;
 }

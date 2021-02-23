@@ -7,8 +7,6 @@
 #define XCCL_TEAM_LIB_MHBA_IB_H_
 #include "xccl_mhba_lib.h"
 
-#define DC_KEY 1
-
 int xccl_mhba_get_active_port(struct ibv_context *ctx);
 int xccl_mhba_check_port_active(struct ibv_context *ctx, int port_num);
 xccl_status_t xccl_mhba_create_ibv_ctx(char *ib_devname,
@@ -18,4 +16,6 @@ xccl_status_t xccl_mhba_qp_connect(struct ibv_qp *qp, uint32_t qp_num,
 xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team,
                                                     uint32_t *local_data, uint8_t port_num);
 xccl_status_t xccl_mhba_create_rc_qps(xccl_mhba_team_t *mhba_team, uint32_t *local_data);
+xccl_status_t xccl_mhba_create_ah(struct ibv_ah **ah_ptr, uint16_t lid, uint8_t port_num,
+                                         xccl_mhba_team_t *mhba_team);
 #endif

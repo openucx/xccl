@@ -238,7 +238,18 @@ xccl_status_t xccl_mhba_asr_barrier_progress(xccl_coll_task_t *task)
     return XCCL_OK;
 }
 
-static inline xccl_status_t send_block_data(struct ibv_qp *qp,
+static inline void send_block_data_dc(uint64_t src_addr, uint32_t msg_size, uint32_t lkey,
+                                               uint64_t remote_addr, uint32_t rkey, int send_flags,
+                                               struct dci* dci_struct, uint32_t dct_number, struct ibv_ah *ah)
+{
+    dci_struct->dc_qpex->wr_id = 1;
+    dci_struct->dc_qpex->wr_flags = send_flags;
+    ibv_wr_rdma_write(dci_struct->dc_qpex, rkey, remote_addr);
+    mlx5dv_wr_set_dc_addr(dci_struct->dc_mqpex, ah, dct_number, DC_KEY);
+    ibv_wr_set_sge(dci_struct->dc_qpex, lkey, src_addr, msg_size);
+}
+
+static inline xccl_status_t send_block_data_rc(struct ibv_qp *qp,
                                             uint64_t       src_addr,
                                             uint32_t msg_size, uint32_t lkey,
                                             uint64_t remote_addr, uint32_t rkey,
@@ -268,7 +279,18 @@ static inline xccl_status_t send_block_data(struct ibv_qp *qp,
     return XCCL_OK;
 }
 
-static inline xccl_status_t send_atomic(struct ibv_qp *qp, uint64_t remote_addr,
+static inline xccl_status_t send_atomic_dc(uint64_t remote_addr, uint32_t rkey, struct dci* dci_struct,
+        uint32_t dct_number, struct ibv_ah *ah, xccl_mhba_team_t *team, xccl_mhba_coll_req_t *request)
+{
+    dci_struct->dc_qpex->wr_id = request->seq_num;
+    dci_struct->dc_qpex->wr_flags = IBV_SEND_SIGNALED;
+    ibv_wr_atomic_fetch_add(dci_struct->dc_qpex, rkey, remote_addr, 1ULL);
+    mlx5dv_wr_set_dc_addr(dci_struct->dc_mqpex, ah, dct_number, DC_KEY);
+    ibv_wr_set_sge(dci_struct->dc_qpex, team->dummy_bf_mr->lkey, (uint64_t)team->dummy_bf_mr->addr,
+                   team->dummy_bf_mr->length);
+}
+
+static inline xccl_status_t send_atomic_rc(struct ibv_qp *qp, uint64_t remote_addr,
                                         uint32_t rkey, xccl_mhba_team_t *team,
                                         xccl_mhba_coll_req_t *request)
 {
@@ -365,7 +387,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
     int           block_msgsize = SQUARED(block_size) * len;
-    int           i, j, k, dest_rank, rank, n_compl, ret, cyc_rank;
+    int           i, j, k, dest_rank, rank, n_compl, ret, cyc_rank, current_dci;
     uint64_t      src_addr, remote_addr;
     struct ibv_wc transpose_completion[1];
     xccl_status_t status;
@@ -378,6 +400,9 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
         //send all blocks from curr node to some ARR
+        if (team->is_dc) {
+            current_dci = cyc_rank % NUM_DCI_QPS;
+        }
         for (j = 0; j < (node_size / block_size); j++) {
             for (k = 0; k < (node_size / block_size); k++) {
                 src_addr = (uintptr_t)(node_msgsize * dest_rank +
@@ -386,7 +411,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                                           block_msgsize * j + col_msgsize * k);
                 prepost_dummy_recv(team->node.umr_qp, 1);
                 // SW Transpose
-                status = send_block_data(
+                status = send_block_data_rc(
                     team->node.umr_qp, src_addr, block_msgsize,
                     team->node.ops[request->seq_index].send_mkeys[0]->lkey,
                     (uintptr_t)request->transpose_buf_mr->addr,
@@ -414,14 +439,26 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                 transpose_square_mat(request->transpose_buf_mr->addr,
                                      block_size, request->args.buffer_info.len,
                                      request->tmp_transpose_buf);
-                status = send_block_data(
-                    team->net.rc_qps[cyc_rank],
-                    (uintptr_t)request->transpose_buf_mr->addr, block_msgsize,
-                    request->transpose_buf_mr->lkey, remote_addr,
-                    team->net.rkeys[cyc_rank], IBV_SEND_SIGNALED, 0);
-                if (status != XCCL_OK) {
-                    xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
-                    return status;
+                if(team->is_dc){
+                    ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+                    send_block_data_dc((uintptr_t) request->transpose_buf_mr->addr, block_msgsize,
+                                       request->transpose_buf_mr->lkey, remote_addr, team->net.rkeys[cyc_rank],
+                                       IBV_SEND_SIGNALED, team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
+                                       team->net.ahs[cyc_rank]);
+                    if(ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)){
+                        xccl_mhba_error("can't post request [%d,%d,%d]", i, j, k);
+                        return XCCL_ERR_NO_MESSAGE;
+                    }
+                } else {
+                    status = send_block_data_rc(
+                            team->net.rc_qps[cyc_rank],
+                            (uintptr_t) request->transpose_buf_mr->addr, block_msgsize,
+                            request->transpose_buf_mr->lkey, remote_addr,
+                            team->net.rkeys[cyc_rank], IBV_SEND_SIGNALED, 0);
+                    if (status != XCCL_OK) {
+                        xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
+                        return status;
+                    }
                 }
                 while (!ibv_poll_cq(team->net.cq, 1, transpose_completion)) {}
             }
@@ -429,13 +466,26 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
     }
 
     for (i = 0; i < net_size; i++) {
-        status = send_atomic(team->net.rc_qps[i],
-                             (uintptr_t)team->net.remote_ctrl[i].addr +
+        if(team->is_dc){
+            current_dci = i % NUM_DCI_QPS;
+            ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+            send_atomic_dc((uintptr_t)team->net.remote_ctrl[i].addr +
+                           (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[i].rkey,
+                           team->net.dcis[current_dci], team->net.remote_dctns[i], team->net.ahs[i],
+                           team, request);
+            if(ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)){
+                xccl_mhba_error("can't post atomic request [%d]", i);
+                return XCCL_ERR_NO_MESSAGE;
+            }
+        } else {
+            status = send_atomic_rc(team->net.rc_qps[i],
+                                 (uintptr_t)team->net.remote_ctrl[i].addr +
                                  (request->seq_index * MHBA_CTRL_SIZE),
-                             team->net.remote_ctrl[i].rkey, team, request);
-        if (status != XCCL_OK) {
-            xccl_mhba_error("Failed sending atomic to node [%d]", i);
-            return status;
+                                 team->net.remote_ctrl[i].rkey, team, request);
+            if (status != XCCL_OK) {
+                xccl_mhba_error("Failed sending atomic to node [%d]", i);
+                return status;
+            }
         }
     }
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
@@ -460,7 +510,7 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
     int           col_msgsize_leftovers     = len * block_size_leftovers_side * node_size;
     int           block_msgsize_leftovers   = block_size_leftovers_side * block_size * len;
     int           corner_msgsize   = SQUARED(block_size_leftovers_side) * len;
-    int           i, j, k, dest_rank, rank, n_compl, ret, cyc_rank, current_block_msgsize;
+    int           i, j, k, dest_rank, rank, n_compl, ret, cyc_rank, current_block_msgsize, current_dci;
     uint64_t      src_addr, remote_addr;
     struct ibv_wc transpose_completion[1];
     xccl_status_t status;
@@ -472,6 +522,9 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
     for (i = 0; i < net_size; i++) {
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
+        if (team->is_dc) {
+            current_dci = cyc_rank % NUM_DCI_QPS;
+        }
         //send all blocks from curr node to some ARR
         for (j = 0; j < request->num_of_blocks_columns; j++) {
             for (k = 0; k < request->num_of_blocks_columns; k++) {
@@ -492,7 +545,7 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
 
                 prepost_dummy_recv(team->node.umr_qp, 1);
                 // SW Transpose
-                status = send_block_data(
+                status = send_block_data_rc(
                         team->node.umr_qp, src_addr, current_block_msgsize,
                         team->node.ops[request->seq_index].send_mkeys[j]->lkey,
                         (uintptr_t)request->transpose_buf_mr->addr,
@@ -538,14 +591,26 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
                     }
                 }
 
-                status = send_block_data(
-                        team->net.rc_qps[cyc_rank],
-                        (uintptr_t)request->transpose_buf_mr->addr, current_block_msgsize,
-                        request->transpose_buf_mr->lkey, remote_addr,
-                        team->net.rkeys[cyc_rank], IBV_SEND_SIGNALED, 0);
-                if (status != XCCL_OK) {
-                    xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
-                    return status;
+                if(team->is_dc){
+                    ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+                    send_block_data_dc((uintptr_t) request->transpose_buf_mr->addr, current_block_msgsize,
+                                       request->transpose_buf_mr->lkey, remote_addr, team->net.rkeys[cyc_rank],
+                                       IBV_SEND_SIGNALED, team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
+                                       team->net.ahs[cyc_rank]);
+                    if(ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)){
+                        xccl_mhba_error("can't post request [%d,%d,%d]", i, j, k);
+                        return XCCL_ERR_NO_MESSAGE;
+                    }
+                } else {
+                    status = send_block_data_rc(
+                            team->net.rc_qps[cyc_rank],
+                            (uintptr_t) request->transpose_buf_mr->addr, current_block_msgsize,
+                            request->transpose_buf_mr->lkey, remote_addr,
+                            team->net.rkeys[cyc_rank], IBV_SEND_SIGNALED, 0);
+                    if (status != XCCL_OK) {
+                        xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
+                        return status;
+                    }
                 }
                 while (!ibv_poll_cq(team->net.cq, 1, transpose_completion)) {}
             }
@@ -553,13 +618,26 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
     }
 
     for (i = 0; i < net_size; i++) {
-        status = send_atomic(team->net.rc_qps[i],
-                             (uintptr_t)team->net.remote_ctrl[i].addr +
-                             (request->seq_index * MHBA_CTRL_SIZE),
-                             team->net.remote_ctrl[i].rkey, team, request);
-        if (status != XCCL_OK) {
-            xccl_mhba_error("Failed sending atomic to node [%d]", i);
-            return status;
+        if(team->is_dc){
+            current_dci = i % NUM_DCI_QPS;
+            ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+            send_atomic_dc((uintptr_t)team->net.remote_ctrl[i].addr +
+                           (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[i].rkey,
+                           team->net.dcis[current_dci], team->net.remote_dctns[i], team->net.ahs[i],
+                           team, request);
+            if(ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)){
+                xccl_mhba_error("can't post atomic request [%d]", i);
+                return XCCL_ERR_NO_MESSAGE;
+            }
+        } else {
+            status = send_atomic_rc(team->net.rc_qps[i],
+                                    (uintptr_t)team->net.remote_ctrl[i].addr +
+                                    (request->seq_index * MHBA_CTRL_SIZE),
+                                    team->net.remote_ctrl[i].rkey, team, request);
+            if (status != XCCL_OK) {
+                xccl_mhba_error("Failed sending atomic to node [%d]", i);
+                return status;
+            }
         }
     }
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
@@ -580,7 +658,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
     int           block_size    = request->block_size;
     int           col_msgsize   = len * block_size * node_size;
     int           block_msgsize = SQUARED(block_size) * len;
-    int           i, j, k, dest_rank, rank, cyc_rank;
+    int           i, j, k, dest_rank, rank, cyc_rank, current_dci;
     uint64_t      src_addr, remote_addr;
     xccl_status_t status;
 
@@ -591,6 +669,10 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
     for (i = 0; i < net_size; i++) {
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
+        if (team->is_dc) {
+            current_dci = cyc_rank % NUM_DCI_QPS;
+            ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+        }
         //send all blocks from curr node to some ARR
         for (j = 0; j < (node_size / block_size); j++) {
             for (k = 0; k < (node_size / block_size); k++) {
@@ -599,22 +681,41 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
                 remote_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * rank +
                                           block_msgsize * j + col_msgsize * k);
 
-                status = send_block_data(team->net.rc_qps[cyc_rank], src_addr, block_msgsize,
-                                         team->node.ops[request->seq_index].send_mkeys[0]->lkey,
-                                         remote_addr, team->net.rkeys[cyc_rank], 0, 0);
-                if (status != XCCL_OK) {
-                    xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
-                    return status;
+                if(team->is_dc){
+                    send_block_data_dc(src_addr, block_msgsize,
+                                       team->node.ops[request->seq_index].send_mkeys[0]->lkey, remote_addr,
+                                       team->net.rkeys[cyc_rank],
+                                       0, team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
+                                       team->net.ahs[cyc_rank]);
+                } else {
+                    status = send_block_data_rc(team->net.rc_qps[cyc_rank], src_addr, block_msgsize,
+                                                team->node.ops[request->seq_index].send_mkeys[0]->lkey,
+                                                remote_addr, team->net.rkeys[cyc_rank], 0, 0);
+                    if (status != XCCL_OK) {
+                        xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
+                        return status;
+                    }
                 }
             }
         }
-        status = send_atomic(team->net.rc_qps[cyc_rank],
-                             (uintptr_t)team->net.remote_ctrl[cyc_rank].addr +
-                             (request->seq_index * MHBA_CTRL_SIZE),
-                             team->net.remote_ctrl[cyc_rank].rkey, team, request);
-        if (status != XCCL_OK) {
-            xccl_mhba_error("Failed sending atomic to node [%d]", i);
-            return status;
+        if(team->is_dc){
+            send_atomic_dc((uintptr_t) team->net.remote_ctrl[cyc_rank].addr +
+                           (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[cyc_rank].rkey,
+                           team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank], team->net.ahs[cyc_rank],
+                           team, request);
+            if (ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)) {
+                xccl_mhba_error("can't post requests [%d]", i);
+                return XCCL_ERR_NO_MESSAGE;
+            }
+        } else {
+            status = send_atomic_rc(team->net.rc_qps[cyc_rank],
+                                    (uintptr_t) team->net.remote_ctrl[cyc_rank].addr +
+                                    (request->seq_index * MHBA_CTRL_SIZE),
+                                    team->net.remote_ctrl[cyc_rank].rkey, team, request);
+            if (status != XCCL_OK) {
+                xccl_mhba_error("Failed sending atomic to node [%d]", i);
+                return status;
+            }
         }
     }
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);
@@ -638,7 +739,7 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
     int           col_msgsize_leftovers     = len * block_size_leftovers_side * node_size;
     int           block_msgsize_leftovers   = block_size_leftovers_side * block_size * len;
     int           corner_msgsize   = SQUARED(block_size_leftovers_side) * len;
-    int           i, j, k, dest_rank, rank, cyc_rank, current_block_msgsize;
+    int           i, j, k, dest_rank, rank, cyc_rank, current_block_msgsize, current_dci;
     uint64_t      src_addr, remote_addr;
     xccl_status_t status;
 
@@ -649,6 +750,10 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
     for (i = 0; i < net_size; i++) {
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
+        if (team->is_dc) {
+            current_dci = cyc_rank % NUM_DCI_QPS;
+            ibv_wr_start(team->net.dcis[current_dci]->dc_qpex);
+        }
         //send all blocks from curr node to some ARR
         for (j = 0; j < request->num_of_blocks_columns; j++) {
             for (k = 0; k < request->num_of_blocks_columns; k++) {
@@ -667,22 +772,41 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
                     current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize_leftovers : corner_msgsize;
                 }
 
-                status = send_block_data(team->net.rc_qps[cyc_rank], src_addr, current_block_msgsize,
-                                         team->node.ops[request->seq_index].send_mkeys[j]->lkey,
-                                         remote_addr, team->net.rkeys[cyc_rank], 0, 0);
-                if (status != XCCL_OK) {
-                    xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
-                    return status;
+                if(team->is_dc){
+                    send_block_data_dc(src_addr, current_block_msgsize,
+                                       team->node.ops[request->seq_index].send_mkeys[j]->lkey, remote_addr,
+                                       team->net.rkeys[cyc_rank],
+                                       0, team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank],
+                                       team->net.ahs[cyc_rank]);
+                } else {
+                    status = send_block_data_rc(team->net.rc_qps[cyc_rank], src_addr, current_block_msgsize,
+                                                team->node.ops[request->seq_index].send_mkeys[j]->lkey,
+                                                remote_addr, team->net.rkeys[cyc_rank], 0, 0);
+                    if (status != XCCL_OK) {
+                        xccl_mhba_error("Failed sending block [%d,%d,%d]", i, j, k);
+                        return status;
+                    }
                 }
             }
         }
-        status = send_atomic(team->net.rc_qps[cyc_rank],
-                             (uintptr_t)team->net.remote_ctrl[cyc_rank].addr +
-                             (request->seq_index * MHBA_CTRL_SIZE),
-                             team->net.remote_ctrl[cyc_rank].rkey, team, request);
-        if (status != XCCL_OK) {
-            xccl_mhba_error("Failed sending atomic to node [%d]", i);
-            return status;
+        if(team->is_dc){
+            send_atomic_dc((uintptr_t) team->net.remote_ctrl[cyc_rank].addr +
+                           (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[cyc_rank].rkey,
+                           team->net.dcis[current_dci], team->net.remote_dctns[cyc_rank], team->net.ahs[cyc_rank],
+                           team, request);
+            if (ibv_wr_complete(team->net.dcis[current_dci]->dc_qpex)) {
+                xccl_mhba_error("can't post requests [%d]", i);
+                return XCCL_ERR_NO_MESSAGE;
+            }
+        } else {
+            status = send_atomic_rc(team->net.rc_qps[cyc_rank],
+                                    (uintptr_t) team->net.remote_ctrl[cyc_rank].addr +
+                                    (request->seq_index * MHBA_CTRL_SIZE),
+                                    team->net.remote_ctrl[cyc_rank].rkey, team, request);
+            if (status != XCCL_OK) {
+                xccl_mhba_error("Failed sending atomic to node [%d]", i);
+                return status;
+            }
         }
     }
     xccl_task_enqueue(task->schedule->tl_ctx->pq, task);

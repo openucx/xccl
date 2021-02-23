@@ -396,14 +396,31 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net,
                                 params->oob);
         mhba_team->net.rkeys = (uint32_t *)malloc(sizeof(uint32_t) * net_size);
+        if(!mhba_team->net.rkeys){
+            xccl_mhba_error("Failed malloc");
+            goto qp_fail;
+        }
         if(mhba_team->is_dc) {
             mhba_team->net.remote_dctns = (uint32_t *) malloc(sizeof(uint32_t) * net_size);
+            if(!mhba_team->net.remote_dctns){
+                xccl_mhba_error("Failed malloc");
+                goto dctn_malloc_fail;
+            }
+            mhba_team->net.ahs = (struct ibv_ah **) malloc(sizeof(struct ibv_ah *) * net_size);
+            if(!mhba_team->net.ahs){
+                xccl_mhba_error("Failed malloc");
+                goto ah_malloc_fail;
+            }
         }
         for (i = 0; i < net_size; i++) {
             uint32_t *remote_data =
                 (uint32_t *)((uintptr_t)global_data + i * local_data_size);
             if (mhba_team->is_dc){
                 mhba_team->net.remote_dctns[i] = remote_data[0];
+                if(xccl_mhba_create_ah(&mhba_team->net.ahs[i],remote_data[1],ctx->ib_port,mhba_team)){
+                    xccl_mhba_error("Failed to create ah");
+                    goto ucx_ctx_fail;
+                }
             } else {
                 xccl_mhba_qp_connect(mhba_team->net.rc_qps[i],
                                      remote_data[net->group_rank],
@@ -418,7 +435,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         xccl_tl_context_t *ucx_ctx = xccl_get_tl_context(context->ctx, XCCL_TL_UCX);
         if (!ucx_ctx) {
             xccl_mhba_error("failed to find available ucx tl context");
-            goto qp_fail;
+            goto destroy_ah;
         }
 
         xccl_oob_collectives_t oob = {
@@ -441,7 +458,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             ucx_ctx->lib->team_create_post(ucx_ctx, &team_params, base_team,
                                            &mhba_team->net.ucx_team)) {
             xccl_mhba_error("failed to start ucx team creation");
-            goto qp_fail;
+            goto destroy_ah;
         }
         while (XCCL_OK !=
                ucx_ctx->lib->team_create_test(mhba_team->net.ucx_team)) {
@@ -457,7 +474,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
         if (!mhba_team->dummy_bf_mr) {
             xccl_mhba_error("Failed to register dummy buff (errno=%d)", errno);
-            goto qp_fail;
+            goto destroy_ah;
         }
 
         mhba_team->work_completion =
@@ -473,6 +490,22 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
 wc_alloc_fail:
     ibv_dereg_mr(mhba_team->dummy_bf_mr);
+destroy_ah:
+    if(mhba_team->is_dc) {
+        for (i = i - 1; i >= 0; i--) {
+            ibv_destroy_ah(mhba_team->net.ahs[i]);
+        }
+    }
+ucx_ctx_fail:
+    if(mhba_team->is_dc){
+        free(mhba_team->net.ahs);
+    }
+ah_malloc_fail:
+    if(mhba_team->is_dc){
+        free(mhba_team->net.remote_dctns);
+    }
+dctn_malloc_fail:
+    free(mhba_team->net.rkeys);
 qp_fail:
     if(mhba_team->is_dc){
         for(i =0;i<NUM_DCI_QPS;i++){
@@ -572,6 +605,9 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
                 ibv_destroy_qp(mhba_team->net.dcis[i]->dci_qp);
             }
             ibv_destroy_qp(mhba_team->net.dct_qp);
+            for (i = 0; i < mhba_team->net.net_size; i++) {
+                ibv_destroy_ah(mhba_team->net.ahs[i]);
+            }
         } else {
             for (i = 0; i < mhba_team->net.net_size; i++) {
                 ibv_destroy_qp(mhba_team->net.rc_qps[i]);
@@ -579,6 +615,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
         }
         if(mhba_team->is_dc){
             free(mhba_team->net.remote_dctns);
+            free(mhba_team->net.ahs);
         } else {
             free(mhba_team->net.rc_qps);
         }

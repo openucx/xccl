@@ -75,6 +75,7 @@ extern xccl_team_lib_mhba_t xccl_team_lib_mhba;
 #define MAX_BLOCK_SIZE 64 // from limit of Transpose unit capabilities
 #define NUM_DCI_QPS 16
 #define RC_DC_LIMIT 128
+#define DC_KEY 1
 
 typedef struct xccl_mhba_context {
     xccl_tl_context_t                  super;
@@ -135,13 +136,14 @@ typedef struct xccl_mhba_net {
     int                  net_size;
     int                 *rank_map;
     struct ibv_qp       **rc_qps;
-    struct {
+    struct dci {
         struct ibv_qp       *dci_qp;
         struct ibv_qp_ex    *dc_qpex;
         struct mlx5dv_qp_ex *dc_mqpex;
     } * dcis[NUM_DCI_QPS];
     struct ibv_qp       *dct_qp;
     uint32_t            *remote_dctns;
+    struct ibv_ah      **ahs;
     struct ibv_cq       *cq;
     struct ibv_mr       *ctrl_mr;
     struct {
