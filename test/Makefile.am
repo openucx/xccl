@@ -41,10 +41,10 @@ endif
 
 CC=mpicc
 CFLAGS+=-I${includedir} -std=c11
-
 LDFLAGS=-L$(libdir) -lxccl
 
 if HAVE_CUDA
-CFLAGS += $(CUDA_CFLAGS) -DXCCL_TEST_WITH_CUDA
-LDFLAGS+= $(CUDA_LDFLAGS) -lcudart
+CPPFLAGS+=$(CUDA_CPPFLAGS)
+CFLAGS+=$(CUDA_CFLAGS) -DXCCL_TEST_WITH_CUDA
+LDFLAGS+=$(CUDA_LDFLAGS) -lcudart
 endif
