@@ -756,6 +756,24 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->block_size        = block_size;
     request->transpose_buf_mr  = NULL;
     request->tmp_transpose_buf = NULL;
+
+    // todo remove for connectX-7 - this is mkey_entry->stride (count+skip) limitation - only 16 bits
+    if(request->num_of_blocks_columns) { // for other case we will never reach limit
+        if(
+            (
+                ((team->node.sbgp->group_size % request->block_size) * request->args.buffer_info.len) + // bytes_count
+                ((team->node.sbgp->group_size-(team->node.sbgp->group_size % request->block_size)) *
+                request->args.buffer_info.len) // bytes_skip
+            ) >= (1 << 16) || (
+                (request->block_size * request->args.buffer_info.len) + // bytes_count
+                ((team->node.sbgp->group_size - request->block_size) * request->args.buffer_info.len) // bytes_skip
+            ) >= (1 << 16)
+        ){
+            xccl_mhba_error("Currently can't support this operation in connectX-6");
+            return XCCL_ERR_NO_MESSAGE;
+        }
+    }
+
     request->tasks =
         (xccl_mhba_task_t *)malloc(sizeof(xccl_mhba_task_t) * n_tasks);
     if (!request->tasks){
