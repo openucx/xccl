@@ -62,21 +62,34 @@ static void xccl_ucx_memtype_event_cb(ucm_event_type_t event_type, ucm_event_t *
 
 xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
                                       xccl_context_params_t *params,
-                                      xccl_tl_context_config_t *config,
+                                      xccl_tl_context_config_t *config_,
                                       xccl_tl_context_t **context)
 {
     static const ucm_event_type_t memtype_events = UCM_EVENT_MEM_TYPE_ALLOC |
                                                    UCM_EVENT_MEM_TYPE_FREE;
     xccl_team_lib_ucx_context_t *ctx  =
         (xccl_team_lib_ucx_context_t *)malloc(sizeof(*ctx));
-    xccl_tl_ucx_context_config_t *cfg =
-        ucs_derived_of(config, xccl_tl_ucx_context_config_t);
     ucp_params_t        ucp_params;
     ucp_worker_params_t worker_params;
     ucp_ep_params_t     ep_params;
     ucp_config_t        *ucp_config;
     ucs_status_t        status;
     ucp_worker_attr_t   worker_attr;
+
+    xccl_tl_context_config_t *config = config_;
+    if (config == NULL) {
+        char full_prefix[128] = "XCCL_";
+        config = (xccl_tl_context_config_t *) malloc(xccl_team_lib_ucx.super.tl_context_config.size);
+        config->env_prefix = NULL;
+        status = ucs_config_parser_fill_opts(config, xccl_team_lib_ucx.super.tl_context_config.table,
+                                             full_prefix, xccl_team_lib_ucx.super.tl_context_config.prefix,
+                                             0);
+        assert(UCS_OK == status);
+    }
+
+    xccl_tl_ucx_context_config_t *cfg =
+        ucs_derived_of(config, xccl_tl_ucx_context_config_t);
+
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
 
     status = ucp_config_read(config->env_prefix, NULL, &ucp_config);
@@ -158,6 +171,10 @@ xccl_status_t xccl_ucx_create_context(xccl_team_lib_t *lib,
         ucm_set_event_handler(memtype_events, 1000, xccl_ucx_memtype_event_cb, ctx);
     }
 
+    if (config_ == NULL) {
+        ucs_config_parser_release_opts(config, xccl_team_lib_ucx.super.tl_context_config.table);
+        free(config);
+    }
     return XCCL_OK;
 }
 

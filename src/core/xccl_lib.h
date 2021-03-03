@@ -20,4 +20,6 @@ typedef struct xccl_lib {
     xccl_team_lib_t **libs;
 } xccl_lib_t;
 
+extern xccl_lib_t xccl_static_lib;
+
 #endif
