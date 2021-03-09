@@ -350,6 +350,7 @@ xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
         return st;
     }
 
+    req->status->st = XCCL_INPROGRESS;
     switch(req->sync) {
     case XCCL_NCCL_COMPLETION_SYNC_EVENT:
         st = xccl_mc_event_record(&req->args.stream, &req->completed);
@@ -363,7 +364,6 @@ xccl_nccl_collective_post(xccl_tl_coll_req_t *request)
                                      XCCL_OK, 0));
         st = XCCL_OK;
     }
-    req->status->st = XCCL_INPROGRESS;
 
     return st;
 }

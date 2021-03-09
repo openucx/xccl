@@ -5,7 +5,7 @@
 xccl_cuda_mem_component_t xccl_cuda_mem_component;
 
 #define NUM_STREAM_REQUESTS 128
-#define NUM_EVENTS 32
+#define NUM_EVENTS 128
 
 #define CUDACHECK(cmd) do {                                        \
         cudaError_t e = cmd;                                       \
