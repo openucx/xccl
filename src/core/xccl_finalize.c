@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <dlfcn.h>
 
-extern xccl_lib_t xccl_static_lib;
 extern xccl_config_t xccl_lib_global_config;
 extern ucs_config_field_t xccl_lib_global_config_table[];
 

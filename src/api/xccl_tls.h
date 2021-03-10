@@ -18,6 +18,7 @@ typedef enum xccl_tl_id {
     XCCL_TL_SHMSEG = UCS_BIT(4),
     XCCL_TL_MRAIL  = UCS_BIT(5),
     XCCL_TL_NCCL   = UCS_BIT(6),
+    XCCL_TL_MPOD   = UCS_BIT(7),
     XCCL_TL_LAST,
     XCCL_TL_ALL    = (XCCL_TL_LAST << 1) - 3
 } xccl_tl_id_t;
@@ -40,6 +41,8 @@ const char* xccl_tl_str(xccl_tl_id_t tl_id)
         return "shmseg";
     case XCCL_TL_NCCL:
         return "nccl";
+    case XCCL_TL_MPOD:
+        return "mpod";
     default:
         break;
     }

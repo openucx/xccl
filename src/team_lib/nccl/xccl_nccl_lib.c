@@ -127,13 +127,30 @@ static xccl_status_t xccl_nccl_lib_open(xccl_team_lib_h self,
 
 static xccl_status_t
 xccl_nccl_context_create(xccl_team_lib_h lib, xccl_context_params_t *params,
-                         xccl_tl_context_config_t *config,
+                         xccl_tl_context_config_t *config_,
                          xccl_tl_context_t **context)
 {
     xccl_nccl_context_t *ctx = malloc(sizeof(*ctx));
 
+    xccl_tl_context_config_t *config = config_;
+    if (config == NULL) {
+        char full_prefix[128] = "XCCL_";
+        config = (xccl_tl_context_config_t *) malloc(xccl_team_lib_nccl.super.tl_context_config.size);
+        config->env_prefix = NULL;
+        ucs_status_t status;
+        status = ucs_config_parser_fill_opts(config, xccl_team_lib_nccl.super.tl_context_config.table,
+                                             full_prefix, xccl_team_lib_nccl.super.tl_context_config.prefix,
+                                             0);
+        assert(UCS_OK == status);
+    }
+
     XCCL_CONTEXT_SUPER_INIT(ctx->super, lib, params);
     *context = &ctx->super;
+
+    if (config_ == NULL) {
+        ucs_config_parser_release_opts(config, xccl_team_lib_nccl.super.tl_context_config.table);
+        free(config);
+    }
 
     return XCCL_OK;
 }

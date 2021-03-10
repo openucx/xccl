@@ -124,6 +124,16 @@ if test "x$cuda_happy" != xno; then
     AC_MSG_RESULT([NCCL support: $nccl_happy])
 fi
 
+AM_CONDITIONAL([HAVE_MPOD], [test "$nccl_happy" = "yes" -a "$ucx_happy" = "yes"])
+
+AC_CHECK_HEADERS(pthread.h)
+AC_CHECK_LIB([pthread],[pthread_key_create],have_pthreads=yes)
+if test "$have_pthreads" = "yes" ; then
+    LIBS="-lpthread $LIBS"
+else
+    AC_ERROR([pthreads not found on the system])
+fi
+
 includes="-I${XCCL_TOP_SRCDIR}/src -I${XCCL_TOP_SRCDIR}/src/core -I${XCCL_TOP_SRCDIR}/src/utils"
 CPPFLAGS="$UCS_CPPFLAGS $CPPFLAGS $includes"
 LDFLAGS="$LDFLAGS $UCS_LDFLAGS $UCS_LIBADD"
@@ -136,6 +146,7 @@ AC_CONFIG_FILES([
                  src/team_lib/hier/Makefile
                  src/team_lib/multirail/Makefile
                  src/team_lib/nccl/Makefile
+                 src/team_lib/mpod/Makefile
                  src/utils/cuda/Makefile
                  src/utils/cuda/kernels/Makefile
                  test/Makefile
