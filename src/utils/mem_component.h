@@ -35,6 +35,7 @@ typedef struct xccl_mem_component {
     xccl_status_t (*reduce_multi)(void *sbuf1, void *sbuf2, void *rbuf,
                                   size_t count, size_t size, size_t stride,
                                   xccl_dt_t dtype, xccl_op_t op);
+    xccl_status_t (*memcpy_async)(void *sbuf, void *dbuf, size_t size, xccl_stream_t *stream);
     xccl_status_t (*event_record)(xccl_stream_t *stream,
                                   xccl_mc_event_t **event);
     xccl_status_t (*event_query)(xccl_mc_event_t *event);
@@ -61,6 +62,9 @@ xccl_status_t xccl_mem_component_type(void *ptr, ucs_memory_type_t *mem_type);
 xccl_status_t xccl_mem_component_reduce(void *sbuf1, void *sbuf2, void *target,
                                         size_t count, xccl_dt_t dtype,
                                         xccl_op_t op, ucs_memory_type_t mem_type);
+
+xccl_status_t xccl_mem_component_memcpy_async(void *sbuf, void *dbuf, size_t size,
+                                              xccl_stream_t *stream);
 
 xccl_status_t xccl_mem_component_start_acitivity(xccl_stream_t *stream,
                                                  xccl_mem_component_stream_request_t **req);
