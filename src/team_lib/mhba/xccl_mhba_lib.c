@@ -40,6 +40,14 @@ static ucs_config_field_t xccl_tl_mhba_context_config_table[] = {
     ucs_offsetof(xccl_tl_mhba_context_config_t, block_size),
     UCS_CONFIG_TYPE_UINT},
 
+	{"NUM_DCI_QPS", "16", "Number of parallel DCI QPs that will be used per team",
+	ucs_offsetof(xccl_tl_mhba_context_config_t, num_dci_qps),
+	UCS_CONFIG_TYPE_UINT},
+
+	{"RC_DC", "2", "Boolean - 1 for DC QPs, 0 for RC QPs",
+	ucs_offsetof(xccl_tl_mhba_context_config_t, rc_dc),
+	UCS_CONFIG_TYPE_UINT},
+
     {NULL}
 };
 

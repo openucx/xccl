@@ -401,7 +401,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
         dest_rank = team->net.rank_map[cyc_rank];
         //send all blocks from curr node to some ARR
         if (team->is_dc) {
-            current_dci = cyc_rank % NUM_DCI_QPS;
+            current_dci = cyc_rank % team->num_dci_qps;
         }
         for (j = 0; j < (node_size / block_size); j++) {
             for (k = 0; k < (node_size / block_size); k++) {
@@ -467,7 +467,7 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
 
     for (i = 0; i < net_size; i++) {
         if(team->is_dc){
-            current_dci = i % NUM_DCI_QPS;
+            current_dci = i % team->num_dci_qps;
             ibv_wr_start(team->net.dcis[current_dci].dc_qpex);
             send_atomic_dc((uintptr_t)team->net.remote_ctrl[i].addr +
                            (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[i].rkey,
@@ -523,7 +523,7 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
         if (team->is_dc) {
-            current_dci = cyc_rank % NUM_DCI_QPS;
+            current_dci = cyc_rank % team->num_dci_qps;
         }
         //send all blocks from curr node to some ARR
         for (j = 0; j < request->num_of_blocks_columns; j++) {
@@ -619,7 +619,7 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
 
     for (i = 0; i < net_size; i++) {
         if(team->is_dc){
-            current_dci = i % NUM_DCI_QPS;
+            current_dci = i % team->num_dci_qps;
             ibv_wr_start(team->net.dcis[current_dci].dc_qpex);
             send_atomic_dc((uintptr_t)team->net.remote_ctrl[i].addr +
                            (request->seq_index * MHBA_CTRL_SIZE), team->net.remote_ctrl[i].rkey,
@@ -670,7 +670,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
         if (team->is_dc) {
-            current_dci = cyc_rank % NUM_DCI_QPS;
+            current_dci = cyc_rank % team->num_dci_qps;
             ibv_wr_start(team->net.dcis[current_dci].dc_qpex); //todo pay attention for MT - 2 threads cant write
             // to same QP in same time
         }
@@ -752,7 +752,7 @@ static xccl_status_t xccl_mhba_send_blocks_leftovers_start(xccl_coll_task_t *tas
         cyc_rank = (i + team->net.sbgp->group_rank) % net_size;
         dest_rank = team->net.rank_map[cyc_rank];
         if (team->is_dc) {
-            current_dci = cyc_rank % NUM_DCI_QPS;
+            current_dci = cyc_rank % team->num_dci_qps;
             ibv_wr_start(team->net.dcis[current_dci].dc_qpex);
         }
         //send all blocks from curr node to some ARR

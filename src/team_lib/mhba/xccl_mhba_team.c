@@ -162,6 +162,10 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 {
     xccl_mhba_context_t    *ctx       = ucs_derived_of(context, xccl_mhba_context_t);
     xccl_mhba_team_t       *mhba_team = malloc(sizeof(*mhba_team));
+    if (!mhba_team) {
+		xccl_mhba_error("failed to allocate mem");
+		goto fail_return;
+	}
     xccl_sbgp_t            *node, *net;
     xccl_status_t           status;
     struct ibv_port_attr    port_attr;
@@ -171,6 +175,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     int                     i, j, net_size, node_size, asr_cq_size;
     mhba_team->node.asr_rank            = 0; //todo check in future if always 0
     mhba_team->transpose                = ctx->cfg.transpose;
+    mhba_team->num_dci_qps              = ctx->cfg.num_dci_qps;
     mhba_team->context                  = ctx;
     mhba_team->size                     = params->oob.size;
     mhba_team->sequence_number          = 0;
@@ -182,23 +187,29 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
 
+    mhba_team->net.dcis = malloc(sizeof(struct dci)*mhba_team->num_dci_qps);
+    if (!mhba_team->net.dcis) {
+		xccl_mhba_error("failed to allocate mem");
+		goto fail;
+	}
+
     memset(mhba_team->op_busy, 0, MAX_OUTSTANDING_OPS * sizeof(int));
 
     if(XCCL_OK != create_rcache(mhba_team)){
-        goto fail;
+        goto dci_malloc_fail;
     }
 
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     if (node->group_size > MAX_STRIDED_ENTRIES) {
         xccl_mhba_error("PPN too large");
-        goto fail;
+        goto dci_malloc_fail;
     } // todo temp - phase 1
     node_size = node->group_size;
     net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
 
     if (net->status == XCCL_SBGP_NOT_EXISTS) {
         xccl_mhba_error("Problem with net sbgp");
-        goto fail;
+        goto dci_malloc_fail;
     }
 
     mhba_team->node.sbgp = node;
@@ -220,7 +231,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         if (bcast_data.shmid == -1) {
             xccl_mhba_error("failed to allocate sysv shm segment for %d bytes",
                             storage_size);
-            goto fail;
+            goto dci_malloc_fail;
         }
         mhba_team->node.storage = shmat(bcast_data.shmid, NULL, 0);
         for (i = 0; i < MAX_OUTSTANDING_OPS; i++) {
@@ -242,7 +253,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     status   = xccl_mhba_share_ctx_pd(mhba_team, bcast_data.sock_path);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to create shared ctx & pd");
-        goto fail;
+        goto dci_malloc_fail;
     }
 
     if (bcast_data.shmid == -1) {
@@ -335,7 +346,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             goto fail_after_transpose_reg;
         }
 
-        mhba_team->is_dc = (net_size > RC_DC_LIMIT) ? 1 : 0;
+        mhba_team->is_dc =  (ctx->cfg.rc_dc == 2) ? ((net_size > RC_DC_LIMIT) ? 1 : 0) : ctx->cfg.rc_dc;
 
         ibv_query_port(ctx->ib_ctx, ctx->ib_port, &port_attr);
 
@@ -508,7 +519,7 @@ dctn_malloc_fail:
     free(mhba_team->net.rkeys);
 qp_fail:
     if(mhba_team->is_dc){
-        for(i =0;i<NUM_DCI_QPS;i++){
+        for(i =0;i<mhba_team->num_dci_qps;i++){
             ibv_destroy_qp(mhba_team->net.dcis[i].dci_qp);
         }
         ibv_destroy_qp(mhba_team->net.dct_qp);
@@ -561,8 +572,11 @@ fail_after_share_pd:
     if (status != XCCL_OK) {
         xccl_mhba_error("failed removing shared ctx & pd");
     }
+dci_malloc_fail:
+	free(mhba_team->net.dcis);
 fail:
     free(mhba_team);
+fail_return:
     return XCCL_ERR_NO_MESSAGE;
 }
 
@@ -601,7 +615,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
         ibv_dereg_mr(mhba_team->net.ctrl_mr);
         free(mhba_team->net.remote_ctrl);
         if(mhba_team->is_dc){
-            for(i =0;i<NUM_DCI_QPS;i++){
+            for(i =0;i<mhba_team->num_dci_qps;i++){
                 ibv_destroy_qp(mhba_team->net.dcis[i].dci_qp);
             }
             ibv_destroy_qp(mhba_team->net.dct_qp);
@@ -639,6 +653,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
             free(mhba_team->transpose_buf);
         }
     }
-    free(team);
+    free(mhba_team->net.dcis);
+    free(mhba_team);
     return status;
 }

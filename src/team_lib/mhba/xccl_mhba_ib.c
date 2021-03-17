@@ -143,7 +143,7 @@ xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uin
     attr_ex.recv_cq = mhba_team->net.cq;
     attr_ex.pd = mhba_team->node.shared_pd;
     attr_ex.cap.max_send_wr = (SQUARED(mhba_team->node.sbgp->group_size / 2) + 1) * MAX_OUTSTANDING_OPS *
-                              xccl_round_up(mhba_team->net.net_size, NUM_DCI_QPS);
+                              xccl_round_up(mhba_team->net.net_size, mhba_team->num_dci_qps);
     attr_ex.cap.max_send_sge = 1;
     attr_ex.comp_mask |= IBV_QP_INIT_ATTR_SEND_OPS_FLAGS | IBV_QP_INIT_ATTR_PD;
     attr_ex.send_ops_flags = IBV_QP_EX_WITH_RDMA_WRITE | IBV_QP_EX_WITH_RDMA_WRITE_WITH_IMM |
@@ -173,7 +173,7 @@ xccl_status_t xccl_mhba_init_dc_qps_and_connect(xccl_mhba_team_t *mhba_team, uin
     qp_attr_to_rts.max_rd_atomic = 1;
 
     //create DCIs
-    for (i =0; i<NUM_DCI_QPS ;i++) {
+    for (i =0; i<mhba_team->num_dci_qps ;i++) {
         mhba_team->net.dcis[i].dci_qp = mlx5dv_create_qp(mhba_team->node.shared_ctx, &attr_ex, &attr_dv);
         if (!mhba_team->net.dcis[i].dci_qp) {
             xccl_mhba_error("Couldn't create DCI QP");

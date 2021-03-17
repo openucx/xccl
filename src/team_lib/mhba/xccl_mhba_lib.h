@@ -28,6 +28,8 @@ typedef struct xccl_tl_mhba_context_config {
     int                      transpose;
     size_t                   transpose_buf_size;
     int                      block_size;
+    int                      num_dci_qps;
+    int                      rc_dc;
 } xccl_tl_mhba_context_config_t;
 
 typedef struct xccl_team_lib_mhba {
@@ -73,7 +75,6 @@ extern xccl_team_lib_mhba_t xccl_team_lib_mhba;
 #define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
 #define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
 #define MAX_BLOCK_SIZE 64 // from limit of Transpose unit capabilities
-#define NUM_DCI_QPS 16
 #define RC_DC_LIMIT 128
 #define DC_KEY 1
 
@@ -136,11 +137,6 @@ typedef struct xccl_mhba_net {
     int                  net_size;
     int                 *rank_map;
     struct ibv_qp       **rc_qps;
-    struct dci {
-        struct ibv_qp       *dci_qp;
-        struct ibv_qp_ex    *dc_qpex;
-        struct mlx5dv_qp_ex *dc_mqpex;
-    } dcis[NUM_DCI_QPS];
     struct ibv_qp       *dct_qp;
     struct ibv_srq      *srq;
     uint32_t            *remote_dctns;
@@ -153,6 +149,11 @@ typedef struct xccl_mhba_net {
     } * remote_ctrl;
     uint32_t       *rkeys;
     xccl_tl_team_t *ucx_team;
+    struct dci {
+            struct ibv_qp       *dci_qp;
+            struct ibv_qp_ex    *dc_qpex;
+            struct mlx5dv_qp_ex *dc_mqpex;
+        } * dcis;
 } xccl_mhba_net_t;
 
 typedef struct xccl_mhba_team {
@@ -167,6 +168,7 @@ typedef struct xccl_mhba_team {
     xccl_mhba_context_t *context;
     int                  blocks_sizes[MHBA_NUM_OF_BLOCKS_SIZE_BINS];
     int                  size;
+    int                  num_dci_qps;
     uint8_t              is_dc;
     int                  previous_msg_size[MAX_OUTSTANDING_OPS];
     void*                previous_send_address[MAX_OUTSTANDING_OPS];
