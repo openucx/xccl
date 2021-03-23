@@ -162,9 +162,12 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 {
     xccl_mhba_context_t    *ctx       = ucs_derived_of(context, xccl_mhba_context_t);
     xccl_mhba_team_t       *mhba_team = malloc(sizeof(*mhba_team));
+    if (!mhba_team) {
+		xccl_mhba_error("failed to allocate mem");
+		goto fail_return;
+	}
     xccl_sbgp_t            *node, *net;
     xccl_status_t           status;
-    struct ibv_qp_init_attr qp_init_attr;
     struct ibv_port_attr    port_attr;
     size_t                  storage_size, local_data_size;
     uint32_t               *local_data, *global_data;
@@ -172,6 +175,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     int                     i, j, net_size, node_size, asr_cq_size;
     mhba_team->node.asr_rank            = 0; //todo check in future if always 0
     mhba_team->transpose                = ctx->cfg.transpose;
+    mhba_team->num_dci_qps              = ctx->cfg.num_dci_qps;
     mhba_team->context                  = ctx;
     mhba_team->size                     = params->oob.size;
     mhba_team->sequence_number          = 0;
@@ -183,23 +187,29 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
     XCCL_TEAM_SUPER_INIT(mhba_team->super, context, params, base_team);
 
+    mhba_team->net.dcis = malloc(sizeof(struct dci)*mhba_team->num_dci_qps);
+    if (!mhba_team->net.dcis) {
+		xccl_mhba_error("failed to allocate mem");
+		goto fail;
+	}
+
     memset(mhba_team->op_busy, 0, MAX_OUTSTANDING_OPS * sizeof(int));
 
     if(XCCL_OK != create_rcache(mhba_team)){
-        goto fail;
+        goto dci_malloc_fail;
     }
 
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
     if (node->group_size > MAX_STRIDED_ENTRIES) {
         xccl_mhba_error("PPN too large");
-        goto fail;
+        goto dci_malloc_fail;
     } // todo temp - phase 1
     node_size = node->group_size;
     net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
 
     if (net->status == XCCL_SBGP_NOT_EXISTS) {
         xccl_mhba_error("Problem with net sbgp");
-        goto fail;
+        goto dci_malloc_fail;
     }
 
     mhba_team->node.sbgp = node;
@@ -221,7 +231,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         if (bcast_data.shmid == -1) {
             xccl_mhba_error("failed to allocate sysv shm segment for %d bytes",
                             storage_size);
-            goto fail;
+            goto dci_malloc_fail;
         }
         mhba_team->node.storage = shmat(bcast_data.shmid, NULL, 0);
         for (i = 0; i < MAX_OUTSTANDING_OPS; i++) {
@@ -243,7 +253,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     status   = xccl_mhba_share_ctx_pd(mhba_team, bcast_data.sock_path);
     if (status != XCCL_OK) {
         xccl_mhba_error("Failed to create shared ctx & pd");
-        goto fail;
+        goto dci_malloc_fail;
     }
 
     if (bcast_data.shmid == -1) {
@@ -264,7 +274,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     }
     if (mhba_team->node.storage == (void *)(-1)) {
         xccl_mhba_error("failed to shmat seg %d", bcast_data.shmid);
-        goto fail_after_shmat;
+        goto fail_after_share_pd;
     }
     for (i = 0; i < MAX_OUTSTANDING_OPS; i++) {
         xccl_mhba_op_t *op = &mhba_team->node.ops[i];
@@ -317,6 +327,10 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                 ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->transpose_buf,
                            ctx->cfg.transpose_buf_size,
                            IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE);
+            if (!mhba_team->transpose_buf_mr) {
+                xccl_mhba_error("failed to register transpose buff, errno %d", errno);
+                goto fail_after_transpose_maloc;
+            }
         }
         build_rank_map(mhba_team);
         status = xccl_mhba_init_umr(ctx, &mhba_team->node);
@@ -332,48 +346,9 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             goto fail_after_transpose_reg;
         }
 
-        memset(&qp_init_attr, 0, sizeof(qp_init_attr));
-        //todo change in case of non-homogenous ppn
-        qp_init_attr.send_cq = mhba_team->net.cq;
-        qp_init_attr.recv_cq = mhba_team->net.cq;
-        qp_init_attr.cap.max_send_wr =
-            (SQUARED(node_size / 2) + 1) * MAX_OUTSTANDING_OPS; // TODO switch back to fixed tx/rx
-        qp_init_attr.cap.max_recv_wr =
-            (SQUARED(node_size / 2) + 1) * MAX_OUTSTANDING_OPS;
-        qp_init_attr.cap.max_send_sge    = 1;
-        qp_init_attr.cap.max_recv_sge    = 1;
-        qp_init_attr.cap.max_inline_data = 0;
-        qp_init_attr.qp_type             = IBV_QPT_RC;
+        mhba_team->is_dc =  (ctx->cfg.rc_dc == 2) ? ((net_size > RC_DC_LIMIT) ? 1 : 0) : ctx->cfg.rc_dc;
 
-        mhba_team->net.qps = malloc(sizeof(struct ibv_qp *) * net_size);
-        if (!mhba_team->net.qps) {
-            xccl_mhba_error("failed to allocate asr qps array");
-            goto fail_after_cq;
-        }
-        // for each ASR - qp num, in addition to port lid, ctrl segment rkey and address, recieve mkey rkey
-        local_data_size = (net_size * sizeof(uint32_t)) + sizeof(uint32_t) +
-                          2 * sizeof(uint32_t) + sizeof(void *);
-        local_data = malloc(local_data_size);
-        if (!local_data) {
-            xccl_mhba_error("failed to allocate local data");
-            goto local_data_fail;
-        }
-        global_data = malloc(local_data_size * net_size);
-        if (!global_data) {
-            xccl_mhba_error("failed to allocate global data");
-            goto global_data_fail;
-        }
-
-        for (i = 0; i < net_size; i++) {
-            mhba_team->net.qps[i] =
-                ibv_create_qp(mhba_team->node.shared_pd, &qp_init_attr);
-            if (!mhba_team->net.qps[i]) {
-                xccl_mhba_error("failed to create qp for dest %d, errno %d", i,
-                                errno);
-                goto ctrl_fail;
-            }
-            local_data[i] = mhba_team->net.qps[i]->qp_num;
-        }
+        ibv_query_port(ctx->ib_ctx, ctx->ib_port, &port_attr);
 
         mhba_team->net.ctrl_mr =
             ibv_reg_mr(mhba_team->node.shared_pd, mhba_team->node.storage,
@@ -382,16 +357,10 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
                        IBV_ACCESS_REMOTE_ATOMIC | IBV_ACCESS_LOCAL_WRITE);
         if (!mhba_team->net.ctrl_mr) {
             xccl_mhba_error("failed to register control data, errno %d", errno);
-            goto ctrl_fail;
+            goto fail_after_cq;
         }
-        ibv_query_port(ctx->ib_ctx, ctx->ib_port, &port_attr);
-        local_data[net_size]     = port_attr.lid;
-        local_data[net_size + 1] = mhba_team->net.ctrl_mr->rkey;
-        *((uint64_t *)&local_data[net_size + 2]) =
-            (uint64_t)(uintptr_t)mhba_team->net.ctrl_mr->addr;
-
         mhba_team->net.remote_ctrl =
-            calloc(sizeof(*mhba_team->net.remote_ctrl), net_size);
+                calloc(sizeof(*mhba_team->net.remote_ctrl), net_size);
         if (!mhba_team->net.remote_ctrl) {
             xccl_mhba_error("failed to allocate remote_ctrl");
             goto remote_ctrl_fail;
@@ -400,30 +369,84 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         status = xccl_mhba_init_mkeys(mhba_team);
         if (status != XCCL_OK) {
             xccl_mhba_error("Failed to init mkeys");
-            goto remote_ctrl_fail;
+            goto malloc_fail;
         }
 
-        local_data[net_size + 4] = mhba_team->node.team_recv_mkey->rkey;
+        // for each ASR - qp num, in addition to port lid, ctrl segment rkey and address, recieve mkey rkey
+        local_data_size = ((mhba_team->is_dc ? 1 : net_size) * sizeof(uint32_t)) + sizeof(uint32_t) +
+                          2 * sizeof(uint32_t) + sizeof(void *);
+        local_data = malloc(local_data_size);
+        if (!local_data) {
+            xccl_mhba_error("failed to allocate local data");
+            goto mkeys_fail;
+        }
+        global_data = malloc(local_data_size * net_size);
+        if (!global_data) {
+            xccl_mhba_error("failed to allocate global data");
+            goto global_data_fail;
+        }
+
+        if (mhba_team->is_dc){
+            if (XCCL_OK != xccl_mhba_init_dc_qps_and_connect(mhba_team,local_data,ctx->ib_port)){
+                xccl_mhba_error("Failed to init DC QPs");
+                goto ctrl_fail;
+            }
+        } else {
+            if(XCCL_OK != xccl_mhba_create_rc_qps(mhba_team,local_data)){
+                xccl_mhba_error("Failed to init RC QPs");
+                goto ctrl_fail;
+            }
+        }
+
+        local_data[(mhba_team->is_dc ? 1 : net_size)]     = port_attr.lid;
+        local_data[(mhba_team->is_dc ? 1 : net_size) + 1] = mhba_team->net.ctrl_mr->rkey;
+        *((uint64_t *)&local_data[(mhba_team->is_dc ? 1 : net_size) + 2]) =
+            (uint64_t)(uintptr_t)mhba_team->net.ctrl_mr->addr;
+        local_data[(mhba_team->is_dc ? 1 : net_size) + 4] = mhba_team->node.team_recv_mkey->rkey;
 
         xccl_sbgp_oob_allgather(local_data, global_data, local_data_size, net,
                                 params->oob);
         mhba_team->net.rkeys = (uint32_t *)malloc(sizeof(uint32_t) * net_size);
+        if(!mhba_team->net.rkeys){
+            xccl_mhba_error("Failed malloc");
+            goto qp_fail;
+        }
+        if(mhba_team->is_dc) {
+            mhba_team->net.remote_dctns = (uint32_t *) malloc(sizeof(uint32_t) * net_size);
+            if(!mhba_team->net.remote_dctns){
+                xccl_mhba_error("Failed malloc");
+                goto dctn_malloc_fail;
+            }
+            mhba_team->net.ahs = (struct ibv_ah **) malloc(sizeof(struct ibv_ah *) * net_size);
+            if(!mhba_team->net.ahs){
+                xccl_mhba_error("Failed malloc");
+                goto ah_malloc_fail;
+            }
+        }
         for (i = 0; i < net_size; i++) {
             uint32_t *remote_data =
                 (uint32_t *)((uintptr_t)global_data + i * local_data_size);
-            xccl_mhba_qp_connect(mhba_team->net.qps[i],
-                                 remote_data[net->group_rank],
-                                 remote_data[net_size], ctx->ib_port);
-            mhba_team->net.remote_ctrl[i].rkey = remote_data[net_size + 1];
+            if (mhba_team->is_dc){
+                mhba_team->net.remote_dctns[i] = remote_data[0];
+                if(xccl_mhba_create_ah(&mhba_team->net.ahs[i],remote_data[1],ctx->ib_port,mhba_team)){
+                    xccl_mhba_error("Failed to create ah");
+                    goto ucx_ctx_fail;
+                }
+            } else {
+                xccl_mhba_qp_connect(mhba_team->net.rc_qps[i],
+                                     remote_data[net->group_rank],
+                                     remote_data[net_size], ctx->ib_port);
+            }
+            mhba_team->net.remote_ctrl[i].rkey = remote_data[(mhba_team->is_dc ? 1 : net_size) + 1];
             mhba_team->net.remote_ctrl[i].addr =
-                (void *)(uintptr_t)(*((uint64_t *)&remote_data[net_size + 2]));
-            mhba_team->net.rkeys[i] = remote_data[net_size + 4];
+                (void *)(uintptr_t)(*((uint64_t *)&remote_data[(mhba_team->is_dc ? 1 : net_size) + 2]));
+            mhba_team->net.rkeys[i] = remote_data[(mhba_team->is_dc ? 1 : net_size) + 4];
         }
 
         xccl_tl_context_t *ucx_ctx = xccl_get_tl_context(context->ctx, XCCL_TL_UCX);
         if (!ucx_ctx) {
             xccl_mhba_error("failed to find available ucx tl context");
-            goto remote_ctrl_fail;
+            goto destroy_ah;
         }
 
         xccl_oob_collectives_t oob = {
@@ -446,7 +469,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             ucx_ctx->lib->team_create_post(ucx_ctx, &team_params, base_team,
                                            &mhba_team->net.ucx_team)) {
             xccl_mhba_error("failed to start ucx team creation");
-            goto remote_ctrl_fail;
+            goto destroy_ah;
         }
         while (XCCL_OK !=
                ucx_ctx->lib->team_create_test(mhba_team->net.ucx_team)) {
@@ -462,7 +485,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
         if (!mhba_team->dummy_bf_mr) {
             xccl_mhba_error("Failed to register dummy buff (errno=%d)", errno);
-            goto remote_ctrl_fail;
+            goto destroy_ah;
         }
 
         mhba_team->work_completion =
@@ -478,23 +501,53 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
 
 wc_alloc_fail:
     ibv_dereg_mr(mhba_team->dummy_bf_mr);
-remote_ctrl_fail:
-    ibv_dereg_mr(mhba_team->net.ctrl_mr);
+destroy_ah:
+    if(mhba_team->is_dc) {
+        for (i = i - 1; i >= 0; i--) {
+            ibv_destroy_ah(mhba_team->net.ahs[i]);
+        }
+    }
+ucx_ctx_fail:
+    if(mhba_team->is_dc){
+        free(mhba_team->net.ahs);
+    }
+ah_malloc_fail:
+    if(mhba_team->is_dc){
+        free(mhba_team->net.remote_dctns);
+    }
+dctn_malloc_fail:
+    free(mhba_team->net.rkeys);
+qp_fail:
+    if(mhba_team->is_dc){
+        for(i =0;i<mhba_team->num_dci_qps;i++){
+            ibv_destroy_qp(mhba_team->net.dcis[i].dci_qp);
+        }
+        ibv_destroy_qp(mhba_team->net.dct_qp);
+    } else {
+        for (i = 0; i < mhba_team->net.net_size; i++) {
+            ibv_destroy_qp(mhba_team->net.rc_qps[i]);
+        }
+    }
 ctrl_fail:
     free(global_data);
 global_data_fail:
     free(local_data);
-local_data_fail:
-    free(mhba_team->net.qps);
+mkeys_fail:
+    xccl_mhba_destroy_mkeys(mhba_team, 0);
+malloc_fail:
+    free(mhba_team->net.remote_ctrl);
+remote_ctrl_fail:
+    ibv_dereg_mr(mhba_team->net.ctrl_mr);
 fail_after_cq:
     if (ibv_destroy_cq(mhba_team->net.cq)) {
         xccl_mhba_error("net cq destroy failed (errno=%d)", errno);
     }
 fail_after_transpose_reg:
     ibv_dereg_mr(mhba_team->transpose_buf_mr);
+fail_after_transpose_maloc:
     free(mhba_team->transpose_buf);
 fail_ptr_malloc:
-    for (i; i >= 0; i--) {
+    for (i=i-1; i >= 0; i--) {
         xccl_mhba_op_t *op = &mhba_team->node.ops[i];
         if (op->recv_umr_data) {
             free(op->recv_umr_data);
@@ -519,8 +572,11 @@ fail_after_share_pd:
     if (status != XCCL_OK) {
         xccl_mhba_error("failed removing shared ctx & pd");
     }
+dci_malloc_fail:
+	free(mhba_team->net.dcis);
 fail:
     free(mhba_team);
+fail_return:
     return XCCL_ERR_NO_MESSAGE;
 }
 
@@ -558,10 +614,26 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
         }
         ibv_dereg_mr(mhba_team->net.ctrl_mr);
         free(mhba_team->net.remote_ctrl);
-        for (i = 0; i < mhba_team->net.sbgp->group_size; i++) {
-            ibv_destroy_qp(mhba_team->net.qps[i]);
+        if(mhba_team->is_dc){
+            for(i =0;i<mhba_team->num_dci_qps;i++){
+                ibv_destroy_qp(mhba_team->net.dcis[i].dci_qp);
+            }
+            ibv_destroy_qp(mhba_team->net.dct_qp);
+            ibv_destroy_srq(mhba_team->net.srq);
+            for (i = 0; i < mhba_team->net.net_size; i++) {
+                ibv_destroy_ah(mhba_team->net.ahs[i]);
+            }
+        } else {
+            for (i = 0; i < mhba_team->net.net_size; i++) {
+                ibv_destroy_qp(mhba_team->net.rc_qps[i]);
+            }
         }
-        free(mhba_team->net.qps);
+        if(mhba_team->is_dc){
+            free(mhba_team->net.remote_dctns);
+            free(mhba_team->net.ahs);
+        } else {
+            free(mhba_team->net.rc_qps);
+        }
         if (ibv_destroy_cq(mhba_team->net.cq)) {
             xccl_mhba_error("net cq destroy failed (errno=%d)", errno);
         }
@@ -581,6 +653,7 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
             free(mhba_team->transpose_buf);
         }
     }
-    free(team);
+    free(mhba_team->net.dcis);
+    free(mhba_team);
     return status;
 }
