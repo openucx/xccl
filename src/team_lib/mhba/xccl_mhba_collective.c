@@ -881,6 +881,26 @@ xccl_status_t xccl_mhba_alltoall_init(xccl_coll_op_args_t  *coll_args,
     request->block_size        = block_size;
     request->transpose_buf_mr  = NULL;
     request->tmp_transpose_buf = NULL;
+
+    // TODO remove for connectX-7 - this is mkey_entry->stride (count+skip) limitation - only 16 bits
+    if(request->num_of_blocks_columns) { // for other case we will never reach limit - we use bytes skip only for the "leftovers" mode, which means when
+	// num_of_blocks_columns != 0
+    	size_t limit = (1ULL << 16); // TODO We need to query this from device (or device type) and not user hardcoded values
+		size_t bytes_count, bytes_count_last, bytes_skip, bytes_skip_last;
+		int     ppn     = team->node.sbgp->group_size;
+		int     bs      = request->block_size;
+		size_t  msg_len = request->args.buffer_info.len;
+
+		bytes_count_last = (ppn % bs) * msg_len;
+		bytes_skip_last  = (ppn - (ppn % bs)) * msg_len;
+		bytes_count = bs * msg_len;
+		bytes_skip  = (ppn - bs) * msg_len;
+		if ((bytes_count + bytes_skip >= limit) || (bytes_count_last + bytes_skip_last >= limit)) {
+			xccl_mhba_error("Currently can't support this operation in connectX-6");
+			return XCCL_ERR_NO_MESSAGE;
+		}
+    }
+
     request->tasks =
         (xccl_mhba_task_t *)malloc(sizeof(xccl_mhba_task_t) * n_tasks);
     if (!request->tasks){
