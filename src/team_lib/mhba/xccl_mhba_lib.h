@@ -12,6 +12,7 @@
 #include <infiniband/verbs.h>
 #include <infiniband/mlx5dv.h>
 #include <ucs/memory/rcache.h>
+#include <ucs/type/spinlock.h>
 
 #define MAX_OUTSTANDING_OPS 1 //todo change - according to limitations (52 top)
 #define SEQ_INDEX(_seq_num) ((_seq_num) % MAX_OUTSTANDING_OPS)
@@ -73,7 +74,6 @@ extern xccl_team_lib_mhba_t xccl_team_lib_mhba;
 #define MHBA_NUM_OF_BLOCKS_SIZE_BINS 8
 #define MAX_TRANSPOSE_SIZE 8192 // HW transpose unit is limited to matrix size
 #define MAX_MSG_SIZE 128 // HW transpose unit is limited to element size
-#define MAX_STRIDED_ENTRIES 55 // from limit of NIC memory - Sergey Gorenko's email
 #define MAX_BLOCK_SIZE 64 // from limit of Transpose unit capabilities
 #define RC_DC_LIMIT 128
 #define DC_KEY 1
@@ -107,20 +107,47 @@ typedef struct xccl_mhba_op {
     struct mlx5dv_mkey **recv_mkeys;
 } xccl_mhba_op_t;
 
+struct internal_qp {
+    int                       nreq;
+    uint32_t                  cur_size;
+    struct mlx5_wqe_ctrl_seg *cur_ctrl;
+    uint8_t                   fm_cache;
+    void                     *sq_start;
+    struct mlx5dv_qp          qp;
+    void                     *sq_qend;
+    unsigned                  sq_cur_post;
+    uint32_t                  qp_num;
+    ucs_spinlock_t            qp_spinlock;
+    unsigned                  offset;
+};
+
+struct xccl_mhba_mlx5_qp {
+    struct ibv_qp *qp;
+    struct ibv_qp_ex *qpx;
+    struct mlx5dv_qp_ex *mlx5dv_qp_ex;
+};
+
+struct xccl_mhba_qp {
+    struct xccl_mhba_mlx5_qp mlx5_qp;
+    struct internal_qp in_qp;
+};
+
+
 /* This structure holds resources and data related to the "in-node"
    part of the algorithm. */
 typedef struct xccl_mhba_node {
-    int                  asr_rank;
-    xccl_sbgp_t         *sbgp;
-    void                *storage;
-    xccl_mhba_op_t       ops[MAX_OUTSTANDING_OPS];
-    struct mlx5dv_mkey  *team_recv_mkey;
-    struct ibv_context  *shared_ctx;
-    struct ibv_pd       *shared_pd;
-    struct ibv_cq       *umr_cq;
-    struct ibv_qp       *umr_qp;
-    struct ibv_qp_ex    *umr_qpx;
-    struct mlx5dv_qp_ex *umr_mlx5dv_qp_ex;
+    int                      asr_rank;
+    xccl_sbgp_t             *sbgp;
+    void                    *storage;
+    xccl_mhba_op_t           ops[MAX_OUTSTANDING_OPS];
+    struct mlx5dv_mkey      *team_recv_mkey;
+    struct ibv_context      *shared_ctx;
+    struct ibv_pd           *shared_pd;
+    struct ibv_cq           *umr_cq;
+    struct xccl_mhba_mlx5_qp ns_umr_qp;
+    struct xccl_mhba_qp      s_umr_qp;
+    void                    *umr_entries_buf;
+    struct ibv_mr           *umr_entries_mr;
 } xccl_mhba_node_t;
 
 typedef struct xccl_mhba_reg {

@@ -16,6 +16,7 @@ sources =                   \
 	xccl_mhba_ib.c          \
 	xccl_mhba_team.c        \
 	xccl_mhba_ib.h          \
+	stdatomic.h \
 	xccl_mhba_socket_comm.c \
 	xccl_mhba_socket_comm.h
 

@@ -409,13 +409,13 @@ xccl_mhba_send_blocks_start_with_transpose(xccl_coll_task_t *task)
                                        col_msgsize * j + block_msgsize * k);
                 remote_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * rank +
                                           block_msgsize * j + col_msgsize * k);
-                prepost_dummy_recv(team->node.umr_qp, 1);
+                prepost_dummy_recv(team->node.ns_umr_qp.qp, 1);
                 // SW Transpose
                 status = send_block_data_rc(
-                    team->node.umr_qp, src_addr, block_msgsize,
-                    team->node.ops[request->seq_index].send_mkeys[0]->lkey,
-                    (uintptr_t)request->transpose_buf_mr->addr,
-                    request->transpose_buf_mr->rkey, IBV_SEND_SIGNALED, 1);
+                        team->node.ns_umr_qp.qp, src_addr, block_msgsize,
+                        team->node.ops[request->seq_index].send_mkeys[0]->lkey,
+                        (uintptr_t)request->transpose_buf_mr->addr,
+                        request->transpose_buf_mr->rkey, IBV_SEND_SIGNALED, 1);
                 if (status != XCCL_OK) {
                     xccl_mhba_error(
                         "Failed sending block to transpose buffer[%d,%d,%d]", i, j, k);
@@ -543,10 +543,11 @@ xccl_mhba_send_blocks_leftovers_start_with_transpose(xccl_coll_task_t *task)
                     current_block_msgsize = (j != (request->num_of_blocks_columns -1)) ? block_msgsize_leftovers : corner_msgsize;
                 }
 
-                prepost_dummy_recv(team->node.umr_qp, 1);
+                prepost_dummy_recv(team->node.ns_umr_qp.qp, 1);
                 // SW Transpose
                 status = send_block_data_rc(
-                        team->node.umr_qp, src_addr, current_block_msgsize,
+                        team->node.ns_umr_qp.qp, src_addr,
+                        current_block_msgsize,
                         team->node.ops[request->seq_index].send_mkeys[j]->lkey,
                         (uintptr_t)request->transpose_buf_mr->addr,
                         request->transpose_buf_mr->rkey, IBV_SEND_SIGNALED, 1);

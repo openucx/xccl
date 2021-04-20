@@ -69,4 +69,9 @@ static inline int xccl_round_up(int dividend, int divisor) {
     return (dividend + divisor - 1) / divisor;
 }
 
+static inline unsigned long align(unsigned long val, unsigned long align)
+{
+    return (val + align - 1) & ~(align - 1);
+}
+
 #endif

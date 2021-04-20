@@ -171,6 +171,7 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     struct ibv_port_attr    port_attr;
     size_t                  storage_size, local_data_size;
     uint32_t               *local_data, *global_data;
+    unsigned long           umr_buf_size;
     bcast_data_t            bcast_data;
     int                     i, j, net_size, node_size, asr_cq_size;
     mhba_team->node.asr_rank            = 0; //todo check in future if always 0
@@ -200,10 +201,6 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
     }
 
     node = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE);
-    if (node->group_size > MAX_STRIDED_ENTRIES) {
-        xccl_mhba_error("PPN too large");
-        goto dci_malloc_fail;
-    } // todo temp - phase 1
     node_size = node->group_size;
     net = xccl_team_topo_get_sbgp(base_team->topo, XCCL_SBGP_NODE_LEADERS);
 
@@ -495,10 +492,31 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
             goto wc_alloc_fail;
         }
         memset(mhba_team->cq_completions, 0, sizeof(mhba_team->cq_completions));
+        /* allocate buffer for noninline UMR registration, has to be 2KB aligned */
+        umr_buf_size = align(sizeof(struct mlx5_wqe_umr_repeat_ent_seg) *
+                                     (mhba_team->node.sbgp->group_size + 1),
+                             64);
+        if (posix_memalign(&mhba_team->node.umr_entries_buf, 2048,
+                           umr_buf_size) != 0) {
+            xccl_mhba_error(
+                    "failed to allocate %zu bytes for noninline UMR buffer: %m",
+                    sizeof(struct mlx5_wqe_umr_pointer_seg) *
+                            (mhba_team->node.sbgp->group_size + 1));
+            goto wc_alloc_fail;
+        }
+        mhba_team->node.umr_entries_mr = ibv_reg_mr(
+                mhba_team->node.shared_pd,
+                (void *)mhba_team->node.umr_entries_buf, umr_buf_size,
+                IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
+        if (!mhba_team->node.umr_entries_mr) {
+            xccl_mhba_error("Failed to register umr buff (errno=%d)", errno);
+            goto umr_reg_failed;
+        }
     }
     *team = &mhba_team->super;
     return XCCL_OK;
-
+umr_reg_failed:
+    free(mhba_team->node.umr_entries_buf);
 wc_alloc_fail:
     ibv_dereg_mr(mhba_team->dummy_bf_mr);
 destroy_ah:
@@ -652,6 +670,8 @@ xccl_status_t xccl_mhba_team_destroy(xccl_tl_team_t *team)
             ibv_dereg_mr(mhba_team->transpose_buf_mr);
             free(mhba_team->transpose_buf);
         }
+        ibv_dereg_mr(mhba_team->node.umr_entries_mr);
+        free(mhba_team->node.umr_entries_buf);
     }
     free(mhba_team->net.dcis);
     free(mhba_team);
