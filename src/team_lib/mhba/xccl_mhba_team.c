@@ -499,9 +499,8 @@ xccl_status_t xccl_mhba_team_create_post(xccl_tl_context_t  *context,
         if (posix_memalign(&mhba_team->node.umr_entries_buf, 2048,
                            umr_buf_size) != 0) {
             xccl_mhba_error(
-                    "failed to allocate %zu bytes for noninline UMR buffer: %m",
-                    sizeof(struct mlx5_wqe_umr_pointer_seg) *
-                            (mhba_team->node.sbgp->group_size + 1));
+                    "failed to allocate %zu bytes for noninline UMR buffer",
+					umr_buf_size);
             goto wc_alloc_fail;
         }
         mhba_team->node.umr_entries_mr = ibv_reg_mr(

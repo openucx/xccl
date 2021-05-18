@@ -107,7 +107,7 @@ typedef struct xccl_mhba_op {
     struct mlx5dv_mkey **recv_mkeys;
 } xccl_mhba_op_t;
 
-struct internal_qp {
+struct xccl_mhba_internal_qp {
     int                       nreq;
     uint32_t                  cur_size;
     struct mlx5_wqe_ctrl_seg *cur_ctrl;
@@ -129,7 +129,7 @@ struct xccl_mhba_mlx5_qp {
 
 struct xccl_mhba_qp {
     struct xccl_mhba_mlx5_qp mlx5_qp;
-    struct internal_qp in_qp;
+    struct xccl_mhba_internal_qp in_qp;
 };
 
 
@@ -144,8 +144,8 @@ typedef struct xccl_mhba_node {
     struct ibv_context      *shared_ctx;
     struct ibv_pd           *shared_pd;
     struct ibv_cq           *umr_cq;
-    struct xccl_mhba_mlx5_qp ns_umr_qp;
-    struct xccl_mhba_qp      s_umr_qp;
+    struct xccl_mhba_mlx5_qp ns_umr_qp; // Non-strided - used for team UMR hirerchy
+    struct xccl_mhba_qp      s_umr_qp; // Strided - used for operation send/recv mkey hirerchy
     void                    *umr_entries_buf;
     struct ibv_mr           *umr_entries_mr;
 } xccl_mhba_node_t;

@@ -16,6 +16,9 @@ static __attribute__((constructor)) void lock_constructor(void)
 static inline void mmio_wc_spinlock(pthread_spinlock_t *lock)
 {
     pthread_spin_lock(lock);
+
+    // TODO remove code once OS is final in APU
+
     //#if !defined(__i386__) && !defined(__x86_64__)
     //	/* For x86 the serialization within the spin lock is enough to
     //	 * strongly order WC and other memory types. */
@@ -26,8 +29,8 @@ static inline void mmio_wc_spinlock(pthread_spinlock_t *lock)
 static inline void mmio_wc_spinunlock(pthread_spinlock_t *lock)
 {
     /* It is possible that on x86 the atomic in the lock is strong enough
-	 * to force-flush the WC buffers quickly, and this SFENCE can be
-	 * omitted too. */
+     * to force-flush the WC buffers quickly, and this SFENCE can be
+     * omitted too. */
     mmio_flush_writes();
     pthread_spin_unlock(lock);
 }
@@ -40,19 +43,17 @@ static void pthread_mmio_write64_be(void *addr, __be64 val)
     /* The WC spinlock, by definition, provides global ordering for all UC
 	   and WC stores within the critical region. */
     mmio_wc_spinlock(&mmio_spinlock);
-
     mmio_write32_be(addr, first_dword);
-    mmio_write32_be(addr + 4, second_dword);
-
+    mmio_write32_be((void*)(ptrdiff_t) addr + 4, second_dword);
     mmio_wc_spinunlock(&mmio_spinlock);
 }
 
-#define HAVE_FUNC_ATTRIBUTE_IFUNC 1
+#define HAVE_FUNC_ATTRIBUTE_IFUNC 1 // TODO remove code once OS is final in APU
 
 #if HAVE_FUNC_ATTRIBUTE_IFUNC
 void mmio_write64_be(void *addr, __be64 val)
         __attribute__((ifunc("resolve_mmio_write64_be")));
-static write64_fn_t resolve_mmio_write64_be(void);
+static write64_fn_t resolve_mmio_write64_be(void); // TODO replace the indirect call to function
 #else
 __asm__(".type mmio_write64_be, %gnu_indirect_function");
 write64_fn_t resolve_mmio_write64_be(void) __asm__("mmio_write64_be");
@@ -64,9 +65,9 @@ write64_fn_t resolve_mmio_write64_be(void)
 }
 
 xccl_status_t
-xccl_mhba_ibv_qp_to_mlx5dv_qp(struct ibv_qp *umr_qp, struct internal_qp *mqp)
+xccl_mhba_ibv_qp_to_mlx5dv_qp(struct ibv_qp *umr_qp, struct xccl_mhba_internal_qp *mqp)
 {
-    struct mlx5dv_obj dv_obj = {};
+    struct mlx5dv_obj dv_obj;
     memset((void *)&dv_obj, 0, sizeof(struct mlx5dv_obj));
     dv_obj.qp.in  = umr_qp;
     dv_obj.qp.out = &mqp->qp;
@@ -84,21 +85,21 @@ xccl_mhba_ibv_qp_to_mlx5dv_qp(struct ibv_qp *umr_qp, struct internal_qp *mqp)
     return XCCL_OK;
 }
 
-xccl_status_t xccl_mhba_destroy_mlxdv_qp(struct internal_qp *mqp)
+xccl_status_t xccl_mhba_destroy_mlxdv_qp(struct xccl_mhba_internal_qp *mqp)
 {
     ucs_spinlock_destroy(&mqp->qp_spinlock);
     return XCCL_OK;
 }
 
-static inline void post_send_db(struct internal_qp *mqp, int nreq, void *ctrl)
+static inline void post_send_db(struct xccl_mhba_internal_qp *mqp, int nreq, void *ctrl)
 {
     if (ucs_unlikely(!nreq))
         return;
 
     /*
-	 * Make sure that descriptors are written before
-	 * updating doorbell record and ringing the doorbell
-	 */
+     * Make sure that descriptors are written before
+     * updating doorbell record and ringing the doorbell
+     */
     udma_to_device_barrier();
     mqp->qp.dbrec[MLX5_SND_DBR] = htobe32(mqp->sq_cur_post & 0xffff);
 
@@ -123,20 +124,20 @@ static inline void post_send_db(struct internal_qp *mqp, int nreq, void *ctrl)
     mqp->offset ^= mqp->qp.bf.size;
 }
 
-void xccl_mhba_wr_start(struct internal_qp *mqp)
+void xccl_mhba_wr_start(struct xccl_mhba_internal_qp *mqp)
 {
     ucs_spin_lock(&mqp->qp_spinlock);
     mqp->nreq = 0;
 }
 
-void xccl_mhba_wr_complete(struct internal_qp *mqp)
+void xccl_mhba_wr_complete(struct xccl_mhba_internal_qp *mqp)
 {
     post_send_db(mqp, mqp->nreq, mqp->cur_ctrl);
     ucs_spin_unlock(&mqp->qp_spinlock);
 }
 
 static inline void
-common_wqe_init(struct ibv_qp_ex *ibqp, struct internal_qp *mqp)
+common_wqe_init(struct ibv_qp_ex *ibqp, struct xccl_mhba_internal_qp *mqp)
 {
     struct mlx5_wqe_ctrl_seg *ctrl;
     uint8_t fence;
@@ -145,7 +146,7 @@ common_wqe_init(struct ibv_qp_ex *ibqp, struct internal_qp *mqp)
     idx = mqp->sq_cur_post & (mqp->qp.sq.wqe_cnt - 1);
 
     ctrl = mqp->sq_start + (idx << MLX5_SEND_WQE_SHIFT);
-    *(uint32_t *)((void *)ctrl + 8) = 0;
+    *(uint32_t *)((void *)(ptrdiff_t)ctrl + 8) = 0;
 
     fence         = (ibqp->wr_flags & IBV_SEND_FENCE) ? MLX5_WQE_CTRL_FENCE :
                                                         mqp->fm_cache;
@@ -163,7 +164,7 @@ common_wqe_init(struct ibv_qp_ex *ibqp, struct internal_qp *mqp)
     mqp->cur_ctrl = ctrl;
 }
 
-static inline void common_wqe_finilize(struct internal_qp *mqp)
+static inline void common_wqe_finilize(struct xccl_mhba_internal_qp *mqp)
 {
     mqp->cur_ctrl->qpn_ds = htobe32(mqp->cur_size | (mqp->qp_num << 8));
 
@@ -175,7 +176,7 @@ static inline void common_wqe_finilize(struct internal_qp *mqp)
  * While the repeat entry contains details on the list of the block_entries.
  */
 static void
-umr_strided_seg_create_noninline(struct internal_qp *mqp, uint32_t repeat_count,
+umr_strided_seg_create_noninline(struct xccl_mhba_internal_qp *mqp, uint32_t repeat_count,
                                  uint16_t num_interleaved,
                                  struct mlx5dv_mr_interleaved *data, void *seg,
                                  void *qend, uint32_t ptr_mkey,
@@ -243,7 +244,7 @@ static inline uint8_t get_umr_mr_flags(uint32_t acc)
 
 /* External API to expose the non-inline UMR registration */
 xccl_status_t xccl_mhba_send_wr_mr_noninline(
-        struct internal_qp *mqp, struct mlx5dv_mkey *dv_mkey,
+        struct xccl_mhba_internal_qp *mqp, struct mlx5dv_mkey *dv_mkey,
         uint32_t access_flags, uint32_t repeat_count, uint16_t num_entries,
         struct mlx5dv_mr_interleaved *data, uint32_t ptr_mkey,
         void *ptr_address, struct ibv_qp_ex *ibqp)
@@ -266,7 +267,7 @@ xccl_status_t xccl_mhba_send_wr_mr_noninline(
     }
 
     common_wqe_init(ibqp, mqp);
-    mqp->cur_size      = sizeof(struct mlx5_wqe_ctrl_seg) / 16;
+    mqp->cur_size      = sizeof(struct mlx5_wqe_ctrl_seg) / DS_SIZE;
     mqp->cur_ctrl->imm = htobe32(dv_mkey->lkey);
     seg = umr_ctrl_seg = (void *)mqp->cur_ctrl +
                          sizeof(struct mlx5_wqe_ctrl_seg);
@@ -281,7 +282,7 @@ xccl_status_t xccl_mhba_send_wr_mr_noninline(
             MLX5_WQE_UMR_CTRL_MKEY_MASK_FREE);
 
     seg += sizeof(struct mlx5_wqe_umr_ctrl_seg);
-    mqp->cur_size += sizeof(struct mlx5_wqe_umr_ctrl_seg) / 16;
+    mqp->cur_size += sizeof(struct mlx5_wqe_umr_ctrl_seg) / DS_SIZE;
 
     if (ucs_unlikely(seg == qend))
         seg = mqp->sq_start;
@@ -292,7 +293,7 @@ xccl_status_t xccl_mhba_send_wr_mr_noninline(
     mk_seg->qpn_mkey     = htobe32(0xffffff00 | (dv_mkey->lkey & 0xff));
 
     seg += sizeof(struct mlx5_wqe_mkey_context_seg);
-    mqp->cur_size += (sizeof(struct mlx5_wqe_mkey_context_seg) / 16);
+    mqp->cur_size += (sizeof(struct mlx5_wqe_mkey_context_seg) / DS_SIZE);
 
     if (ucs_unlikely(seg == qend))
         seg = mqp->sq_start;
@@ -302,8 +303,8 @@ xccl_status_t xccl_mhba_send_wr_mr_noninline(
                                      &xlat_size, &reglen);
 
     mk_seg->len                 = htobe64(reglen);
-    umr_ctrl_seg->klm_octowords = htobe16(align(xlat_size, 64) / 16);
-    mqp->cur_size += size / 16;
+    umr_ctrl_seg->klm_octowords = htobe16(align(xlat_size, 64) / DS_SIZE);
+    mqp->cur_size += size / DS_SIZE;
 
     mqp->fm_cache = MLX5_WQE_CTRL_INITIATOR_SMALL_FENCE;
     mqp->nreq++;

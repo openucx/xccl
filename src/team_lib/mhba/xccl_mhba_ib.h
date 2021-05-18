@@ -9,6 +9,7 @@
 #include <stdatomic.h>
 
 #define SQ_WQE_SHIFT 6
+#define DS_SIZE 16 // size of a single Data Segment in the WQE
 #define mmio_flush_writes()                                                    \
     asm volatile("sfence" ::: "memory") // TODO only for __x86_64__
 #define udma_to_device_barrier()                                               \
@@ -40,18 +41,18 @@ struct mlx5_wqe_umr_pointer_seg {
     __be64 address;
 };
 
-struct internal_qp;
+struct xccl_mhba_internal_qp;
 typedef struct xccl_mhba_team xccl_mhba_team_t;
 
 xccl_status_t
-xccl_mhba_ibv_qp_to_mlx5dv_qp(struct ibv_qp *umr_qp, struct internal_qp *mqp);
-void xccl_mhba_wr_start(struct internal_qp *mqp);
+xccl_mhba_ibv_qp_to_mlx5dv_qp(struct ibv_qp *umr_qp, struct xccl_mhba_internal_qp *mqp);
+void xccl_mhba_wr_start(struct xccl_mhba_internal_qp *mqp);
 xccl_status_t xccl_mhba_send_wr_mr_noninline(
-        struct internal_qp *mqp, struct mlx5dv_mkey *dv_mkey,
+        struct xccl_mhba_internal_qp *mqp, struct mlx5dv_mkey *dv_mkey,
         uint32_t access_flags, uint32_t repeat_count, uint16_t num_entries,
         struct mlx5dv_mr_interleaved *data, uint32_t ptr_mkey,
         void *ptr_address, struct ibv_qp_ex *ibqp);
-void xccl_mhba_wr_complete(struct internal_qp *mqp);
+void xccl_mhba_wr_complete(struct xccl_mhba_internal_qp *mqp);
 int xccl_mhba_get_active_port(struct ibv_context *ctx);
 int xccl_mhba_check_port_active(struct ibv_context *ctx, int port_num);
 xccl_status_t xccl_mhba_create_ibv_ctx(char *ib_devname,
