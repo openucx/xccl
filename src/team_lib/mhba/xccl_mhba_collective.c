@@ -677,7 +677,7 @@ static xccl_status_t xccl_mhba_send_blocks_start(xccl_coll_task_t *task)
         //send all blocks from curr node to some ARR
         for (j = 0; j < (node_size / block_size); j++) {
             for (k = 0; k < (node_size / block_size); k++) {
-                src_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * dest_rank +
+                src_addr = (uintptr_t)(node_msgsize * dest_rank +
                                        col_msgsize * j + block_msgsize * k);
                 remote_addr = (uintptr_t)(op_msgsize * request->seq_index + node_msgsize * rank +
                                           block_msgsize * j + col_msgsize * k);
